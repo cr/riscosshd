@@ -66,7 +66,10 @@ struct wimp_menu_item {
     unsigned flags;
     int submenu;
     unsigned icon_flags;
-    char text[12];
+    union {
+        char text[12];
+        struct { const char *text; const char *valid; int size; } ind;
+    } d;
 };
 
 struct wimp_menu {
@@ -124,15 +127,20 @@ static char key_input[1200];
 static char fetch_host[256], fetch_pass[128];
 static char host_line[560], host_line2[560];   /* base64 split over two lines */
 static char host_label[80];
-static char log_title[40] = "SSHd log";
-static char keys_title[40] = "SSHd keys";
+static char log_title[40] = "SSHd Server Log";
+static char keys_title[40] = "SSHd Authorized Keys";
 
+/* Menu entries are indirected, so they may be longer than 12 characters. */
+static const char menu_log[] = "Log Window";
+static const char menu_keys[] = "Authorized Keys...";
+static const char menu_quit[] = "Quit";
+#define MENU_ITEM_FLAGS (ICON_TEXT | ICON_FILLED | ICON_INDIRECTED | ICON_FG(7) | ICON_BG(0))
 static struct wimp_menu menu = {
-    "SSHd", 7, 2, 7, 0, 220, 44, 0,
+    "SSHd", 7, 2, 7, 0, 360, 44, 0,
     {
-        { 0, -1, ICON_TEXT | ICON_FILLED | ICON_FG(7) | ICON_BG(0), "Log window" },
-        { 2, -1, ICON_TEXT | ICON_FILLED | ICON_FG(7) | ICON_BG(0), "Keys..." },
-        { 0x80, -1, ICON_TEXT | ICON_FILLED | ICON_FG(7) | ICON_BG(0), "Quit" },
+        { 0,    -1, MENU_ITEM_FLAGS, { .ind = { menu_log,  (const char *)-1, sizeof menu_log } } },
+        { 2,    -1, MENU_ITEM_FLAGS, { .ind = { menu_keys, (const char *)-1, sizeof menu_keys } } },
+        { 0x80, -1, MENU_ITEM_FLAGS, { .ind = { menu_quit, (const char *)-1, sizeof menu_quit } } },
     }
 };
 
@@ -379,7 +387,7 @@ void wimp_open_keys_window(void)
     refresh_keys_list();
     {
         const char *pub = hostkey_public_line(), *sp = strchr(pub, ' ');
-        snprintf(host_label, sizeof host_label, "This server's host key (%.*s):", sp ? (int)(sp - pub) : 0, pub);
+        snprintf(host_label, sizeof host_label, "Server host key (%.*s):", sp ? (int)(sp - pub) : 0, pub);
         /* the desktop font needs ~18 units per character; 40 fit comfortably */
         snprintf(host_line, sizeof host_line, "%.40s", sp ? sp + 1 : pub);
         snprintf(host_line2, sizeof host_line2, "%s", (sp && strlen(sp + 1) > 40) ? sp + 41 : "");
@@ -437,7 +445,7 @@ static void keys_add_from_file(const char *path)
     free(data);
     refresh_keys_list();
     if (added == 0 || failed) {
-        snprintf(msg, sizeof msg, "%d key%s added, %d line%s not understood", added,
+        snprintf(msg, sizeof msg, "%d key%s added, %d line%s with invalid format", added,
                  added == 1 ? "" : "s", failed, failed == 1 ? "" : "s");
         wimp_report_error(msg);
     }
@@ -491,7 +499,7 @@ static void keys_fetch(void)
     char msg[300];
     int rc;
     if (fetch_host[0] == '\0') {
-        wimp_report_error("Enter the account to fetch from as user@host");
+        wimp_report_error("Expected format is user@host");
         _swix(Wimp_SetCaretPosition, _INR(0, 5), keys_win, KI_FHOST, 0, 0, -1, 0);
         return;
     }
@@ -529,9 +537,9 @@ static int create_window(struct wimp_window *w)
 }
 
 static struct wimp_window log_wdef, keys_wdef;
-static char prompt_text[] = "Add a public key: type or paste it, or drop a file here, then Add:";
-static char add_text[] = "Add", close_text[] = "Close", fetch_btn_text[] = "Fetch";
-static char fetch_text[] = "Or fetch them from another machine: enter user@host and password:";
+static char prompt_text[] = "Add a public key (type, paste, or drop file, then Add):";
+static char add_text[] = "Add", close_text[] = "Close", fetch_btn_text[] = "Import";
+static char fetch_text[] = "Import from ssh server (user@host, password):";
 
 static void create_windows(void)
 {
