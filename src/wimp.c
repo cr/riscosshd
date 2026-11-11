@@ -77,6 +77,7 @@ struct wimp_menu {
 #define ICON_BG(c)      ((unsigned)(c) << 28)
 
 #define WIN_MOVEABLE    (1u << 1)
+#define WIN_AUTOREDRAW  (1u << 4)   /* icons only: the Wimp redraws it */
 #define WIN_BACK        (1u << 24)
 #define WIN_CLOSE       (1u << 25)
 #define WIN_TITLE       (1u << 26)
@@ -225,12 +226,23 @@ static void redraw_log(int *block)
         if (last > log_count - 1)
             last = log_count - 1;
         for (int i = first; i <= last; i++) {
-            /* reason 2 | bit 29: window-relative coords | bit 30: baseline like system font */
+            /* reason 2 | bit 29: window-relative coords | bit 30: baseline at Y.
+             * Row i occupies work-area y in (-(i+1)*LH, -i*LH]; baseline 10 up
+             * from the bottom of the row. */
             _swix(Wimp_TextOp, _INR(0, 5), 2 | (1u << 29) | (1u << 30), log_line(i), -1, -1,
-                  8, -(i * LOG_LINE_H) - 4);
+                  8, -((i + 1) * LOG_LINE_H) + 10);
         }
         _swix(Wimp_GetRectangle, _IN(1) | _OUT(0), block, &more);
     }
+}
+
+/* Service a redraw request for a window we draw nothing in. */
+static void redraw_empty(int *block)
+{
+    int more = 0;
+    _swix(Wimp_RedrawWindow, _IN(1) | _OUT(0), block, &more);
+    while (more)
+        _swix(Wimp_GetRectangle, _IN(1) | _OUT(0), block, &more);
 }
 
 void wimp_open_log_window(void)
@@ -366,7 +378,7 @@ static void create_windows(void)
     w = &keys_wdef;
     memset(w, 0, sizeof *w);
     w->x0 = 160; w->y0 = 260; w->x1 = 1120; w->y1 = 700; w->behind = -1;
-    w->flags = WIN_NEWFORMAT | WIN_MOVEABLE | WIN_BACK | WIN_CLOSE | WIN_TITLE;
+    w->flags = WIN_NEWFORMAT | WIN_MOVEABLE | WIN_AUTOREDRAW | WIN_BACK | WIN_CLOSE | WIN_TITLE;
     w->title_fg = 7; w->title_bg = 2; w->work_fg = 7; w->work_bg = 1;
     w->scroll_outer = 3; w->scroll_inner = 1; w->highlight = 12;
     w->ex0 = 0; w->ey0 = -440; w->ex1 = 960; w->ey1 = 0;
@@ -497,7 +509,7 @@ void wimp_run(void)
             continue;
         switch (reason) {
         case 0:  server_poll(0); break;
-        case 1:  if (poll_block[0] == log_win) redraw_log(poll_block); break;
+        case 1:  if (poll_block[0] == log_win) redraw_log(poll_block); else redraw_empty(poll_block); break;
         case 2:  _swix(Wimp_OpenWindow, _IN(1), poll_block); break;
         case 3:  _swix(Wimp_CloseWindow, _IN(1), poll_block); break;
         case 6:  mouse_click(poll_block); break;
