@@ -151,18 +151,18 @@ static void set_icon_text(int win, int icon, const char *text, char *buf, size_t
     _swix(Wimp_SetIconState, _IN(1), block);
 }
 
-/* Fill the key rows; unused rows are hidden with the "deleted" bit. */
+/* Fill the key rows; unused rows stay as blank boxes.  Wimp_SetIconState
+ * redraws each icon; the extra Wimp_ForceRedraw covers the whole list in
+ * case a row's text changed without its flags changing. */
 static void refresh_keys_list(void)
 {
     int n = auth_count();
     for (int i = 0; i < KEY_ROWS; i++) {
-        int block[4] = { keys_win, KI_ROW0 + i, 0, ICON_DELETED | ICON_SELECTED };
-        if (i < n) {
+        int block[4] = { keys_win, KI_ROW0 + i, 0, ICON_SELECTED };
+        if (i < n)
             auth_describe_one(i, key_rows[i], sizeof key_rows[i]);
-        } else {
+        else
             key_rows[i][0] = '\0';
-            block[2] = ICON_DELETED;
-        }
         if (keys_win >= 0)
             _swix(Wimp_SetIconState, _IN(1), block);
     }
@@ -172,8 +172,10 @@ static void refresh_keys_list(void)
         snprintf(keys_more, sizeof keys_more, "%d keys, %d more than shown.", n, n - KEY_ROWS);
     else
         snprintf(keys_more, sizeof keys_more, "%d key%s. Select one and click Delete to remove it.", n, n == 1 ? "" : "s");
-    if (keys_win >= 0)
+    if (keys_win >= 0) {
         set_icon_text(keys_win, KI_MORE, keys_more, NULL, 0);
+        _swix(Wimp_ForceRedraw, _INR(0, 4), keys_win, 0, -64 - KEY_ROWS * 44, 960, -60);
+    }
 }
 
 static int selected_key_row(void)
