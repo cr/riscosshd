@@ -70,8 +70,9 @@ const char *ro_mkdir(const char *path)
 int ro_append_file(const char *path, const void *data, size_t len)
 {
     int fh = 0, extent = 0, unwritten = 0;
-    /* 0xcf: open for update, create if missing, no path search */
-    if (_swix(OS_Find, _INR(0, 1) | _OUT(0), 0xcf, path, &fh) || fh == 0)
+    /* 0xc7: open for update, create if missing, no path search, must not
+     * be a directory (bit 3 would demand that the file already exist) */
+    if (_swix(OS_Find, _INR(0, 1) | _OUT(0), 0xc7, path, &fh) || fh == 0)
         return -1;
     if (_swix(OS_Args, _INR(0, 1) | _OUT(2), 2, fh, &extent) == NULL)
         _swix(OS_Args, _INR(0, 2), 1, fh, extent);          /* pointer to the end */
@@ -80,6 +81,8 @@ int ro_append_file(const char *path, const void *data, size_t len)
         return -1;
     }
     _swix(OS_Find, _INR(0, 1), 0, fh);
+    if (extent == 0)                                /* just created: Text */
+        _swix(OS_File, _INR(0, 2), 18, path, 0xfff);
     return 0;
 }
 
