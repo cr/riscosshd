@@ -34,6 +34,8 @@ server normally leans on:
   cannot carry (double quotes, over 200 characters), `exec` runs through
   `OS_CLI` inside the server's own task with VDU output redirected to a
   file (`OS_ChangeRedirection`), which does report errors as status 1.
+  Known quirk of that path: `*Echo "text"` fails with "Unable to start
+  application" when issued from the Wimp task.
 - **No Unix shell.**  `exec` requests are RISC OS `*commands`; an
   interactive session is the TaskWindow's own `*` command line.  In text
   mode (`-t`) a line editor feeding `OS_CLI` stands in for it.

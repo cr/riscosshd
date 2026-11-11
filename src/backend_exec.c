@@ -19,7 +19,15 @@ int backend_run_cli(struct chan_ctx *c, const char *command)
     log_debug("run: %s", command);
     status = ro_run_command(command, cfg.capture_path, &out, &out_len, &err);
     if (out) {
-        chan_output_vdu(c, out, out_len);
+        /* Drop VDU control codes (paged-mode toggles, colour changes and
+         * the like) that mean nothing to a terminal; keep tab, LF, CR. */
+        size_t w = 0;
+        for (size_t i = 0; i < out_len; i++) {
+            unsigned char ch = (unsigned char)out[i];
+            if (ch >= 0x20 || ch == '\t' || ch == '\n' || ch == '\r')
+                out[w++] = out[i];
+        }
+        chan_output_vdu(c, out, w);
         free(out);
     }
     if (err) {
