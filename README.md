@@ -96,10 +96,12 @@ interactive and must not start Wimp applications.
 
 ## Roadmap
 
-1. TaskWindow backend for real interactive sessions (needs the server to
-   become a Wimp task; `server_poll()` is already written to be called from
-   a null-event handler).
-2. Wimp front end with an icon-bar icon and the TaskWindow message relay.
+1. Wimp front end: the server must become a proper Wimp task with an
+   icon-bar icon (start/stop, status) instead of living in a TaskWindow.
+   `server_poll()` is already written to be called from a null-event
+   handler.
+2. TaskWindow backend for real interactive sessions, relaying
+   `Message_TaskWindow_Input`/`_Output` over Wimp messages from that task.
 3. PackMan package (`riscos/RiscPkg/Control` is ready; the zip layout is
    what `package-zip` produces).
 4. SFTP (libssh has the server side; needs a RISC OS path mapping).
