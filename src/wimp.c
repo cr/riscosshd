@@ -43,7 +43,7 @@ enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
 
 enum { MENU_INFO = 0, MENU_LOG, MENU_KEYS, MENU_QUIT, MENU_ITEMS };
 /* Info window icons: label/value pairs */
-enum { II_NAME = 0, II_PURPOSE, II_AUTHOR, II_VERSION, II_BUILT, II_COMPILER, II_LIBSSH, II_CRYPTO, II_COUNT };
+enum { II_NAME = 0, II_PURPOSE, II_WEBSITE, II_VERSION, II_BUILT, II_COMPILER, II_LIBSSH, II_CRYPTO, II_COUNT };
 
 /* --- Wimp data structures (as the SWIs expect them) --------------------- */
 
@@ -556,10 +556,10 @@ static char info_title[16] = "About SSHd";
 #define SSHD_VERSION "dev"
 #endif
 static char info_labels[II_COUNT][12] = {
-    "Name", "Purpose", "Author", "Version", "Built", "Compiler", "libssh", "Crypto"
+    "Name", "Purpose", "Website", "Version", "Built", "Compiler", "libssh", "Crypto"
 };
 static char info_values[II_COUNT][96] = {
-    "SSHd", "SSH server for RISC OS", "Christiane Ruetten", SSHD_VERSION,
+    "SSHd", "SSH server for RISC OS", "https://github.com/cr/riscosshd", SSHD_VERSION,
     __DATE__ " " __TIME__, "GCC " __VERSION__ " (GCCSDK, UnixLib)", "", ""
 };
 

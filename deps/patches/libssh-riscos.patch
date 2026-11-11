@@ -1,5 +1,5 @@
 --- a/cmake/Modules/DefineCMakeDefaults.cmake	2026-06-12 13:53:41
-+++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-11 16:35:41
++++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-11 16:50:27
 @@ -17,5 +17,8 @@
  # Create the compile command database for clang by default
  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -12,7 +12,7 @@
 +  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 +endif()
 --- a/src/misc.c	2026-07-16 10:57:23
-+++ b/src/misc.c	2026-11-11 16:35:41
++++ b/src/misc.c	2026-11-11 16:50:27
 @@ -71,6 +71,16 @@
  
  #include "libssh/priv.h"
@@ -31,7 +31,7 @@
  
  #ifdef HAVE_LIBGCRYPT
 --- a/src/sftpserver.c	2026-07-16 10:57:23
-+++ b/src/sftpserver.c	2026-11-11 16:46:30
++++ b/src/sftpserver.c	2026-11-11 16:56:05
 @@ -866,6 +866,10 @@
  SSH_SFTP_CALLBACK(process_remove);
  SSH_SFTP_CALLBACK(process_extended_statvfs);
@@ -91,7 +91,19 @@
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1497,7 +1521,38 @@
+@@ -1428,7 +1452,11 @@
+ 
+         SSH_LOG(SSH_LOG_PROTOCOL, "realpath failed: %s", strerror(saved_errno));
+         sftp_reply_status(client_msg, status, err_msg);
++#ifdef __riscos__
++        return SSH_OK;   /* a missing path is the client's problem, not a protocol error */
++#else
+         return SSH_ERROR;
++#endif
+     }
+     sftp_reply_name(client_msg, path, NULL);
+     free(path);
+@@ -1497,7 +1525,38 @@
      return SSH_OK;
  }
  
@@ -130,7 +142,7 @@
  process_setstat(sftp_client_message client_msg)
  {
      int rv;
-@@ -1526,6 +1581,11 @@
+@@ -1526,6 +1585,11 @@
          }
      }
  
@@ -143,7 +155,7 @@
          rv = chmod(filename, client_msg->attr->permissions);
          if (rv < 0) {
 --- a/src/ttyopts.c	2026-07-16 10:56:26
-+++ b/src/ttyopts.c	2026-11-11 16:35:41
++++ b/src/ttyopts.c	2026-11-11 16:50:27
 @@ -176,8 +176,10 @@
          return 57600;
      case B115200:
