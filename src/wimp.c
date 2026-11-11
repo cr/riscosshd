@@ -31,7 +31,7 @@
 /* Fixed icons of the Keys window; key rows are created dynamically below them. */
 enum { KI_PROMPT = 0, KI_INPUT, KI_ADD, KI_CLOSE, KI_FETCHLABEL, KI_FHOST, KI_FPASS, KI_FETCH,
        KI_HOSTLABEL, KI_HOST, KI_HOST2, KI_LISTLABEL, KI_COUNT };
-#define ROW_TOP   (-500)          /* work-area y of the first row's top edge */
+#define ROW_TOP   (-512)          /* work-area y of the first row's top edge */
 #define ROW_H     44
 #define KEYS_W    1200
 
@@ -232,9 +232,9 @@ static void refresh_keys_list(void)
         row_del_icon[i] = create_icon(keys_win, &ic);
     }
     if (n == 0)
-        snprintf(list_label, sizeof list_label, "Keys that may log in: none yet, so nobody can log in.");
+        snprintf(list_label, sizeof list_label, "Authorized keys: none yet, so nobody can log in.");
     else
-        snprintf(list_label, sizeof list_label, "Keys that may log in (%d):", n);
+        snprintf(list_label, sizeof list_label, "Authorized keys (%d):", n);
     set_icon_text(keys_win, KI_LISTLABEL, list_label, NULL, 0);
 
     ext[0] = 0; ext[1] = ROW_TOP - n * ROW_H - 16; ext[2] = KEYS_W; ext[3] = 0;
@@ -577,21 +577,21 @@ static void create_windows(void)
     w->sprite_area = (void *)1;
     w->title.ind.text = keys_title; w->title.ind.valid = (const char *)-1; w->title.ind.size = sizeof keys_title;
     w->nicons = KI_COUNT;
-    icon(&w->icon[KI_PROMPT], 16, -56, KEYS_W - 16, -12, text_flags, prompt_text, sizeof prompt_text, NULL);
-    icon(&w->icon[KI_INPUT], 16, -116, KEYS_W - 16, -64, box_flags | ICON_BUTTON(15), key_input, sizeof key_input,
+    icon(&w->icon[KI_HOSTLABEL], 16, -56, KEYS_W - 16, -12, text_flags, host_label, sizeof host_label, NULL);
+    icon(&w->icon[KI_HOST], 16, -100, KEYS_W - 16, -60, text_flags, host_line, sizeof host_line, NULL);
+    icon(&w->icon[KI_HOST2], 16, -144, KEYS_W - 16, -104, text_flags, host_line2, sizeof host_line2, NULL);
+    icon(&w->icon[KI_PROMPT], 16, -204, KEYS_W - 16, -160, text_flags, prompt_text, sizeof prompt_text, NULL);
+    icon(&w->icon[KI_INPUT], 16, -264, KEYS_W - 16, -212, box_flags | ICON_BUTTON(15), key_input, sizeof key_input,
          "Ktar;Pptr_write");
-    icon(&w->icon[KI_ADD], 16, -184, 196, -132, button_flags, add_text, sizeof add_text, "R5,3");
-    icon(&w->icon[KI_CLOSE], 216, -184, 396, -132, button_flags, close_text, sizeof close_text, "R5,3");
-    icon(&w->icon[KI_FETCHLABEL], 16, -244, KEYS_W - 16, -200, text_flags, fetch_text, sizeof fetch_text, NULL);
-    icon(&w->icon[KI_FHOST], 16, -304, 620, -252, box_flags | ICON_BUTTON(15), fetch_host, sizeof fetch_host,
+    icon(&w->icon[KI_ADD], 16, -332, 196, -280, button_flags, add_text, sizeof add_text, "R5,3");
+    icon(&w->icon[KI_CLOSE], 216, -332, 396, -280, button_flags, close_text, sizeof close_text, "R5,3");
+    icon(&w->icon[KI_FETCHLABEL], 16, -392, KEYS_W - 16, -348, text_flags, fetch_text, sizeof fetch_text, NULL);
+    icon(&w->icon[KI_FHOST], 16, -452, 620, -400, box_flags | ICON_BUTTON(15), fetch_host, sizeof fetch_host,
          "Ktar;Pptr_write");
-    icon(&w->icon[KI_FPASS], 640, -304, 1000, -252, box_flags | ICON_BUTTON(15), fetch_pass, sizeof fetch_pass,
+    icon(&w->icon[KI_FPASS], 640, -452, 1000, -400, box_flags | ICON_BUTTON(15), fetch_pass, sizeof fetch_pass,
          "Ktar;D*;Pptr_write");
-    icon(&w->icon[KI_FETCH], 1020, -304, KEYS_W - 16, -252, button_flags, fetch_btn_text, sizeof fetch_btn_text, "R5,3");
-    icon(&w->icon[KI_HOSTLABEL], 16, -364, KEYS_W - 16, -320, text_flags, host_label, sizeof host_label, NULL);
-    icon(&w->icon[KI_HOST], 16, -408, KEYS_W - 16, -368, text_flags, host_line, sizeof host_line, NULL);
-    icon(&w->icon[KI_HOST2], 16, -452, KEYS_W - 16, -412, text_flags, host_line2, sizeof host_line2, NULL);
-    icon(&w->icon[KI_LISTLABEL], 16, -496, KEYS_W - 16, -460, text_flags, list_label, sizeof list_label, NULL);
+    icon(&w->icon[KI_FETCH], 1020, -452, KEYS_W - 16, -400, button_flags, fetch_btn_text, sizeof fetch_btn_text, "R5,3");
+    icon(&w->icon[KI_LISTLABEL], 16, -508, KEYS_W - 16, -468, text_flags, list_label, sizeof list_label, NULL);
     keys_win = create_window(w);
 }
 
