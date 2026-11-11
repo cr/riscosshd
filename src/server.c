@@ -17,6 +17,7 @@
 
 #include "server.h"
 #include "backend.h"
+#include "backend_taskwindow.h"
 #include "auth.h"
 #include "config.h"
 #include "log.h"
@@ -191,6 +192,11 @@ static int cb_shell_request(ssh_session session, ssh_channel channel, void *user
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
     log_msg("%s: shell%s", c->owner->user, c->pty ? " (pty)" : "");
+    /* A TaskWindow child when running on the desktop; the line shell
+     * otherwise (text mode, or if the TaskWindow could not be started). */
+    if (start_backend(c, &backend_taskwindow, NULL) == 0)
+        return 0;
+    c->backend = NULL;
     return start_backend(c, &backend_shell, NULL) < 0 ? 1 : 0;
 }
 
@@ -257,6 +263,7 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
         return NULL;
     c->session = session;
     c->owner = s;
+    c->owner_name = s->user;
     c->channel = ssh_channel_new(session);
     if (!c->channel) {
         free(c);

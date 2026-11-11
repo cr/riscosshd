@@ -6,7 +6,8 @@ cross-compiled with GCCSDK.  Public-key authentication only.  The first
 milestone runs `*commands` for `ssh host '*Cat'` and offers a line-mode `*`
 prompt for `ssh host`.
 
-Status: milestone 1 reached on 2026-11-11.  `ssh -p 2222 riscos@localhost '*Cat'`
+Status: milestones 1 (exec) and 2 (desktop front end, interactive shell
+through TaskWindow) reached on 2026-11-11.  `ssh -p 2222 riscos@localhost '*Cat'`
 against RISC OS 5.30 in RPCEmu returns the directory listing, RISC OS
 errors come back with exit status 1, and the line-mode shell works over a
 pipe.  See "Roadmap" for what is next.
@@ -23,12 +24,15 @@ server normally leans on:
   connection being a `session_ctx` driven by one libssh `ssh_event`.
 - **No pty.**  The RISC OS equivalent is the **TaskWindow** module: a child
   task whose keyboard input and VDU output are relayed as Wimp messages
-  (`Message_TaskWindow_Input` / `_Output`).  That is the planned interactive
-  backend.  Until then, commands run through `OS_CLI` inside the server's
-  own task with VDU output redirected to a file (`OS_ChangeRedirection`),
-  which is read back and sent over the channel.
-- **No Unix shell.**  `exec` requests are RISC OS `*commands`.  The `shell`
-  backend is a line editor feeding the same mechanism, one `OS_CLI` per line.
+  (`Message_TaskWindow_Input` / `_Output`).  A `shell` request starts such
+  a child with `Wimp_StartTask`; its output goes to the SSH channel and the
+  client's keystrokes are sent to it as input (`src/backend_taskwindow.c`).
+  `exec` requests run through `OS_CLI` inside the server's own task with
+  VDU output redirected to a file (`OS_ChangeRedirection`), which is read
+  back and sent over the channel.
+- **No Unix shell.**  `exec` requests are RISC OS `*commands`; an
+  interactive session is the TaskWindow's own `*` command line.  In text
+  mode (`-t`) a line editor feeding `OS_CLI` stands in for it.
 - **Sockets are system-wide handles**, not per-process descriptors, and
   the machine is cooperatively multitasked.  The server runs in a
   TaskWindow so the desktop keeps going, polls with short timeouts, and the
@@ -46,7 +50,10 @@ src/main.c            argument parsing, config dir, main loop
 src/server.c          ssh_bind, sessions, libssh callbacks, output pump
 src/backend.h         session backend interface
 src/backend_exec.c    exec: one OS_CLI command, captured output
-src/backend_shell.c   shell: line-mode * prompt on the same mechanism
+src/backend_shell.c   shell fallback: line-mode * prompt on the same mechanism
+src/backend_taskwindow.c  shell: TaskWindow child task relayed over Wimp messages
+src/wimp.c            Wimp front end: icon bar, menu, log and keys windows
+src/keyfetch.c        import public keys from another machine as an SSH client
 src/auth.c            authorized_keys parsing and matching
 src/hostkey.c         ed25519 host key load/generate
 src/riscos.c          OS_File, OS_GSTrans, OS_CLI capture
@@ -107,15 +114,10 @@ interactive and must not start Wimp applications.
 
 ## Roadmap
 
-1. Wimp front end: the server must become a proper Wimp task with an
-   icon-bar icon (start/stop, status) instead of living in a TaskWindow.
-   `server_poll()` is already written to be called from a null-event
-   handler.
-2. TaskWindow backend for real interactive sessions, relaying
-   `Message_TaskWindow_Input`/`_Output` over Wimp messages from that task.
-3. PackMan package (`riscos/RiscPkg/Control` is ready; the zip layout is
+1. PackMan package (`riscos/RiscPkg/Control` is ready; the zip layout is
    what `package-zip` produces).
-4. SFTP (libssh has the server side; needs a RISC OS path mapping).
+2. SFTP (libssh has the server side; needs a RISC OS path mapping).
+3. Window-size and colour handling for the TaskWindow session.
 
 ## Licence
 

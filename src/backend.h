@@ -10,10 +10,11 @@
  *                  file and returned, then the channel closes.
  *   backend_shell  a line-mode "*" prompt built on the same capture
  *                  mechanism, one OS_CLI call per line.
- * Planned:
- *   backend_taskwindow  a real interactive session: a TaskWindow child task
- *                  with Message_TaskWindow_Input/Output relayed over Wimp
- *                  messages.  Requires the server to be a Wimp task.
+ *   backend_taskwindow  a real interactive session: a TaskWindow child
+ *                  task with Message_TaskWindow_Input/Output relayed over
+ *                  Wimp messages.  Used for shell requests when the server
+ *                  runs as a Wimp task; backend_shell is the text-mode
+ *                  fallback.
  */
 #ifndef BACKEND_H
 #define BACKEND_H
@@ -42,6 +43,7 @@ struct chan_ctx {
     ssh_session session;
     ssh_channel channel;
     struct session_ctx *owner;
+    const char *owner_name;  /* user name, for log lines */
 
     int pty;                 /* client requested a pty: raw mode, CRLF output */
     int cols, rows;

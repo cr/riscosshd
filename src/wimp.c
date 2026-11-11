@@ -15,6 +15,7 @@
 #include "auth.h"
 #include "hostkey.h"
 #include "keyfetch.h"
+#include "backend_taskwindow.h"
 #include "config.h"
 #include "riscos.h"
 #include "log.h"
@@ -632,7 +633,8 @@ static int create_iconbar_icon(void)
 
 int wimp_init(void)
 {
-    static int messages[] = { 3 /* DataLoad */, 0 };
+    static int messages[] = { 3 /* DataLoad */, Message_TaskWindow_Output, Message_TaskWindow_Ego,
+                              Message_TaskWindow_Morio, Message_TaskWindow_NewTask, 0 };
     _kernel_oserror *e = _swix(Wimp_Initialise, _INR(0, 3) | _OUT(1), 310, TASK_MAGIC, "SSHd",
                                messages, &task_handle);
     if (e) {
@@ -640,6 +642,7 @@ int wimp_init(void)
         return -1;
     }
     log_set_sink(log_sink);
+    tw_set_task_handle(task_handle);
     create_windows();
     if (create_iconbar_icon() < 0 || log_win < 0 || keys_win < 0)
         return -1;
@@ -714,7 +717,8 @@ static void key_pressed(int *b)
 static void user_message(int reason, int *b)
 {
     int action = b[4];
-    (void)reason;
+    if (tw_message(reason, b))
+        return;
     if (action == 0) {                     /* Message_Quit */
         running = 0;
     } else if (action == 3 && b[5] == keys_win) {   /* Message_DataLoad */

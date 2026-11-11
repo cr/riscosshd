@@ -30,12 +30,14 @@ CryptRandom module and kept in Choices:SSHd.hostkey.
 Use
 ---
   ssh user@riscos-host '*Cat'      run one command, output comes back
-  ssh user@riscos-host             line-mode * prompt; 'exit' or Ctrl-D ends
+  ssh user@riscos-host             interactive * command line in a
+                                   TaskWindow; Ctrl-D ends the session
 
-The user name is not checked; only the key is.  Commands run through OS_CLI
-inside the server's own task with their VDU output captured to a file, so
-they cannot be interactive and must not start a Wimp application.  A
-TaskWindow-based interactive session is planned.
+The user name is not checked; only the key is.  Single commands run through
+OS_CLI inside the server's own task with their VDU output captured to a
+file, so they cannot be interactive.  An interactive session is a real
+TaskWindow child task (as used by Edit), so it behaves like a task window:
+line input, Escape via Ctrl-C, and the same limits for Wimp applications.
 
 Options (edit !Run, or run sshd by hand in a TaskWindow with -t):
   -p port    listen on another port
