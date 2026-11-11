@@ -13,8 +13,9 @@
  *   Message_TaskWindow_Morio   child exited -> close channel
  *   channel closed             -> Message_TaskWindow_Morite kills the child
  *
- * The child's command line reads whole lines without echoing them, so for
- * a pty session we echo locally and let the client's terminal do the rest.
+ * The child's command line echoes what it reads, so nothing is echoed
+ * locally; a DEL it echoes after a backspace is turned into the
+ * backspace-space-backspace a terminal needs.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -150,14 +151,10 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
         unsigned char ch = (unsigned char)buf[i];
         if (ch == '\n' || ch == '\r') {
             out[n++] = '\r';                 /* RISC OS line end for ReadLine */
-            if (c->pty)
-                chan_output_str(c, "\r\n");
             if (ch == '\r' && i + 1 < len && buf[i + 1] == '\n')
                 i++;
         } else if (ch == 0x7f || ch == 0x08) {
             out[n++] = 0x7f;                 /* delete; ReadLine understands 127 */
-            if (c->pty)
-                chan_output_str(c, "\b \b");
         } else if (ch == 0x03) {
             out[n++] = 0x1b;                 /* Ctrl-C -> Escape */
             if (c->pty)
@@ -169,8 +166,6 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
             break;
         } else {
             out[n++] = (char)ch;
-            if (c->pty && ch >= 0x20)
-                chan_output(c, (const char *)&ch, 1);
         }
     }
     if (n)
@@ -229,8 +224,22 @@ int tw_message(int reason, int *block)
         return 1;
     case Message_TaskWindow_Output:
         s = find_by_child(sender);
-        if (s && !s->chan->finished)
-            chan_output_vdu(s->chan, (const char *)&block[6], (size_t)block[5]);
+        if (s && !s->chan->finished) {
+            const char *d = (const char *)&block[6];
+            size_t n = (size_t)block[5], start = 0;
+            if (s->chan->pty) {
+                /* ReadLine echoes DEL for a deleted character; terminals
+                 * need backspace, space, backspace to show that. */
+                for (size_t i = 0; i < n; i++) {
+                    if (d[i] == 0x7f) {
+                        chan_output_vdu(s->chan, d + start, i - start);
+                        chan_output_str(s->chan, "\b \b");
+                        start = i + 1;
+                    }
+                }
+            }
+            chan_output_vdu(s->chan, d + start, n - start);
+        }
         if (reason == 18) {                      /* acknowledge, or the child kills itself */
             block[3] = block[2];
             _swix(Wimp_SendMessage, _INR(0, 2), 19, block, sender);
