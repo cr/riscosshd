@@ -33,6 +33,12 @@
 #endif
 
 #define MAX_INPUT_CHUNK 232    /* 256-byte message minus the 24-byte header */
+/* The TaskWindow module keeps a 256-byte key buffer and silently drops what
+ * does not fit, so input is paced: one chunk at a time, cut at a line end,
+ * and the next only once the child has produced output (it echoes what it
+ * reads) or after a short wait. */
+#define INPUT_PACE_CHUNK 128
+#define INPUT_PACE_WAIT_CS 20
 #define PENDING_MAX 4096
 #define OUT_HIGH_WATER (256 * 1024)   /* suspend the child above this much unsent output */
 #define OUT_LOW_WATER  (32 * 1024)    /* resume it below this */
@@ -48,6 +54,8 @@ struct tw_state {
     int dropped;               /* input dropped because the child was not reading */
     int eof_pending;           /* non-pty shell: client sent EOF */
     int last_activity;         /* centiseconds, OS_ReadMonotonicTime */
+    int last_sent;             /* when the last input chunk went out */
+    int awaiting_output;       /* a chunk is out and nothing came back yet */
     char pending[PENDING_MAX]; /* input typed before the child was ready */
     size_t npending;
     struct tw_state *next;
@@ -122,19 +130,26 @@ static void kill_child(struct tw_state *s)
     }
 }
 
+/* Send the next input chunk if the child is ready for one. */
 static void flush_pending(struct tw_state *s)
 {
-    size_t off = 0;
-    if (!s->child || s->dead)
+    size_t n;
+    if (!s->child || s->dead || s->npending == 0)
         return;
-    while (off < s->npending) {
-        size_t n = s->npending - off;
-        if (n > MAX_INPUT_CHUNK)
-            n = MAX_INPUT_CHUNK;
-        send_to_child(s, Message_TaskWindow_Input, s->pending + off, n);
-        off += n;
+    if (s->awaiting_output && now_cs() - s->last_sent < INPUT_PACE_WAIT_CS)
+        return;
+    n = s->npending < INPUT_PACE_CHUNK ? s->npending : INPUT_PACE_CHUNK;
+    for (size_t i = 0; i < n; i++) {     /* a line at a time for a line-reading child */
+        if (s->pending[i] == '\r') {
+            n = i + 1;
+            break;
+        }
     }
-    s->npending = 0;
+    send_to_child(s, Message_TaskWindow_Input, s->pending, n);
+    memmove(s->pending, s->pending + n, s->npending - n);
+    s->npending -= n;
+    s->last_sent = now_cs();
+    s->awaiting_output = 1;
 }
 
 static void queue_input(struct tw_state *s, const char *data, size_t len)
@@ -336,6 +351,10 @@ int tw_message(int reason, int *block)
             }
             chan_output_vdu(s->chan, d + start, n - start);
             s->last_activity = now_cs();
+        }
+        if (s) {
+            s->awaiting_output = 0;          /* the child consumed input: send more */
+            flush_pending(s);
         }
         if (reason == 18) {                      /* acknowledge, or the child kills itself */
             block[3] = block[2];
