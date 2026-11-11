@@ -531,7 +531,7 @@ static int create_window(struct wimp_window *w)
 static struct wimp_window log_wdef, keys_wdef;
 static char prompt_text[] = "Add a public key: type or paste it, or drop a file here, then Add:";
 static char add_text[] = "Add", close_text[] = "Close", fetch_btn_text[] = "Fetch";
-static char fetch_text[] = "Or fetch them from another machine: its account (user@host) and password, then Fetch:";
+static char fetch_text[] = "Or fetch them from another machine: enter user@host and password:";
 
 static void create_windows(void)
 {
