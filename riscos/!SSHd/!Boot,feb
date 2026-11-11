@@ -1,2 +1,2 @@
 Set SSHd$Dir <Obey$Dir>
-IconSprites <SSHd$Dir>.!Sprites
+IfThere <SSHd$Dir>.!Sprites Then IconSprites <SSHd$Dir>.!Sprites

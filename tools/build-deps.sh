@@ -37,6 +37,9 @@ cmake --install build-riscos
 fi
 
 # --- libssh --------------------------------------------------------------
+# No constructor/destructor attributes and no __thread: UnixLib has not set
+# up thread-local storage when global constructors run, which segfaults in
+# libssh_constructor().  The server calls ssh_init() itself.
 rm -rf "$SRC/libssh-$LIBSSH_VER"
 tar -xJf "$DL/libssh-$LIBSSH_VER.tar.xz" -C "$SRC"
 cd "$SRC/libssh-$LIBSSH_VER"
@@ -48,7 +51,9 @@ cmake -S . -B build-riscos -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
     -DWITH_SERVER=ON -DWITH_SFTP=OFF -DWITH_ZLIB=OFF -DWITH_GSSAPI=OFF \
     -DWITH_PCAP=OFF -DWITH_EXAMPLES=OFF -DUNIT_TESTING=OFF -DWITH_SYMBOL_VERSIONING=OFF \
     -DWITH_GEX=ON -DWITH_NACL=OFF -DWITH_BLOWFISH_CIPHER=OFF \
-    -DCMAKE_C_FLAGS="-D_GNU_SOURCE -Wno-error=implicit-function-declaration"
+    -DCMAKE_C_FLAGS="-D_GNU_SOURCE" \
+    -DHAVE_CONSTRUCTOR_ATTRIBUTE=0 -DHAVE_DESTRUCTOR_ATTRIBUTE=0 \
+    -DHAVE_GCC_THREAD_LOCAL_STORAGE=0
 cmake --build build-riscos -j"$NPROC"
 cmake --install build-riscos
 echo "Dependencies installed in $SYSROOT"

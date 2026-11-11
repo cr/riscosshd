@@ -13,7 +13,8 @@ Configuration lives in <Choices$Write>.SSHd (normally !Boot.Choices.SSHd):
              format, options prefixes are not supported).  The file is
              created empty on first run; nobody can log in until you fill it.
   hostkey    The server's ed25519 host key, generated on first run using the
-             CryptRandom module.  Delete it to generate a new one.
+             CryptRandom module (installed with PackMan; !Run soft-loads it).  Delete
+             it to generate a new one.
 
 Use
 ---

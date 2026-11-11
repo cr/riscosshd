@@ -1,8 +1,10 @@
 | !SSHd - SSH server for RISC OS
 | Runs the server in a TaskWindow so the desktop keeps multitasking.
 Set SSHd$Dir <Obey$Dir>
-IconSprites <SSHd$Dir>.!Sprites
-RMEnsure CryptRandom 0.00 Error SSHd needs the CryptRandom module (RISC OS 5.2x or later)
+IfThere <SSHd$Dir>.!Sprites Then IconSprites <SSHd$Dir>.!Sprites
+| CryptRandom is not in the ROM; PackMan installs it as System:Modules.CryptRand
+RMEnsure CryptRandom 0.00 RMLoad System:Modules.CryptRand
+RMEnsure CryptRandom 0.00 Error SSHd needs the CryptRandom module (install it with PackMan)
 RMEnsure TaskWindow 0.00 Error SSHd needs the TaskWindow module
 RMEnsure Internet 5.00 Error SSHd needs the Internet module (networking is not configured)
 If "<Choices$Write>" = "" Then Error SSHd needs the Choices system (boot from !Boot)
