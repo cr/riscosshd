@@ -113,7 +113,11 @@ static int tw_start(struct chan_ctx *c, const char *command)
     _kernel_oserror *e;
 
     if (!our_task)
-        return -1;           /* text mode: let the line shell take over */
+        return -1;           /* text mode: let the line shell / capture take over */
+    /* The command rides inside a quoted TaskWindow argument, so quotes in
+     * it cannot be passed through; the caller falls back to OS_CLI capture. */
+    if (command && (strchr(command, '"') || strlen(command) > 200))
+        return -1;
     s = calloc(1, sizeof *s);
     if (!s)
         return -1;

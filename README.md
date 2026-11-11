@@ -27,9 +27,13 @@ server normally leans on:
   (`Message_TaskWindow_Input` / `_Output`).  A `shell` request starts such
   a child with `Wimp_StartTask`; its output goes to the SSH channel and the
   client's keystrokes are sent to it as input (`src/backend_taskwindow.c`).
-  `exec` requests run through `OS_CLI` inside the server's own task with
-  VDU output redirected to a file (`OS_ChangeRedirection`), which is read
-  back and sent over the channel.
+  `exec` requests use the same mechanism with `-quit`, so output streams
+  as the command produces it.  The TaskWindow module only reports that the
+  child ended, not whether the command failed, so the SSH exit status is 0
+  in that path.  In text mode, or for commands a TaskWindow command line
+  cannot carry (double quotes, over 200 characters), `exec` runs through
+  `OS_CLI` inside the server's own task with VDU output redirected to a
+  file (`OS_ChangeRedirection`), which does report errors as status 1.
 - **No Unix shell.**  `exec` requests are RISC OS `*commands`; an
   interactive session is the TaskWindow's own `*` command line.  In text
   mode (`-t`) a line editor feeding `OS_CLI` stands in for it.

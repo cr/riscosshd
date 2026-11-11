@@ -184,6 +184,11 @@ static int cb_exec_request(ssh_session session, ssh_channel channel,
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
     log_msg("%s: exec '%s'", c->owner->user, command);
+    /* A TaskWindow child (-quit) on the desktop so output streams as it is
+     * produced; OS_CLI capture otherwise or for commands it cannot carry. */
+    if (start_backend(c, &backend_taskwindow, command) == 0)
+        return 0;
+    c->backend = NULL;
     return start_backend(c, &backend_exec, command) < 0 ? 1 : 0;
 }
 
