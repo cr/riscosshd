@@ -24,6 +24,10 @@
 
 #define TASK_MAGIC 0x4B534154 /* "TASK" */
 
+#define KEY_ROWS 8
+enum { KI_LABEL = 0, KI_ROW0 = 1, KI_DELETE = KI_ROW0 + KEY_ROWS, KI_MORE, KI_PROMPT, KI_INPUT,
+       KI_ADD, KI_CLOSE, KI_HOST, KI_COUNT };
+
 /* --- Wimp data structures (as the SWIs expect them) --------------------- */
 
 struct wimp_icon {
@@ -48,7 +52,7 @@ struct wimp_window {
         struct { char *text; const char *valid; int size; } ind;
     } title;
     int nicons;
-    struct wimp_icon icon[8];
+    struct wimp_icon icon[KI_COUNT];
 };
 
 struct wimp_menu_item {
@@ -75,6 +79,9 @@ struct wimp_menu {
 #define ICON_BUTTON(t)  ((unsigned)(t) << 12)
 #define ICON_FG(c)      ((unsigned)(c) << 24)
 #define ICON_BG(c)      ((unsigned)(c) << 28)
+#define ICON_ESG(g)     ((unsigned)(g) << 16)
+#define ICON_SELECTED   (1u << 21)
+#define ICON_DELETED    (1u << 23)
 
 #define WIN_MOVEABLE    (1u << 1)
 #define WIN_AUTOREDRAW  (1u << 4)   /* icons only: the Wimp redraws it */
@@ -87,7 +94,6 @@ struct wimp_menu {
 #define WIN_NEWFORMAT   (1u << 31)
 
 enum { MENU_LOG = 0, MENU_KEYS = 1, MENU_QUIT = 2 };
-enum { KI_LABEL = 0, KI_LIST = 1, KI_PROMPT = 2, KI_INPUT = 3, KI_ADD = 4, KI_CLOSE = 5, KI_HOST = 6 };
 
 /* --- state ------------------------------------------------------------- */
 
@@ -102,7 +108,8 @@ static int poll_block[64];
 static char log_lines[LOG_LINES][160];
 static int log_count, log_first;   /* ring: oldest line is log_first */
 
-static char keys_list[300];
+static char key_rows[KEY_ROWS][160];
+static char keys_more[80];
 static char key_input[1200];
 static char host_line[560];
 static char log_title[40] = "SSHd log";
@@ -144,13 +151,61 @@ static void set_icon_text(int win, int icon, const char *text, char *buf, size_t
     _swix(Wimp_SetIconState, _IN(1), block);
 }
 
+/* Fill the key rows; unused rows are hidden with the "deleted" bit. */
 static void refresh_keys_list(void)
 {
-    char tmp[300];
-    auth_describe(tmp, sizeof tmp);
-    snprintf(keys_list, sizeof keys_list, "%d: %s", auth_count(), tmp);
+    int n = auth_count();
+    for (int i = 0; i < KEY_ROWS; i++) {
+        int block[4] = { keys_win, KI_ROW0 + i, 0, ICON_DELETED | ICON_SELECTED };
+        if (i < n) {
+            auth_describe_one(i, key_rows[i], sizeof key_rows[i]);
+        } else {
+            key_rows[i][0] = '\0';
+            block[2] = ICON_DELETED;
+        }
+        if (keys_win >= 0)
+            _swix(Wimp_SetIconState, _IN(1), block);
+    }
+    if (n == 0)
+        snprintf(keys_more, sizeof keys_more, "No keys: nobody can log in yet.");
+    else if (n > KEY_ROWS)
+        snprintf(keys_more, sizeof keys_more, "%d keys, %d more than shown.", n, n - KEY_ROWS);
+    else
+        snprintf(keys_more, sizeof keys_more, "%d key%s. Select one and click Delete to remove it.", n, n == 1 ? "" : "s");
     if (keys_win >= 0)
-        set_icon_text(keys_win, KI_LIST, keys_list, NULL, 0);
+        set_icon_text(keys_win, KI_MORE, keys_more, NULL, 0);
+}
+
+static int selected_key_row(void)
+{
+    for (int i = 0; i < KEY_ROWS; i++) {
+        int block[10] = { keys_win, KI_ROW0 + i };
+        if (_swix(Wimp_GetIconState, _IN(1), block) == NULL && (block[6] & ICON_SELECTED))
+            return i;
+    }
+    return -1;
+}
+
+static void keys_delete_selected(void)
+{
+    char err[128], msg[260], desc[160];
+    struct { int num; char text[252]; } box;
+    int i = selected_key_row(), answer = 0;
+    if (i < 0 || i >= auth_count()) {
+        wimp_report_error("Select a key first, then click Delete.");
+        return;
+    }
+    auth_describe_one(i, desc, sizeof desc);
+    box.num = 0;
+    snprintf(box.text, sizeof box.text, "Delete key %s?", desc);
+    /* flags: bit0 OK, bit1 Cancel; R1 on exit 1 = OK, 2 = Cancel */
+    if (_swix(Wimp_ReportError, _INR(0, 2) | _OUT(1), &box, 3, "SSHd", &answer) || answer != 1)
+        return;
+    if (auth_remove_key(i, err, sizeof err) < 0) {
+        snprintf(msg, sizeof msg, "Key not deleted: %s", err);
+        wimp_report_error(msg);
+    }
+    refresh_keys_list();
 }
 
 /* --- log window ---------------------------------------------------------- */
@@ -349,6 +404,7 @@ static int create_window(struct wimp_window *w)
 
 static struct wimp_window log_wdef, keys_wdef;
 static char label_text[] = "Keys that may log in (Choices:SSHd.authkeys):";
+static char delete_text[] = "Delete";
 static char prompt_text[] = "Add a public key: type or paste it, or drop a file here, then Add:";
 static char add_text[] = "Add", close_text[] = "Close";
 
@@ -377,24 +433,32 @@ static void create_windows(void)
     /* Keys window. */
     w = &keys_wdef;
     memset(w, 0, sizeof *w);
-    w->x0 = 160; w->y0 = 260; w->x1 = 1120; w->y1 = 700; w->behind = -1;
+    w->x0 = 160; w->y0 = 120; w->x1 = 1120; w->y1 = 880; w->behind = -1;
     w->flags = WIN_NEWFORMAT | WIN_MOVEABLE | WIN_AUTOREDRAW | WIN_BACK | WIN_CLOSE | WIN_TITLE;
     w->title_fg = 7; w->title_bg = 2; w->work_fg = 7; w->work_bg = 1;
     w->scroll_outer = 3; w->scroll_inner = 1; w->highlight = 12;
-    w->ex0 = 0; w->ey0 = -440; w->ex1 = 960; w->ey1 = 0;
+    w->ex0 = 0; w->ey0 = -760; w->ex1 = 960; w->ey1 = 0;
     w->title_flags = ICON_TEXT | ICON_HCENTRE | ICON_VCENTRE | ICON_INDIRECTED;
     w->work_flags = ICON_BUTTON(10);   /* click/drag so DataLoad hits the window */
     w->sprite_area = (void *)1;
     w->title.ind.text = keys_title; w->title.ind.valid = (const char *)-1; w->title.ind.size = sizeof keys_title;
-    w->nicons = 7;
+    w->nicons = KI_COUNT;
     icon(&w->icon[KI_LABEL], 16, -56, 944, -12, text_flags, label_text, sizeof label_text, NULL);
-    icon(&w->icon[KI_LIST], 16, -116, 944, -64, box_flags, keys_list, sizeof keys_list, "R2");
-    icon(&w->icon[KI_PROMPT], 16, -176, 944, -132, text_flags, prompt_text, sizeof prompt_text, NULL);
-    icon(&w->icon[KI_INPUT], 16, -236, 944, -184, box_flags | ICON_BUTTON(15), key_input, sizeof key_input,
+    for (int i = 0; i < KEY_ROWS; i++) {
+        /* radio-style rows (button type 11, one ESG) so one key can be selected */
+        int top = -64 - i * 44;
+        icon(&w->icon[KI_ROW0 + i], 16, top - 40, 944, top,
+             ICON_TEXT | ICON_VCENTRE | ICON_FILLED | ICON_BUTTON(11) | ICON_ESG(1) | ICON_FG(7) | ICON_BG(0),
+             key_rows[i], sizeof key_rows[i], NULL);
+    }
+    icon(&w->icon[KI_DELETE], 16, -476, 196, -424, button_flags, delete_text, sizeof delete_text, "R5,3");
+    icon(&w->icon[KI_MORE], 216, -476, 944, -424, text_flags, keys_more, sizeof keys_more, NULL);
+    icon(&w->icon[KI_PROMPT], 16, -536, 944, -492, text_flags, prompt_text, sizeof prompt_text, NULL);
+    icon(&w->icon[KI_INPUT], 16, -596, 944, -544, box_flags | ICON_BUTTON(15), key_input, sizeof key_input,
          "Ktar;Pptr_write");
-    icon(&w->icon[KI_ADD], 16, -308, 196, -256, button_flags, add_text, sizeof add_text, "R5,3");
-    icon(&w->icon[KI_CLOSE], 216, -308, 396, -256, button_flags, close_text, sizeof close_text, "R5,3");
-    icon(&w->icon[KI_HOST], 16, -424, 944, -340, text_flags, host_line, sizeof host_line, NULL);
+    icon(&w->icon[KI_ADD], 16, -664, 196, -612, button_flags, add_text, sizeof add_text, "R5,3");
+    icon(&w->icon[KI_CLOSE], 216, -664, 396, -612, button_flags, close_text, sizeof close_text, "R5,3");
+    icon(&w->icon[KI_HOST], 16, -740, 944, -680, text_flags, host_line, sizeof host_line, NULL);
     keys_win = create_window(w);
 }
 
@@ -469,6 +533,8 @@ static void mouse_click(int *b)
     } else if (win == keys_win) {
         if (ic == KI_ADD)
             keys_add_from_input();
+        else if (ic == KI_DELETE)
+            keys_delete_selected();
         else if (ic == KI_CLOSE)
             _swix(Wimp_CloseWindow, _IN(1), &keys_win);
     }

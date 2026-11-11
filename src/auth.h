@@ -11,6 +11,11 @@ int auth_key_allowed(ssh_key pubkey);
  * authorized keys file.  Returns 0, or -1 with a message in err. */
 int auth_add_key_line(const char *line, char *err, size_t errlen);
 int auth_count(void);
+/* One-line description of key i: "type comment ...last chars of key" */
+void auth_describe_one(int i, char *buf, size_t len);
+/* Remove key i and rewrite the authorized keys file (comment lines in the
+ * file are not preserved).  Returns 0, or -1 with a message in err. */
+int auth_remove_key(int i, char *err, size_t errlen);
 /* Human-readable list of the loaded keys ("ssh-ed25519 laptop, ...") */
 void auth_describe(char *buf, size_t len);
 void auth_free(void);

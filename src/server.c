@@ -8,6 +8,9 @@
 #include <errno.h>
 #include <poll.h>
 #include <time.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 #include <libssh/callbacks.h>
@@ -29,6 +32,7 @@ struct session_ctx {
     int auth_tries;
     int authenticated;
     char user[64];
+    char peer[48];              /* "10.10.10.2:51234" */
     struct chan_ctx *chan;      /* one channel per session for now */
     time_t close_deadline;      /* after the channel closed: drop the session
                                    if the client has not disconnected by then */
@@ -231,11 +235,11 @@ static int cb_auth_pubkey(ssh_session session, const char *user, struct ssh_key_
     if (signature_state == SSH_PUBLICKEY_STATE_VALID && auth_key_allowed(pubkey)) {
         s->authenticated = 1;
         snprintf(s->user, sizeof s->user, "%s", user);
-        log_msg("%s: public key accepted", user);
+        log_msg("%s from %s: public key accepted", user, s->peer);
         return SSH_AUTH_SUCCESS;
     }
     if (++s->auth_tries >= MAX_AUTH_TRIES) {
-        log_msg("%s: too many auth failures", user);
+        log_msg("%s from %s: too many auth failures", user, s->peer);
         ssh_disconnect(s->session);
     }
     return SSH_AUTH_DENIED;
@@ -319,6 +323,14 @@ static void accept_connection(void)
     }
     s->session = session;
     s->state = SESS_KEX;
+    {
+        struct sockaddr_in sa;
+        socklen_t sl = sizeof sa;
+        if (getpeername(ssh_get_fd(session), (struct sockaddr *)&sa, &sl) == 0)
+            snprintf(s->peer, sizeof s->peer, "%s:%u", inet_ntoa(sa.sin_addr), (unsigned)ntohs(sa.sin_port));
+        else
+            snprintf(s->peer, sizeof s->peer, "unknown address");
+    }
     s->server_cb.userdata = s;
     s->server_cb.auth_pubkey_function = cb_auth_pubkey;
     s->server_cb.channel_open_request_session_function = cb_channel_open;
@@ -329,7 +341,7 @@ static void accept_connection(void)
     s->next = sessions;
     sessions = s;
     nsessions++;
-    log_msg("connection from client (%d active)", nsessions);
+    log_msg("connection from %s (%d active)", s->peer, nsessions);
 
     /* Kick off the banner exchange; completes over later polls. */
     ssh_handle_key_exchange(session);
@@ -392,7 +404,7 @@ int server_poll(int timeout_ms)
             ssh_event_add_session(event, s->session);
             log_debug("key exchange done");
         } else if (rc != SSH_AGAIN) {
-            log_msg("key exchange failed: %s", ssh_get_error(s->session));
+            log_msg("%s: key exchange failed: %s", s->peer, ssh_get_error(s->session));
             session_destroy(s);
         }
     }
@@ -406,7 +418,7 @@ int server_poll(int timeout_ms)
         if (s->state != SESS_RUNNING)
             continue;
         if (!ssh_is_connected(s->session)) {
-            log_msg("%s: disconnected", s->user[0] ? s->user : "client");
+            log_msg("%s disconnected (%s)", s->peer, s->user[0] ? s->user : "not authenticated");
             session_destroy(s);
             continue;
         }

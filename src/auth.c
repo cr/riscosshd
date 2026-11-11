@@ -11,6 +11,7 @@
 struct akey {
     ssh_key key;
     char *type;
+    char *b64;
     char *comment;
 };
 
@@ -18,7 +19,7 @@ static struct akey *keys;
 static int nkeys;
 static const char *keys_path;
 
-static int add_key(ssh_key k, const char *type, const char *comment)
+static int add_key(ssh_key k, const char *type, const char *b64, const char *comment)
 {
     struct akey *n = realloc(keys, sizeof *keys * (size_t)(nkeys + 1));
     if (!n)
@@ -26,6 +27,7 @@ static int add_key(ssh_key k, const char *type, const char *comment)
     keys = n;
     keys[nkeys].key = k;
     keys[nkeys].type = strdup(type);
+    keys[nkeys].b64 = strdup(b64);
     keys[nkeys].comment = strdup(comment ? comment : "");
     nkeys++;
     return 0;
@@ -67,7 +69,7 @@ static int parse_line(const char *src, char *err, size_t errlen)
         free(line);
         return -1;
     }
-    rc = add_key(k, type, comment);
+    rc = add_key(k, type, b64, comment);
     free(line);
     return rc < 0 ? -1 : 1;
 }
@@ -133,6 +135,70 @@ int auth_count(void)
     return nkeys;
 }
 
+void auth_describe_one(int i, char *buf, size_t len)
+{
+    size_t bl;
+    if (i < 0 || i >= nkeys) {
+        buf[0] = '\0';
+        return;
+    }
+    bl = strlen(keys[i].b64);
+    snprintf(buf, len, "%s %s ...%s", keys[i].type,
+             keys[i].comment[0] ? keys[i].comment : "(no comment)",
+             keys[i].b64 + (bl > 12 ? bl - 12 : 0));
+}
+
+static const char *save_all(void)
+{
+    size_t len = 0, cap = 256;
+    char *data = malloc(cap);
+    const char *e;
+    if (!data)
+        return "out of memory";
+    data[0] = '\0';
+    for (int i = 0; i < nkeys; i++) {
+        size_t need = strlen(keys[i].type) + strlen(keys[i].b64) + strlen(keys[i].comment) + 4;
+        if (len + need > cap) {
+            char *n;
+            while (len + need > cap)
+                cap *= 2;
+            n = realloc(data, cap);
+            if (!n) {
+                free(data);
+                return "out of memory";
+            }
+            data = n;
+        }
+        len += (size_t)snprintf(data + len, cap - len, "%s %s%s%s\n", keys[i].type, keys[i].b64,
+                                keys[i].comment[0] ? " " : "", keys[i].comment);
+    }
+    e = ro_save_file(keys_path, 0xfff, data, len);
+    free(data);
+    return e;
+}
+
+int auth_remove_key(int i, char *err, size_t errlen)
+{
+    const char *e;
+    if (i < 0 || i >= nkeys) {
+        snprintf(err, errlen, "no such key");
+        return -1;
+    }
+    log_msg("removed %s key %s", keys[i].type, keys[i].comment);
+    ssh_key_free(keys[i].key);
+    free(keys[i].type);
+    free(keys[i].b64);
+    free(keys[i].comment);
+    memmove(&keys[i], &keys[i + 1], sizeof *keys * (size_t)(nkeys - i - 1));
+    nkeys--;
+    e = keys_path ? save_all() : NULL;
+    if (e) {
+        snprintf(err, errlen, "removed for this session only; cannot save: %s", e);
+        return -1;
+    }
+    return 0;
+}
+
 void auth_describe(char *buf, size_t len)
 {
     size_t used = 0;
@@ -163,6 +229,7 @@ void auth_free(void)
     for (int i = 0; i < nkeys; i++) {
         ssh_key_free(keys[i].key);
         free(keys[i].type);
+        free(keys[i].b64);
         free(keys[i].comment);
     }
     free(keys);
