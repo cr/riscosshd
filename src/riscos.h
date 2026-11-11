@@ -24,6 +24,7 @@ const char *ro_mkdir(const char *path);
 
 /* Append bytes to a file (created if missing).  Returns 0 or -1. */
 int ro_append_file(const char *path, const void *data, size_t len);
+extern const char *ro_append_error;   /* why the last ro_append_file failed */
 
 /* Delete a file; errors ignored. */
 void ro_delete(const char *path);

@@ -191,7 +191,10 @@ int main(int argc, char **argv)
         free(old);
         if (len > 256 * 1024)
             ro_delete(logpath);
-        log_set_file(logpath);
+        if (ro_append_file(logpath, "", 0) == 0)
+            log_set_file(logpath);
+        else
+            log_msg("cannot write log file %s: %s", logpath, ro_append_error);
     }
     log_msg("configuration in %s", cfg.config_dir);
 
