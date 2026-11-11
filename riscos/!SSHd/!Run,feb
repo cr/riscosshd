@@ -1,11 +1,12 @@
 | !SSHd - SSH server for RISC OS: a Wimp task with an icon-bar icon.
+| Settings live in <Choices$Write>.SSHd.Options (see !Help), not here:
+| PackMan replaces this file on every upgrade.
 Set SSHd$Dir <Obey$Dir>
 IconSprites <SSHd$Dir>.!Sprites
-| CryptRandom is not in the ROM; PackMan installs it as System:Modules.CryptRand
+| CryptRandom is not in the ROM; PackMan installs it as System:Modules.CryptRand.
+| Missing modules are reported by the server in its log window, not with an
+| error box, so that running !SSHd from the boot sequence never stalls it.
 RMEnsure CryptRandom 0.00 RMLoad System:Modules.CryptRand
-RMEnsure CryptRandom 0.00 Error SSHd needs the CryptRandom module (install it with PackMan)
-RMEnsure Internet 5.00 Error SSHd needs the Internet module (networking is not configured)
-If "<Choices$Write>" = "" Then Error SSHd needs the Choices system (boot from !Boot)
 IfThere <Choices$Write>.SSHd Then Else CDir <Choices$Write>.SSHd
 | UnixLib: no filename suffix swapping, keep our RISC OS paths as they are
 Set UnixEnv$sshd$sfix ""

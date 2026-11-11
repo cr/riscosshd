@@ -50,27 +50,37 @@ static int nsessions;
 
 /* ---- channel output queue --------------------------------------------- */
 
+static int queue_bytes(char **buf, size_t *len, size_t *cap, const char *data, size_t n)
+{
+    if (*len + n > *cap) {
+        size_t ncap = *cap ? *cap * 2 : 4096;
+        char *p;
+        while (ncap < *len + n)
+            ncap *= 2;
+        p = realloc(*buf, ncap);
+        if (!p)
+            return -1;
+        *buf = p;
+        *cap = ncap;
+    }
+    memcpy(*buf + *len, data, n);
+    *len += n;
+    return 0;
+}
+
 int chan_output(struct chan_ctx *c, const char *data, size_t len)
 {
-    if (c->out_len + len > c->out_cap) {
-        size_t ncap = c->out_cap ? c->out_cap * 2 : 4096;
-        char *n;
-        while (ncap < c->out_len + len)
-            ncap *= 2;
-        n = realloc(c->out, ncap);
-        if (!n)
-            return -1;
-        c->out = n;
-        c->out_cap = ncap;
-    }
-    memcpy(c->out + c->out_len, data, len);
-    c->out_len += len;
-    return 0;
+    return queue_bytes(&c->out, &c->out_len, &c->out_cap, data, len);
 }
 
 int chan_output_str(struct chan_ctx *c, const char *s)
 {
     return chan_output(c, s, strlen(s));
+}
+
+int chan_output_err(struct chan_ctx *c, const char *s)
+{
+    return queue_bytes(&c->err, &c->err_len, &c->err_cap, s, strlen(s));
 }
 
 int chan_output_vdu(struct chan_ctx *c, const char *data, size_t len)
@@ -96,31 +106,40 @@ void chan_finish(struct chan_ctx *c, int status)
     c->exit_status = status;
 }
 
-/* Send as much queued output as the channel window allows. */
-static void chan_pump(struct chan_ctx *c)
+/* Send as much of one queue as the channel window allows.  Returns 1 if
+ * it is drained. */
+static int pump_queue(struct chan_ctx *c, char *buf, size_t *len, int is_stderr)
 {
-    while (c->out_len > 0 && ssh_channel_is_open(c->channel)) {
+    while (*len > 0 && ssh_channel_is_open(c->channel)) {
         uint32_t window = ssh_channel_window_size(c->channel);
-        size_t n = c->out_len;
+        size_t n = *len;
         int rc;
         if (window == 0)
-            return;
+            return 0;
         if (n > window)
             n = window;
         if (n > 32768)
             n = 32768;
-        rc = ssh_channel_write(c->channel, c->out, (uint32_t)n);
+        rc = is_stderr ? ssh_channel_write_stderr(c->channel, buf, (uint32_t)n)
+                       : ssh_channel_write(c->channel, buf, (uint32_t)n);
         if (rc == SSH_AGAIN || rc == 0)
-            return;
+            return 0;
         if (rc < 0) {
             log_debug("channel write failed: %s", ssh_get_error(c->session));
-            c->out_len = 0;
-            return;
+            *len = 0;
+            return 1;
         }
-        memmove(c->out, c->out + rc, c->out_len - (size_t)rc);
-        c->out_len -= (size_t)rc;
+        memmove(buf, buf + rc, *len - (size_t)rc);
+        *len -= (size_t)rc;
     }
-    if (c->finished && c->out_len == 0 && !c->closed && ssh_channel_is_open(c->channel)) {
+    return *len == 0;
+}
+
+static void chan_pump(struct chan_ctx *c)
+{
+    int drained = pump_queue(c, c->out, &c->out_len, 0);
+    drained &= pump_queue(c, c->err, &c->err_len, 1);
+    if (c->finished && drained && !c->closed && ssh_channel_is_open(c->channel)) {
         c->closed = 1;
         ssh_channel_request_send_exit_status(c->channel, c->exit_status);
         ssh_channel_send_eof(c->channel);
@@ -137,6 +156,7 @@ static void chan_free(struct chan_ctx *c)
     if (c->channel)
         ssh_channel_free(c->channel);
     free(c->out);
+    free(c->err);
     free(c);
 }
 
@@ -151,11 +171,11 @@ static int cb_pty_request(ssh_session session, ssh_channel channel, const char *
     return 0;
 }
 
-/* Accept a request but answer it with a message and exit status 1. */
+/* Accept a request but answer it on stderr with exit status 1. */
 static void refuse_with_message(struct chan_ctx *c, const char *msg)
 {
-    chan_output_str(c, msg);
-    chan_output_str(c, c->pty ? "\r\n" : "\n");
+    chan_output_err(c, msg);
+    chan_output_err(c, "\r\n");
     chan_finish(c, 1);
 }
 
@@ -181,14 +201,14 @@ static int cb_exec_request(ssh_session session, ssh_channel channel,
     (void)session; (void)channel;
     log_msg("%s: exec '%s'", c->owner->user, command);
     /* A TaskWindow child (-quit) on the desktop so output streams as it is
-     * produced.  Commands a TaskWindow command line cannot carry are not
-     * run inside the server task, where a hung command would take the
-     * server down; the OS_CLI capture backend serves text mode only. */
+     * produced and the command's success is known.  Commands it cannot
+     * carry are refused rather than run inside the server task, where a
+     * hung command would take the server down; the OS_CLI capture backend
+     * serves text mode only. */
     if (start_backend(c, &backend_taskwindow, command) == 0)
         return 0;
     if (tw_available()) {
-        refuse_with_message(c, "Command refused: double quotes, control characters and commands "
-                               "over 200 characters cannot be run through a TaskWindow");
+        refuse_with_message(c, "Command refused: control characters or over 1000 characters");
         return 0;
     }
     return start_backend(c, &backend_exec, command) < 0 ? 1 : 0;
@@ -437,6 +457,9 @@ int server_poll(int timeout_ms)
     time_t now = time(NULL);
     int rc;
 
+    if (!event)
+        return 0;               /* startup failed; the desktop task lives on to show why */
+
     /* Drive key exchange for new sessions outside the event: once it
      * completes they join the event and callbacks take over. */
     for (s = sessions; s; s = next) {
@@ -473,7 +496,7 @@ int server_poll(int timeout_ms)
             if (c->backend && !c->finished)
                 c->backend->poll(c);
             chan_pump(c);
-            if (c->closed && c->out_len == 0 && !ssh_channel_is_open(c->channel)) {
+            if (c->closed && c->out_len == 0 && c->err_len == 0 && !ssh_channel_is_open(c->channel)) {
                 chan_free(c);
                 s->chan = NULL;
                 /* The connection stays for another channel (OpenSSH

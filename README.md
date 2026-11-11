@@ -32,14 +32,13 @@ server normally leans on:
   (`Message_TaskWindow_Input` / `_Output`).  A `shell` request starts such
   a child with `Wimp_StartTask`; its output goes to the SSH channel and the
   client's keystrokes are sent to it as input (`src/backend_taskwindow.c`).
-  `exec` requests use the same mechanism with `-quit`, so output streams
-  as the command produces it.  The TaskWindow module only reports that the
-  child ended, not whether the command failed, so the SSH exit status is 0
-  in that path.  In text mode `exec` runs through `OS_CLI` inside the
-  server's own task with VDU output redirected to a file
-  (`OS_ChangeRedirection`), which does report errors as status 1.
-  On the desktop such commands are refused instead, because a command
-  that hangs in the server's own task would take the server down.
+  `exec` requests use the same mechanism with `-quit`: the command is
+  written to a scratch Obey file that sets a system variable to 1 before
+  it and 0 after it, so a RISC OS error or an Escape leaves 1 and becomes
+  the SSH exit status, and output streams as the command produces it.
+  Refusals and errors go to the channel's stderr.  In text mode `exec`
+  runs through `OS_CLI` inside the server's own task with VDU output
+  redirected to a file (`OS_ChangeRedirection`).
 - **No Unix shell.**  `exec` requests are RISC OS `*commands`; an
   interactive session is the TaskWindow's own `*` command line.  In text
   mode (`-t`) a line editor feeding `OS_CLI` stands in for it.
@@ -169,15 +168,21 @@ sftp riscos-host                # or scp; paths look like /HostFS::HostFS.$/Publ
 ```
 
 Commands run in a TaskWindow child, so they behave as in Edit's task
-windows: line input, no Wimp applications.  A child that prints faster
-than the client reads is suspended and resumed with the TaskWindow
-module's own messages.  If the server itself dies with a fatal error, any
-children keep running and show in the Task Manager as "SSH session";
-quit them there.  The exit status is always 0
-on that path, because the TaskWindow module does not report a command's
-error.  Connections that do not authenticate within 60 s, or sit logged
-in without a channel for 120 s, are dropped; at most 8 connections are
-held at once.
+windows: line input, no Wimp applications.  The exit status is 0 when
+the command completed and 1 when it raised a RISC OS error or was
+interrupted.  A child that prints faster than the client reads is
+suspended and resumed with the TaskWindow module's own messages.  If the
+server itself dies with a fatal error, any children keep running and show
+in the Task Manager as "SSH session"; quit them there.  Connections that
+do not authenticate within 60 s, or sit logged in without a channel for
+120 s, are dropped; at most 8 connections are held at once.
+
+Settings live in `Choices:SSHd.Options` (`port`, `root`, `bind`,
+`verbose`, `log`), which survives package upgrades; the log is also
+written to `Choices:SSHd.log`.  A failed start keeps the icon on the bar
+with the log window open rather than showing a modal box, so a boot
+sequence that runs `!SSHd` is never stalled.  After an upgrade, Quit the
+running instance and start the new one.
 
 ## Roadmap
 

@@ -29,6 +29,8 @@ static int add_key(ssh_key k, const char *type, const char *b64, const char *com
     keys[nkeys].type = strdup(type);
     keys[nkeys].b64 = strdup(b64);
     keys[nkeys].comment = strdup(comment ? comment : "");
+    if (keys[nkeys].comment)
+        log_sanitise(keys[nkeys].comment);   /* shown in icons and dialogue boxes */
     nkeys++;
     return 0;
 }

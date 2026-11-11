@@ -22,6 +22,18 @@ const char *ro_save_file(const char *path, int filetype, const void *data, size_
 /* Create a directory; succeeds if it already exists. */
 const char *ro_mkdir(const char *path);
 
+/* Append bytes to a file (created if missing).  Returns 0 or -1. */
+int ro_append_file(const char *path, const void *data, size_t len);
+
+/* Delete a file; errors ignored. */
+void ro_delete(const char *path);
+
+/* Read a system variable as a string into buf.  Returns 0, or -1 if unset. */
+int ro_read_var(const char *name, char *buf, size_t len);
+
+/* Remove a system variable; errors ignored. */
+void ro_unset_var(const char *name);
+
 /* Run a *command through OS_CLI with VDU output redirected to capture_path,
  * then read the captured output back.  *out receives a malloc'd buffer
  * (NUL-terminated, may contain \n\r pairs as RISC OS writes them) and

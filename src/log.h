@@ -5,6 +5,11 @@ extern int log_verbose;
  * installs a sink that appends to the log window instead, because a Wimp
  * task writing to stderr draws over the desktop. */
 void log_set_sink(void (*sink)(const char *line));
+/* Also append every line to this RISC OS file (NULL: none).  The file is
+ * truncated at startup if it has grown beyond a few hundred KB. */
+void log_set_file(const char *path);
+/* Replace control characters in s with '?' (user-supplied text). */
+void log_sanitise(char *s);
 void log_msg(const char *fmt, ...);
 void log_debug(const char *fmt, ...);
 #endif

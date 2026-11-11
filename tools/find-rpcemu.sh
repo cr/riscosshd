@@ -12,7 +12,9 @@ for d in "$HOME"/Documents/RPCEmu/*/ "$HOME"/Documents/RPCEmu/ "$HOME"/RPCEmu/; 
     [ -d "$d/hostfs" ] || continue
     t=0
     if [ -f "$d/rpclog.txt" ]; then
-        t=$(stat -f %m "$d/rpclog.txt" 2>/dev/null || stat -c %Y "$d/rpclog.txt" 2>/dev/null || echo 0)
+        # GNU stat first (BSD stat rejects -c); GNU "stat -f %m" would succeed
+        # with the mount point, which is why it must not be tried first.
+        t=$(stat -c %Y "$d/rpclog.txt" 2>/dev/null || stat -f %m "$d/rpclog.txt" 2>/dev/null || echo 0)
     fi
     if [ -z "$best" ] || [ "$t" -gt "$besttime" ]; then
         best="${d%/}/hostfs"; besttime=$t

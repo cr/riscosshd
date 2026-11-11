@@ -49,9 +49,9 @@ struct chan_ctx {
     const struct backend_ops *backend;
     void *backend_data;
 
-    /* Output waiting to be sent to the client. */
-    char *out;
-    size_t out_len, out_cap;
+    /* Output waiting to be sent to the client; err goes to its stderr. */
+    char *out, *err;
+    size_t out_len, out_cap, err_len, err_cap;
 
     int finished;            /* backend done; close once output drained */
     int exit_status;
@@ -61,6 +61,8 @@ struct chan_ctx {
 /* Queue bytes for the client.  Returns 0 or -1 on allocation failure. */
 int chan_output(struct chan_ctx *c, const char *data, size_t len);
 int chan_output_str(struct chan_ctx *c, const char *s);
+/* Queue text for the client's stderr (refusals, RISC OS errors). */
+int chan_output_err(struct chan_ctx *c, const char *s);
 /* Queue captured RISC OS VDU output: drops CRs, and in pty mode turns each
  * LF into CRLF. */
 int chan_output_vdu(struct chan_ctx *c, const char *data, size_t len);

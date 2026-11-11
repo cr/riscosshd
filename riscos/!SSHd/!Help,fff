@@ -40,8 +40,10 @@ Use
 The user name is not checked; only the key is.  Both single commands and
 interactive sessions run in a TaskWindow child task (as used by Edit), so
 they behave like a task window: line input, Escape via Ctrl-C, output as
-it is produced, and the same limits for Wimp applications.  A command's
-RISC OS error appears in its output; the SSH exit status is 0 either way.
+it is produced, and the same limits for Wimp applications.  A command is
+run from a small Obey file, so it may contain quotes and be up to 1000
+characters; its exit status is 0 if it completed and 1 if it raised a
+RISC OS error (printed in the output) or was interrupted.
 
 File transfer
 -------------
@@ -62,9 +64,26 @@ mbedTLS (Apache 2.0) and GCCSDK's UnixLib; their licence texts are in the
 package's RiscPkg.Copyright, and the build scripts at the website let
 anyone relink against a modified libssh as the LGPL requires.
 
-Options (edit !Run, or run sshd by hand in a TaskWindow with -t):
-  -p port    listen on another port
-  -d dir     use another configuration directory
-  -r dir     directory SFTP clients start in (default <Boot$Dir>.^)
-  -t         text mode: no icon bar, log to the TaskWindow, Escape quits
-  -v         verbose logging (-vv includes SSH protocol messages)
+Settings
+--------
+Create a text file <Choices$Write>.SSHd.Options with one setting per line
+(it survives package upgrades, which replace !Run):
+  port 22                 TCP port to listen on
+  root <Boot$Dir>.^       directory SFTP clients start in
+  bind 0.0.0.0            address to listen on (all interfaces)
+  verbose 0               1 for more log lines, 2 for SSH protocol detail
+  log on                  off to stop writing <Choices$Write>.SSHd.log
+Lines starting with # are comments.  The log file keeps the same lines as
+the log window and is started afresh when it grows past 256 KB; it is
+where to look after a crash.
+
+Command line options override the file (run sshd by hand in a TaskWindow
+with -t for text mode): -p port, -d config-dir, -r sftp-dir, -b address,
+-t, -v.
+
+If the server cannot start (no CryptRandom module, port in use), the icon
+stays on the bar, the log window opens with the reason, and Quit removes
+it; nothing blocks a boot sequence that runs !SSHd.
+
+After upgrading the package, Quit the running !SSHd and run the new one;
+the Info window shows which version is running.

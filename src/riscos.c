@@ -67,6 +67,44 @@ const char *ro_mkdir(const char *path)
     return e ? e->errmess : NULL;
 }
 
+int ro_append_file(const char *path, const void *data, size_t len)
+{
+    int fh = 0, extent = 0, unwritten = 0;
+    /* 0xcf: open for update, create if missing, no path search */
+    if (_swix(OS_Find, _INR(0, 1) | _OUT(0), 0xcf, path, &fh) || fh == 0)
+        return -1;
+    if (_swix(OS_Args, _INR(0, 1) | _OUT(2), 2, fh, &extent) == NULL)
+        _swix(OS_Args, _INR(0, 2), 1, fh, extent);          /* pointer to the end */
+    if (_swix(OS_GBPB, _INR(0, 3) | _OUT(3), 2, fh, data, len, &unwritten) || unwritten) {
+        _swix(OS_Find, _INR(0, 1), 0, fh);
+        return -1;
+    }
+    _swix(OS_Find, _INR(0, 1), 0, fh);
+    return 0;
+}
+
+void ro_delete(const char *path)
+{
+    _swix(OS_File, _INR(0, 1), 6, path);
+}
+
+int ro_read_var(const char *name, char *buf, size_t len)
+{
+    int n = 0;
+    /* R4 = 3: expanded as a string; an unset variable is an error */
+    if (_swix(OS_ReadVarVal, _INR(0, 4) | _OUT(2), name, buf, len - 1, 0, 3, &n))
+        return -1;
+    if (n < 0 || (size_t)n >= len)
+        n = 0;
+    buf[n] = '\0';
+    return 0;
+}
+
+void ro_unset_var(const char *name)
+{
+    _swix(OS_SetVarVal, _INR(0, 4), name, 0, -1, 0, 0);
+}
+
 static volatile int escape_seen;
 static volatile int in_command;
 static void (*quit_handler)(void);
@@ -93,6 +131,9 @@ void ro_yield(void)
 static void on_oserror(int sig)
 {
     _kernel_oserror *e = _kernel_last_oserror();
+    /* through log_msg so it also reaches the log file, then stderr */
+    log_msg("fatal RISC OS error (signal %d): &%x %s", sig,
+            e ? (unsigned)e->errnum : 0u, e ? e->errmess : "");
     fprintf(stderr, "sshd: fatal RISC OS error (signal %d)", sig);
     if (e)
         fprintf(stderr, ": &%x %s", (unsigned)e->errnum, e->errmess);

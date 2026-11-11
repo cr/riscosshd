@@ -31,12 +31,9 @@ int backend_run_cli(struct chan_ctx *c, const char *command)
         free(out);
     }
     if (err) {
-        /* RISC OS errors go to the client as a line on the same stream;
-         * stderr is kept for a later split of the capture. */
-        chan_output_str(c, c->pty ? "\r\n" : "\n");
-        chan_output_str(c, "Error: ");
-        chan_output_str(c, err);
-        chan_output_str(c, c->pty ? "\r\n" : "\n");
+        chan_output_err(c, "Error: ");
+        chan_output_err(c, err);
+        chan_output_err(c, "\r\n");
         free(err);
     }
     return status;

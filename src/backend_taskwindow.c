@@ -6,10 +6,16 @@
  * Message_TaskWindow_Input.  That is what Edit's task windows use; here
  * the controlling task is sshd and the "window" is an SSH channel.
  *
- *   shell/exec request -> Wimp_StartTask("TaskWindow -task &us -txt &id ...")
+ *   shell request      -> Wimp_StartTask("TaskWindow -task &us -txt &id")
+ *   exec request       -> the command goes into a scratch Obey file that
+ *                         sets SSHd$Rc<id> to 1 before it and 0 after it, run
+ *                         with "TaskWindow \"Obey <file>\" ... -quit": an
+ *                         error aborts the Obey file and leaves 1, which
+ *                         becomes the SSH exit status.  Quotes and length
+ *                         are no longer a problem.
  *   Message_TaskWindow_Ego     child announces itself: learn its task handle
  *   Message_TaskWindow_Output  child's VDU output -> channel
- *   channel data               -> Message_TaskWindow_Input (<= 232 bytes each)
+ *   channel data               -> Message_TaskWindow_Input, paced
  *   Message_TaskWindow_Morio   child exited -> close channel
  *   Message_TaskCloseDown      child killed some other way -> close channel
  *   channel closed             -> Message_TaskWindow_Morite kills the child
@@ -26,6 +32,7 @@
 #include <swis.h>
 
 #include "backend_taskwindow.h"
+#include "riscos.h"
 #include "log.h"
 
 #ifndef Wimp_StartTask
@@ -43,6 +50,7 @@
 #define OUT_HIGH_WATER (256 * 1024)   /* suspend the child above this much unsent output */
 #define OUT_LOW_WATER  (32 * 1024)    /* resume it below this */
 #define EOF_QUIET_CS   100            /* non-pty shell: finish 1 s after the last output */
+#define SCRAP_DIR "<Wimp$ScrapDir>.SSHd"
 
 struct tw_state {
     struct chan_ctx *chan;     /* NULL once the channel went away before Ego */
@@ -52,10 +60,13 @@ struct tw_state {
     int orphaned;              /* channel gone before Ego: kill on arrival */
     int suspended;             /* Message_TaskWindow_Suspend sent */
     int dropped;               /* input dropped because the child was not reading */
+    int is_exec;               /* started with a command (Obey wrapper, -quit) */
     int eof_pending;           /* non-pty shell: client sent EOF */
     int last_activity;         /* centiseconds, OS_ReadMonotonicTime */
     int last_sent;             /* when the last input chunk went out */
     int awaiting_output;       /* a chunk is out and nothing came back yet */
+    char *scrap;               /* exec: the Obey file, deleted at the end */
+    char rcvar[24];            /* exec: "SSHd$Rc<id>" */
     char *pending;             /* input waiting for the child (paced, or not yet ready) */
     size_t npending, pcap;
     struct tw_state *next;
@@ -106,6 +117,12 @@ static void unlink_state(struct tw_state *s)
             break;
         }
     }
+    if (s->scrap) {
+        ro_delete(s->scrap);
+        free(s->scrap);
+    }
+    if (s->rcvar[0])
+        ro_unset_var(s->rcvar);
     free(s->pending);
     free(s);
 }
@@ -178,6 +195,41 @@ static void queue_input(struct tw_state *s, const char *data, size_t len)
 
 /* ---- backend ops --------------------------------------------------------- */
 
+/* Write the Obey wrapper for an exec command.  Returns the file's RISC OS
+ * path (malloc'd) or NULL. */
+static char *write_wrapper(struct tw_state *s, const char *command)
+{
+    char *dir = ro_gstrans(SCRAP_DIR), *path, *body;
+    size_t n;
+    const char *err;
+    if (!dir)
+        return NULL;
+    ro_mkdir(dir);
+    n = strlen(dir) + 16;
+    path = malloc(n);
+    if (!path) {
+        free(dir);
+        return NULL;
+    }
+    snprintf(path, n, "%s.%08X", dir, (unsigned)s->txt);
+    free(dir);
+    n = strlen(command) + 2 * sizeof s->rcvar + 32;
+    body = malloc(n);
+    if (!body) {
+        free(path);
+        return NULL;
+    }
+    snprintf(body, n, "Set %s 1\n%s\nSet %s 0\n", s->rcvar, command, s->rcvar);
+    err = ro_save_file(path, 0xfeb, body, strlen(body));
+    free(body);
+    if (err) {
+        log_msg("cannot write %s: %s", path, err);
+        free(path);
+        return NULL;
+    }
+    return path;
+}
+
 static int tw_start(struct chan_ctx *c, const char *command)
 {
     struct tw_state *s;
@@ -187,14 +239,12 @@ static int tw_start(struct chan_ctx *c, const char *command)
     if (!our_task)
         return -1;           /* text mode: let the line shell / capture take over */
     if (command) {
-        /* The command rides inside a quoted TaskWindow argument: quotes
-         * cannot be passed through and a control character would end the
-         * *TaskWindow line early, losing -task and -txt. */
-        if (strlen(command) > 200)
-            return -1;
+        /* The command becomes one line of an Obey file. */
         for (const char *p = command; *p; p++)
-            if ((unsigned char)*p < 0x20 || *p == 0x7f || *p == '"')
+            if (((unsigned char)*p < 0x20 && *p != '\t') || *p == 0x7f)
                 return -1;
+        if (strlen(command) > 1000)
+            return -1;
     }
     s = calloc(1, sizeof *s);
     if (!s)
@@ -206,12 +256,21 @@ static int tw_start(struct chan_ctx *c, const char *command)
     states = s;
     c->backend_data = s;
 
-    if (command)
-        snprintf(cmd, sizeof cmd, "TaskWindow \"%s\" -task &%08X -txt &%08X -name \"SSH session\" -quit",
-                 command, (unsigned)our_task, (unsigned)s->txt);
-    else
+    if (command) {
+        s->is_exec = 1;
+        snprintf(s->rcvar, sizeof s->rcvar, "SSHd$Rc%08X", (unsigned)s->txt);
+        s->scrap = write_wrapper(s, command);
+        if (!s->scrap) {
+            unlink_state(s);
+            c->backend_data = NULL;
+            return -1;
+        }
+        snprintf(cmd, sizeof cmd, "TaskWindow \"Obey %s\" -task &%08X -txt &%08X -name \"SSH session\" -quit",
+                 s->scrap, (unsigned)our_task, (unsigned)s->txt);
+    } else {
         snprintf(cmd, sizeof cmd, "TaskWindow -task &%08X -txt &%08X -name \"SSH session\"",
                  (unsigned)our_task, (unsigned)s->txt);
+    }
     e = _swix(Wimp_StartTask, _IN(0), cmd);
     if (e) {
         log_msg("cannot start TaskWindow: %s", e->errmess);
@@ -239,15 +298,15 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
             out[n++] = '\r';                 /* RISC OS line end for ReadLine */
             if (ch == '\r' && i + 1 < len && buf[i + 1] == '\n')
                 i++;
+        } else if (!c->pty) {
+            out[n++] = (char)ch;             /* a pipe: bytes are data, not keys */
         } else if (ch == 0x7f || ch == 0x08) {
             out[n++] = 0x7f;                 /* delete; ReadLine understands 127 */
         } else if (ch == 0x03) {
             out[n++] = 0x1b;                 /* Ctrl-C -> Escape */
-            if (c->pty)
-                chan_output_str(c, "^C\r\n");
+            chan_output_str(c, "^C\r\n");
         } else if (ch == 0x04) {
-            if (c->pty)
-                chan_output_str(c, "\r\n");
+            chan_output_str(c, "\r\n");
             chan_finish(c, 0);               /* Ctrl-D ends the session */
             break;
         } else {
@@ -262,9 +321,10 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
 static void tw_eof(struct chan_ctx *c)
 {
     struct tw_state *s = c->backend_data;
-    /* Piped input is finished.  A pty session ends with Ctrl-D or the
-     * child's exit; a plain pipe ends once the child has gone quiet. */
-    if (!c->pty) {
+    /* Piped input is finished.  An exec channel ends when its command
+     * does; a pty shell with Ctrl-D or the child's exit; a plain piped
+     * shell once the child has gone quiet. */
+    if (!c->pty && !s->is_exec) {
         s->eof_pending = 1;
         s->last_activity = now_cs();
     }
@@ -313,12 +373,22 @@ const struct backend_ops backend_taskwindow = {
 
 /* ---- Wimp messages ------------------------------------------------------- */
 
+/* The exit status of an exec child: SSHd$Rc<id> is 1 until the command
+ * finished without error, so an error, an Escape or a kill all give 1. */
+static int exec_status(struct tw_state *s)
+{
+    char val[16];
+    if (!s->is_exec || ro_read_var(s->rcvar, val, sizeof val) < 0)
+        return 1;
+    return atoi(val) == 0 ? 0 : 1;
+}
+
 static void child_gone(struct tw_state *s, const char *how)
 {
     s->dead = 1;
     log_debug("task window %08x %s", (unsigned)s->txt, how);
     if (s->chan)
-        chan_finish(s->chan, 0);
+        chan_finish(s->chan, exec_status(s));
     else
         unlink_state(s);          /* orphan: nothing else refers to it */
 }
@@ -337,7 +407,7 @@ int tw_message(int reason, int *block)
                 kill_child(s);
                 unlink_state(s);
             } else {
-                log_msg("task window ready for %s", s->chan->owner_name);
+                log_debug("task window ready for %s", s->chan->owner_name);
                 flush_pending(s);
             }
         }
@@ -368,7 +438,7 @@ int tw_message(int reason, int *block)
             s->awaiting_output = 0;          /* the child consumed input: send more */
             flush_pending(s);
         }
-        if (reason == 18) {                      /* acknowledge, or the child kills itself */
+        if (reason == 18) {                  /* acknowledge, or the child kills itself */
             block[3] = block[2];
             _swix(Wimp_SendMessage, _INR(0, 2), 19, block, sender);
         }
@@ -378,13 +448,13 @@ int tw_message(int reason, int *block)
         if (s)
             child_gone(s, "exited");
         return 1;
-    case Message_TaskCloseDown:                  /* killed from the Task Manager, say */
+    case Message_TaskCloseDown:              /* killed from the Task Manager, say */
         s = find_by_child(sender);
         if (s)
             child_gone(s, "closed down");
         return 1;
     case Message_TaskWindow_NewTask:
-        return 1;                                /* nested task windows: ignored */
+        return 1;                            /* nested task windows: ignored */
     default:
         return 0;
     }
