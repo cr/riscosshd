@@ -9,6 +9,7 @@
 #include <string.h>
 #include <kernel.h>
 #include <swis.h>
+#include <mbedtls/version.h>
 
 #include "wimp.h"
 #include "server.h"
@@ -40,6 +41,10 @@ enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
 #define ROW_H     44
 #define KEYS_W    1200
 
+enum { MENU_INFO = 0, MENU_LOG, MENU_KEYS, MENU_QUIT, MENU_ITEMS };
+/* Info window icons: label/value pairs */
+enum { II_NAME = 0, II_PURPOSE, II_AUTHOR, II_VERSION, II_BUILT, II_COMPILER, II_LIBSSH, II_CRYPTO, II_COUNT };
+
 /* --- Wimp data structures (as the SWIs expect them) --------------------- */
 
 struct wimp_icon {
@@ -64,7 +69,7 @@ struct wimp_window {
         struct { char *text; const char *valid; int size; } ind;
     } title;
     int nicons;
-    struct wimp_icon icon[KI_COUNT];
+    struct wimp_icon icon[KI_COUNT > 16 ? KI_COUNT : 16];
 };
 
 struct wimp_menu_item {
@@ -81,7 +86,7 @@ struct wimp_menu {
     char title[12];
     unsigned char tfg, tbg, wfg, wbg;
     int width, height, gap;
-    struct wimp_menu_item item[3];
+    struct wimp_menu_item item[MENU_ITEMS];
 };
 
 #define ICON_TEXT       (1u << 0)
@@ -91,6 +96,7 @@ struct wimp_menu {
 #define ICON_VCENTRE    (1u << 4)
 #define ICON_FILLED     (1u << 5)
 #define ICON_INDIRECTED (1u << 8)
+#define ICON_RJUST      (1u << 9)
 #define ICON_BUTTON(t)  ((unsigned)(t) << 12)
 #define ICON_FG(c)      ((unsigned)(c) << 24)
 #define ICON_BG(c)      ((unsigned)(c) << 28)
@@ -108,13 +114,12 @@ struct wimp_menu {
 #define WIN_ADJUST      (1u << 29)
 #define WIN_NEWFORMAT   (1u << 31)
 
-enum { MENU_LOG = 0, MENU_KEYS = 1, MENU_QUIT = 2 };
 
 /* --- state ------------------------------------------------------------- */
 
 static int task_handle;
 static int running = 1;
-static int log_win = -1, keys_win = -1;
+static int log_win = -1, keys_win = -1, info_win = -1;
 static int menu_x, menu_y;
 static int poll_block[64];
 
@@ -136,6 +141,7 @@ static char log_title[40] = "SSHd Server Log";
 static char keys_title[40] = "SSHd Authorized Keys";
 
 /* Menu entries are indirected, so they may be longer than 12 characters. */
+static const char menu_info[] = "Info...";
 static const char menu_log[] = "Log Window";
 static const char menu_keys[] = "Keys...";
 static const char menu_quit[] = "Quit";
@@ -143,6 +149,7 @@ static const char menu_quit[] = "Quit";
 static struct wimp_menu menu = {
     "SSHd", 7, 2, 7, 0, 220, 44, 0,
     {
+        { 2,    -1, MENU_ITEM_FLAGS, { .ind = { menu_info, (const char *)-1, sizeof menu_info } } },
         { 0,    -1, MENU_ITEM_FLAGS, { .ind = { menu_log,  (const char *)-1, sizeof menu_log } } },
         { 2,    -1, MENU_ITEM_FLAGS, { .ind = { menu_keys, (const char *)-1, sizeof menu_keys } } },
         { 0x80, -1, MENU_ITEM_FLAGS, { .ind = { menu_quit, (const char *)-1, sizeof menu_quit } } },
@@ -543,7 +550,34 @@ static int create_window(struct wimp_window *w)
     return handle;
 }
 
-static struct wimp_window log_wdef, keys_wdef;
+static struct wimp_window log_wdef, keys_wdef, info_wdef;
+static char info_title[16] = "About SSHd";
+#ifndef SSHD_VERSION
+#define SSHD_VERSION "dev"
+#endif
+static char info_labels[II_COUNT][12] = {
+    "Name", "Purpose", "Author", "Version", "Built", "Compiler", "libssh", "Crypto"
+};
+static char info_values[II_COUNT][96] = {
+    "SSHd", "SSH server for RISC OS", "Christiane Ruetten", SSHD_VERSION,
+    __DATE__ " " __TIME__, "GCC " __VERSION__ " (GCCSDK, UnixLib)", "", ""
+};
+
+void wimp_open_info_window(void)
+{
+    int state[9];
+    if (info_win < 0)
+        return;
+    snprintf(info_values[II_LIBSSH], sizeof info_values[II_LIBSSH], "%s", ssh_version(0));
+    snprintf(info_values[II_CRYPTO], sizeof info_values[II_CRYPTO], "mbedTLS %s, CryptRandom entropy",
+             MBEDTLS_VERSION_STRING);
+    state[0] = info_win;
+    if (_swix(Wimp_GetWindowState, _IN(1), state))
+        return;
+    state[7] = -1;
+    _swix(Wimp_OpenWindow, _IN(1), state);
+    _swix(Wimp_ForceRedraw, _INR(0, 4), info_win, 0, -400, 1000, 0);
+}
 static char prompt_text[] = "Add a public key (type, paste, or drop file, then Add):";
 static char group_dummy[] = "";
 static char add_text[] = "Add", close_text[] = "Close", fetch_btn_text[] = "Import";
@@ -610,6 +644,26 @@ static void create_windows(void)
     /* Section 4: the list, growing downwards. */
     icon(&w->icon[KI_LISTLABEL], 16, -588, KEYS_W - 16, -548, text_flags, list_label, sizeof list_label, NULL);
     keys_win = create_window(w);
+
+    /* Info window: the usual label/value box, icons only. */
+    w = &info_wdef;
+    memset(w, 0, sizeof *w);
+    w->x0 = 300; w->y0 = 400; w->x1 = 1240; w->y1 = 780; w->behind = -1;
+    w->flags = WIN_NEWFORMAT | WIN_MOVEABLE | WIN_AUTOREDRAW | WIN_BACK | WIN_CLOSE | WIN_TITLE;
+    w->title_fg = 7; w->title_bg = 2; w->work_fg = 7; w->work_bg = 1;
+    w->scroll_outer = 3; w->scroll_inner = 1; w->highlight = 12;
+    w->ex0 = 0; w->ey0 = -380; w->ex1 = 940; w->ey1 = 0;
+    w->title_flags = ICON_TEXT | ICON_HCENTRE | ICON_VCENTRE | ICON_INDIRECTED;
+    w->sprite_area = (void *)1;
+    w->title.ind.text = info_title; w->title.ind.valid = (const char *)-1; w->title.ind.size = sizeof info_title;
+    w->nicons = II_COUNT * 2;
+    for (int i = 0; i < II_COUNT; i++) {
+        int top = -16 - i * 44;
+        icon(&w->icon[2 * i], 16, top - 36, 200, top, ICON_TEXT | ICON_VCENTRE | ICON_RJUST | ICON_FG(7),
+             info_labels[i], sizeof info_labels[i], NULL);
+        icon(&w->icon[2 * i + 1], 216, top - 40, 924, top + 4, box_flags, info_values[i], sizeof info_values[i], "R2");
+    }
+    info_win = create_window(w);
 }
 
 static char sprite_name[] = "!sshd";
@@ -655,7 +709,7 @@ int wimp_init(void)
 static void open_menu(int x)
 {
     menu_x = x - 64;
-    menu_y = 96 + 3 * 44;
+    menu_y = 96 + MENU_ITEMS * 44;
     _swix(Wimp_CreateMenu, _INR(1, 3), &menu, menu_x, menu_y);
 }
 
@@ -663,6 +717,7 @@ static void menu_selection(int *items)
 {
     int ptr[5];
     switch (items[0]) {
+    case MENU_INFO: wimp_open_info_window(); break;
     case MENU_LOG:  wimp_open_log_window(); break;
     case MENU_KEYS: wimp_open_keys_window(); break;
     case MENU_QUIT: running = 0; break;

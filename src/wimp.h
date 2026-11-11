@@ -12,4 +12,5 @@ void wimp_shutdown(void);
 void wimp_report_error(const char *msg);
 void wimp_open_keys_window(void);
 void wimp_open_log_window(void);
+void wimp_open_info_window(void);
 #endif

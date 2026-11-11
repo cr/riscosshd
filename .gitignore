@@ -3,3 +3,4 @@ deps/dl/
 deps/src/
 deps/sysroot/
 *.zip
+deps/build-deps.log

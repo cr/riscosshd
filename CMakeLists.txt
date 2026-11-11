@@ -31,7 +31,10 @@ add_executable(sshd
   src/backend_sftp.c
   src/riscos_compat.c)
 target_include_directories(sshd PRIVATE ${LIBSSH_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/deps/riscos-compat)
-target_compile_definitions(sshd PRIVATE LIBSSH_STATIC=1 WITH_SERVER=1)
+# Package version from the RiscPkg Control file, shown in the Info window.
+file(STRINGS ${CMAKE_SOURCE_DIR}/riscos/RiscPkg/Control CONTROL_VERSION REGEX "^Version:")
+string(REGEX REPLACE "^Version: *" "" SSHD_VERSION "${CONTROL_VERSION}")
+target_compile_definitions(sshd PRIVATE LIBSSH_STATIC=1 WITH_SERVER=1 SSHD_VERSION="${SSHD_VERSION}")
 target_link_libraries(sshd PRIVATE
   ${LIBSSH_LIBRARY} ${MBEDTLS_LIBRARY} ${MBEDX509_LIBRARY} ${MBEDCRYPTO_LIBRARY})
 set_target_properties(sshd PROPERTIES OUTPUT_NAME "sshd" SUFFIX ",e1f")

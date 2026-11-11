@@ -15,43 +15,46 @@ PAL = {'.': None, 'K': 7, 'W': 0, 'g': 2, 'G': 4, 'B': 8, 'L': 15, 'Y': 9,
        'O': 14, 'D': 5}
 
 # 34x34: a terminal window (dark blue screen, light blue title bar, white
-# "> _" prompt) with a yellow padlock over its bottom-right corner.
-BIG = """
-..................................
-..KKKKKKKKKKKKKKKKKKKKKKKKKKKKK...
-.KggggggggggggggggggggggggggggK...
-.KgLLLLLLLLLLLLLLLLLLLLLLLLLLgK...
-.KgLLLLLLLLLLLLLLLLLLLLLLLLLLgK...
-.KgggggggggggggggggggggggggggggK..
-.KgKKKKKKKKKKKKKKKKKKKKKKKKKKgK...
-.KgKBBBBBBBBBBBBBBBBBBBBBBBBKgK...
-.KgKBBBBBBBBBBBBBBBBBBBBBBBBKgK...
-.KgKBBWWBBBBBBBBBBBBBBBBBBBBKgK...
-.KgKBBBWWBBBBBBBBBBBBBBBBBBBKgK...
-.KgKBBBBWWBBBBBBBBBBBBBBBBBBKgK...
-.KgKBBBWWBBBWWWWBBBBBBBBBBBBKgK...
-.KgKBBWWBBBBWWWWBBBBBBBBBBBBKgK...
-.KgKBBBBBBBBBBBBBBBBBBBBBBBBKgK...
-.KgKBBBBBBBBBBBBBBBBBBBBBBBBKgK...
-.KgKBBBBBBBBBBBBBBBBBKKKKKKBKgK...
-.KgKBBBBBBBBBBBBBBBBKKYYYYKKKgK...
-.KgKBBBBBBBBBBBBBBBKKYYKKYYKKK....
-.KgKBBBBBBBBBBBBBBBKYYKKKKYYKK....
-.KgKBBBBBBBBBBBBBBBKYYKBBKYYK.....
-.KgKBBBBBBBBBBBBBBBKYYKBBKYYK.....
-.KgKBBBBBBBBBBBBBBKKYYKKKKYYKK....
-.KgKBBBBBBBBBBBBBKKKKKKKKKKKKKK...
-.KgKBBBBBBBBBBBBBKYYYYYYYYYYYYK...
-.KgKKKKKKKKKKKKKKKYYYYYYYYYYYYK...
-.KggggggggggggggggKYYYYYKKYYYYYK..
-..KKKKKKKKKKKKKKKKKYYYYYKKYYYYYK..
-..................KYYYYYYKYYYYYK..
-..................KYYYYYYKYYYYYK..
-..................KYYYYYYYYYYYYK..
-..................KOOOOOOOOOOOOK..
-..................KKKKKKKKKKKKKK..
-..................................
-"""
+# "> _" prompt) with a yellow padlock over its bottom-right corner.  Drawn
+# with rectangles so that every edge lands on the intended column.
+W = H = 34
+
+def blank():
+    return [['.'] * W for _ in range(H)]
+
+def rect(g, x0, y0, x1, y1, c):       # inclusive corners, y down
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            g[y][x] = c
+
+def frame(g, x0, y0, x1, y1, c):      # 1-pixel outline
+    rect(g, x0, y0, x1, y0, c); rect(g, x0, y1, x1, y1, c)
+    rect(g, x0, y0, x0, y1, c); rect(g, x1, y0, x1, y1, c)
+
+def draw_icon():
+    g = blank()
+    # window: black outline, grey frame, light blue title bar, black-edged screen
+    rect(g, 2, 2, 29, 25, 'g')
+    frame(g, 1, 1, 30, 26, 'K')
+    for (x, y) in ((1, 1), (30, 1), (1, 26), (30, 26)):   # rounded corners
+        g[y][x] = '.'
+    rect(g, 3, 3, 28, 5, 'L')
+    rect(g, 4, 8, 27, 23, 'B')
+    frame(g, 3, 7, 28, 24, 'K')
+    # prompt "> _"
+    for i, x in enumerate((6, 7, 8, 7, 6)):
+        g[10 + i][x] = 'W'
+    rect(g, 11, 13, 14, 14, 'W')
+    # padlock: shackle (black outline, yellow, hollow), then the body
+    rect(g, 20, 16, 29, 22, 'K')
+    g[16][20] = g[16][29] = 'B'
+    rect(g, 21, 17, 28, 22, 'Y')
+    rect(g, 23, 19, 26, 22, 'B')
+    rect(g, 18, 22, 31, 32, 'K')
+    rect(g, 19, 23, 30, 31, 'Y')
+    rect(g, 19, 31, 30, 31, 'O')
+    rect(g, 24, 25, 25, 28, 'K')      # keyhole
+    return [''.join(row) for row in g]
 
 def rows(art):
     r = [l for l in art.strip('\n').split('\n')]
@@ -87,7 +90,7 @@ def spritefile(sprites):
     body = b''.join(sprites)
     return struct.pack('<III', len(sprites), 16, 16 + len(body)) + body
 
-big = rows(BIG)
+big = rows('\n'.join(draw_icon()))
 here = os.path.dirname(os.path.abspath(__file__))
 app = os.path.join(here, '..', 'riscos', '!SSHd')
 with open(os.path.join(app, '!Sprites22,ff9'), 'wb') as f:

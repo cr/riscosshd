@@ -1,5 +1,5 @@
 --- a/cmake/Modules/DefineCMakeDefaults.cmake	2026-06-12 13:53:41
-+++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-11 15:48:46
++++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-11 16:35:41
 @@ -17,5 +17,8 @@
  # Create the compile command database for clang by default
  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -12,7 +12,7 @@
 +  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 +endif()
 --- a/src/misc.c	2026-07-16 10:57:23
-+++ b/src/misc.c	2026-11-11 15:48:46
++++ b/src/misc.c	2026-11-11 16:35:41
 @@ -71,6 +71,16 @@
  
  #include "libssh/priv.h"
@@ -31,18 +31,19 @@
  
  #ifdef HAVE_LIBGCRYPT
 --- a/src/sftpserver.c	2026-07-16 10:57:23
-+++ b/src/sftpserver.c	2026-11-11 16:35:39
-@@ -866,6 +866,9 @@
++++ b/src/sftpserver.c	2026-11-11 16:46:30
+@@ -866,6 +866,10 @@
  SSH_SFTP_CALLBACK(process_remove);
  SSH_SFTP_CALLBACK(process_extended_statvfs);
  SSH_SFTP_CALLBACK(process_setstat);
 +#ifdef __riscos__
 +SSH_SFTP_CALLBACK(process_fsetstat_riscos);
++SSH_SFTP_CALLBACK(process_rename_riscos);
 +#endif
  
  const struct sftp_message_handler message_handlers[] = {
      {"open", NULL, SSH_FXP_OPEN, process_open},
-@@ -875,6 +878,9 @@
+@@ -875,6 +879,9 @@
      {"lstat", NULL, SSH_FXP_LSTAT, process_lstat},
      {"fstat", NULL, SSH_FXP_FSTAT, process_unsupposed},
      {"setstat", NULL, SSH_FXP_SETSTAT, process_setstat},
@@ -52,7 +53,27 @@
      {"fsetstat", NULL, SSH_FXP_FSETSTAT, process_unsupposed},
      {"opendir", NULL, SSH_FXP_OPENDIR, process_opendir},
      {"readdir", NULL, SSH_FXP_READDIR, process_readdir},
-@@ -996,6 +1002,17 @@
+@@ -883,6 +890,9 @@
+     {"rmdir", NULL, SSH_FXP_RMDIR, process_rmdir},
+     {"realpath", NULL, SSH_FXP_REALPATH, process_realpath},
+     {"stat", NULL, SSH_FXP_STAT, process_stat},
++#ifdef __riscos__
++    {"rename", NULL, SSH_FXP_RENAME, process_rename_riscos},
++#endif
+     {"rename", NULL, SSH_FXP_RENAME, process_unsupposed},
+     {"readlink", NULL, SSH_FXP_READLINK, process_readlink},
+     {"symlink", NULL, SSH_FXP_SYMLINK, process_symlink},
+@@ -893,6 +903,9 @@
+ const struct sftp_message_handler extended_handlers[] = {
+     /* here are some extended type handlers */
+     {"statvfs", "statvfs@openssh.com", 0, process_extended_statvfs},
++#ifdef __riscos__
++    {"posix-rename", "posix-rename@openssh.com", 0, process_rename_riscos},
++#endif
+     {NULL, NULL, 0, NULL},
+ };
+ 
+@@ -996,6 +1009,17 @@
          SSH_LOG(SSH_LOG_PROTOCOL, "invalid fd (%d) received from handle", fd);
          return SSH_ERROR;
      }
@@ -70,12 +91,32 @@
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1497,7 +1514,18 @@
+@@ -1497,7 +1521,38 @@
      return SSH_OK;
  }
  
 +#ifdef __riscos__
++/* SSH_FXP_RENAME and posix-rename@openssh.com: libssh leaves both
++ * unimplemented; rename() through UnixLib does the job on RISC OS. */
  static int
++process_rename_riscos(sftp_client_message client_msg)
++{
++    const char *oldpath = sftp_client_message_get_filename(client_msg);
++    const char *newpath = sftp_client_message_get_data(client_msg);
++    if (oldpath == NULL || newpath == NULL) {
++        sftp_reply_status(client_msg, SSH_FX_FAILURE, "File name error");
++        return SSH_OK;
++    }
++    if (rename(oldpath, newpath) < 0) {
++        int saved_errno = errno;
++        sftp_reply_status(client_msg, unix_errno_to_ssh_stat(saved_errno), strerror(saved_errno));
++        return SSH_OK;
++    }
++    sftp_reply_status(client_msg, SSH_FX_OK, NULL);
++    return SSH_OK;
++}
++
++static int
 +process_fsetstat_riscos(sftp_client_message client_msg)
 +{
 +    /* Permissions, owner and times cannot be applied on RISC OS; a size
@@ -89,7 +130,7 @@
  process_setstat(sftp_client_message client_msg)
  {
      int rv;
-@@ -1526,6 +1554,11 @@
+@@ -1526,6 +1581,11 @@
          }
      }
  
@@ -102,7 +143,7 @@
          rv = chmod(filename, client_msg->attr->permissions);
          if (rv < 0) {
 --- a/src/ttyopts.c	2026-07-16 10:56:26
-+++ b/src/ttyopts.c	2026-11-11 15:48:46
++++ b/src/ttyopts.c	2026-11-11 16:35:41
 @@ -176,8 +176,10 @@
          return 57600;
      case B115200:
