@@ -37,10 +37,15 @@ static int sftp_data(struct chan_ctx *c, const char *buf, size_t len)
     sftp_session *sp = c->backend_data;
     int rc = sftp_channel_default_data_callback(c->session, c->channel, (void *)buf, (uint32_t)len, 0, sp);
     if (rc < 0) {
-        /* protocol error: libssh already sent EOF and closed the channel */
-        chan_finish(c, 1);
-        c->closed = 1;
-        return (int)len;
+        /* Either the buffer does not yet hold a complete SFTP packet (a
+         * 32 KB write spans two SSH packets) and libssh will call again
+         * with more, or a real protocol error made libssh close the
+         * channel.  Consume nothing; the pump notices a closed channel. */
+        if (!ssh_channel_is_open(c->channel)) {
+            c->finished = 1;
+            c->closed = 1;
+        }
+        return 0;
     }
     return rc;
 }
