@@ -14,6 +14,7 @@
 #include "server.h"
 #include "auth.h"
 #include "hostkey.h"
+#include "keyfetch.h"
 #include "config.h"
 #include "riscos.h"
 #include "log.h"
@@ -28,8 +29,9 @@
 #define TASK_MAGIC 0x4B534154 /* "TASK" */
 
 /* Fixed icons of the Keys window; key rows are created dynamically below them. */
-enum { KI_PROMPT = 0, KI_INPUT, KI_ADD, KI_CLOSE, KI_HOSTLABEL, KI_HOST, KI_HOST2, KI_LISTLABEL, KI_COUNT };
-#define ROW_TOP   (-380)          /* work-area y of the first row's top edge */
+enum { KI_PROMPT = 0, KI_INPUT, KI_ADD, KI_CLOSE, KI_FETCHLABEL, KI_FHOST, KI_FPASS, KI_FETCH,
+       KI_HOSTLABEL, KI_HOST, KI_HOST2, KI_LISTLABEL, KI_COUNT };
+#define ROW_TOP   (-500)          /* work-area y of the first row's top edge */
 #define ROW_H     44
 #define KEYS_W    1200
 
@@ -119,6 +121,7 @@ static int *row_text_icon, *row_del_icon;
 static char (*row_text)[160];
 static char list_label[96];
 static char key_input[1200];
+static char fetch_host[256], fetch_pass[128];
 static char host_line[560], host_line2[560];   /* base64 split over two lines */
 static char host_label[80];
 static char log_title[40] = "SSHd log";
@@ -227,8 +230,8 @@ static void refresh_keys_list(void)
     set_icon_text(keys_win, KI_LISTLABEL, list_label, NULL, 0);
 
     ext[0] = 0; ext[1] = ROW_TOP - n * ROW_H - 16; ext[2] = KEYS_W; ext[3] = 0;
-    if (ext[1] > -600)
-        ext[1] = -600;
+    if (ext[1] > -720)
+        ext[1] = -720;
     _swix(Wimp_SetExtent, _INR(0, 1), keys_win, ext);
     _swix(Wimp_ForceRedraw, _INR(0, 4), keys_win, 0, -4000, KEYS_W, ROW_TOP + 4);
 }
@@ -440,6 +443,40 @@ static void keys_add_from_file(const char *path)
     }
 }
 
+/* --- fetch keys from another machine ------------------------------------- */
+
+static int fetch_confirm(const char *fingerprint)
+{
+    struct { int num; char text[252]; } box;
+    int answer = 0;
+    box.num = 0;
+    snprintf(box.text, sizeof box.text,
+             "The machine's host key fingerprint is %s. Continue only if that matches what it reports (ssh-keygen -lf).",
+             fingerprint);
+    if (_swix(Wimp_ReportError, _INR(0, 2) | _OUT(1), &box, 3, "SSHd", &answer))
+        return 0;
+    return answer == 1;
+}
+
+static void keys_fetch(void)
+{
+    char msg[300];
+    int rc;
+    if (fetch_host[0] == '\0') {
+        wimp_report_error("Enter the account to fetch from as user@host");
+        _swix(Wimp_SetCaretPosition, _INR(0, 5), keys_win, KI_FHOST, 0, 0, -1, 0);
+        return;
+    }
+    _swix(Hourglass_On, 0);
+    rc = keyfetch_run(fetch_host, fetch_pass, fetch_confirm, msg, sizeof msg);
+    _swix(Hourglass_Off, 0);
+    memset(fetch_pass, 0, sizeof fetch_pass);          /* used once, never kept */
+    set_icon_text(keys_win, KI_FPASS, "", NULL, 0);
+    refresh_keys_list();
+    wimp_report_error(msg);
+    (void)rc;
+}
+
 /* --- creation ------------------------------------------------------------ */
 
 static void icon(struct wimp_icon *ic, int x0, int y0, int x1, int y1, unsigned flags,
@@ -465,7 +502,8 @@ static int create_window(struct wimp_window *w)
 
 static struct wimp_window log_wdef, keys_wdef;
 static char prompt_text[] = "Add a public key: type or paste it, or drop a file here, then Add:";
-static char add_text[] = "Add", close_text[] = "Close";
+static char add_text[] = "Add", close_text[] = "Close", fetch_btn_text[] = "Fetch";
+static char fetch_text[] = "Or fetch them from another machine: its account (user@host) and password, then Fetch:";
 
 static void create_windows(void)
 {
@@ -492,12 +530,12 @@ static void create_windows(void)
     /* Keys window: add section at the top, dynamic key rows below. */
     w = &keys_wdef;
     memset(w, 0, sizeof *w);
-    w->x0 = 100; w->y0 = 200; w->x1 = 100 + KEYS_W; w->y1 = 860; w->behind = -1;
+    w->x0 = 100; w->y0 = 120; w->x1 = 100 + KEYS_W; w->y1 = 900; w->behind = -1;
     w->flags = WIN_NEWFORMAT | WIN_MOVEABLE | WIN_AUTOREDRAW | WIN_BACK | WIN_CLOSE | WIN_TITLE |
                WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST;
     w->title_fg = 7; w->title_bg = 2; w->work_fg = 7; w->work_bg = 1;
     w->scroll_outer = 3; w->scroll_inner = 1; w->highlight = 12;
-    w->ex0 = 0; w->ey0 = -600; w->ex1 = KEYS_W; w->ey1 = 0;
+    w->ex0 = 0; w->ey0 = -720; w->ex1 = KEYS_W; w->ey1 = 0;
     w->title_flags = ICON_TEXT | ICON_HCENTRE | ICON_VCENTRE | ICON_INDIRECTED;
     w->work_flags = ICON_BUTTON(10);   /* click/drag so DataLoad hits the window */
     w->sprite_area = (void *)1;
@@ -508,10 +546,16 @@ static void create_windows(void)
          "Ktar;Pptr_write");
     icon(&w->icon[KI_ADD], 16, -184, 196, -132, button_flags, add_text, sizeof add_text, "R5,3");
     icon(&w->icon[KI_CLOSE], 216, -184, 396, -132, button_flags, close_text, sizeof close_text, "R5,3");
-    icon(&w->icon[KI_HOSTLABEL], 16, -244, KEYS_W - 16, -200, text_flags, host_label, sizeof host_label, NULL);
-    icon(&w->icon[KI_HOST], 16, -288, KEYS_W - 16, -248, text_flags, host_line, sizeof host_line, NULL);
-    icon(&w->icon[KI_HOST2], 16, -332, KEYS_W - 16, -292, text_flags, host_line2, sizeof host_line2, NULL);
-    icon(&w->icon[KI_LISTLABEL], 16, -376, KEYS_W - 16, -340, text_flags, list_label, sizeof list_label, NULL);
+    icon(&w->icon[KI_FETCHLABEL], 16, -244, KEYS_W - 16, -200, text_flags, fetch_text, sizeof fetch_text, NULL);
+    icon(&w->icon[KI_FHOST], 16, -304, 620, -252, box_flags | ICON_BUTTON(15), fetch_host, sizeof fetch_host,
+         "Ktar;Pptr_write");
+    icon(&w->icon[KI_FPASS], 640, -304, 1000, -252, box_flags | ICON_BUTTON(15), fetch_pass, sizeof fetch_pass,
+         "Ktar;D*;Pptr_write");
+    icon(&w->icon[KI_FETCH], 1020, -304, KEYS_W - 16, -252, button_flags, fetch_btn_text, sizeof fetch_btn_text, "R5,3");
+    icon(&w->icon[KI_HOSTLABEL], 16, -364, KEYS_W - 16, -320, text_flags, host_label, sizeof host_label, NULL);
+    icon(&w->icon[KI_HOST], 16, -408, KEYS_W - 16, -368, text_flags, host_line, sizeof host_line, NULL);
+    icon(&w->icon[KI_HOST2], 16, -452, KEYS_W - 16, -412, text_flags, host_line2, sizeof host_line2, NULL);
+    icon(&w->icon[KI_LISTLABEL], 16, -496, KEYS_W - 16, -460, text_flags, list_label, sizeof list_label, NULL);
     keys_win = create_window(w);
 }
 
@@ -588,6 +632,8 @@ static void mouse_click(int *b)
             keys_add_from_input();
         else if (ic == KI_CLOSE)
             _swix(Wimp_CloseWindow, _IN(1), &keys_win);
+        else if (ic == KI_FETCH)
+            keys_fetch();
         else if (row_of_delete_icon(ic) >= 0)
             keys_delete_row(row_of_delete_icon(ic));
     }
@@ -596,9 +642,19 @@ static void mouse_click(int *b)
 static void key_pressed(int *b)
 {
     int win = b[0], ic = b[1], key = b[6];
-    if (win == keys_win && ic == KI_INPUT && key == 13) {
-        keys_add_from_input();
-        return;
+    if (win == keys_win && key == 13) {
+        if (ic == KI_INPUT) {
+            keys_add_from_input();
+            return;
+        }
+        if (ic == KI_FHOST) {
+            _swix(Wimp_SetCaretPosition, _INR(0, 5), keys_win, KI_FPASS, 0, 0, -1, (int)strlen(fetch_pass));
+            return;
+        }
+        if (ic == KI_FPASS) {
+            keys_fetch();
+            return;
+        }
     }
     _swix(Wimp_ProcessKey, _IN(0), key);
 }

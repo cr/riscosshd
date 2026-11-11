@@ -25,7 +25,8 @@ add_executable(sshd
   src/riscos.c
   src/riscos_entropy.c
   src/log.c
-  src/wimp.c)
+  src/wimp.c
+  src/keyfetch.c)
 target_include_directories(sshd PRIVATE ${LIBSSH_INCLUDE_DIR})
 target_compile_definitions(sshd PRIVATE LIBSSH_STATIC=1)
 target_link_libraries(sshd PRIVATE

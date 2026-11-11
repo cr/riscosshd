@@ -75,6 +75,17 @@ and `build/SSHd.zip`.  Later runs only rebuild the server.
 GitHub Actions (`.github/workflows/build.yml`).  `docs/toolchain.md`
 explains why build.riscos.online is not used.
 
+## Desktop front end
+
+`!SSHd` is a Wimp task.  The icon-bar menu offers a tail-style **Log
+window**, a **Keys** window and **Quit**.  The Keys window lists the
+authorised keys with a Delete button each and adds keys three ways: a
+writable field, a dropped text file, or **Fetch**, which logs in to another
+machine as an SSH client (libssh's client side, password or
+keyboard-interactive auth, host key fingerprint confirmed in a dialogue)
+and imports that machine's `~/.ssh/id_*.pub`.  It opens by itself when no
+key is configured.  `-t` runs the old TaskWindow text mode instead.
+
 ## Installing and running
 
 1. Copy `build/!SSHd` to the RISC OS machine (HostFS in RPCEmu, see

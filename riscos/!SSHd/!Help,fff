@@ -12,10 +12,17 @@ Icon bar
 
 Keys window
 -----------
-Lists the public keys that may log in and lets you add one: type or paste
-it into the field (the format ssh-keygen writes to id_ed25519.pub or
-id_rsa.pub), or drop such a file onto the window, then click Add or press
-Return.  Keys are stored in <Choices$Write>.SSHd.authkeys, one per line.
+Lists the public keys that may log in, each with a Delete button, and
+offers three ways to add one:
+  - type or paste it into the field (the format ssh-keygen writes to
+    id_ed25519.pub or id_rsa.pub), then Add or Return;
+  - drop such a file onto the window;
+  - Fetch: enter the account (user@host) and password of the machine
+    whose keys you want to allow.  SSHd logs in there over SSH, shows the
+    machine's host key fingerprint for you to confirm, reads
+    ~/.ssh/id_*.pub and imports them.  The password is used once and not
+    stored.  The desktop pauses while this runs.
+Keys are stored in <Choices$Write>.SSHd.authkeys, one per line.
 The window opens by itself when no key is configured yet.  The server's
 own host key is shown at the bottom; it is generated on first run with the
 CryptRandom module and kept in Choices:SSHd.hostkey.
