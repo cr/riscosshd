@@ -88,6 +88,19 @@ and `build/SSHd.zip`.  Later runs only rebuild the server.
 GitHub Actions (`.github/workflows/build.yml`).  `docs/toolchain.md`
 explains why build.riscos.online is not used.
 
+## SFTP and scp
+
+The `sftp` subsystem is libssh's built-in SFTP server running on the
+channel (`src/backend_sftp.c`), so `sftp` and modern `scp` (OpenSSH 9 and
+later, which transfers over SFTP) both work.  Paths are what UnixLib makes
+of RISC OS names: the boot disc root is `/HostFS::HostFS.$/` on RPCEmu,
+`dir.file/ext` appears as `/dir/file.ext`, and clients start in the
+directory given with `-r` (default `<Boot$Dir>.^`).  Permissions, owners
+and timestamps in `setstat`/`fsetstat` are accepted and ignored, since
+RISC OS has nothing to map them to.  The legacy `scp -O` protocol is not
+supported.  Files written through UnixLib get its default filetype;
+typing by extension is a follow-up.
+
 ## Desktop front end
 
 `!SSHd` is a Wimp task.  The icon-bar menu offers a tail-style **Log
@@ -120,9 +133,10 @@ interactive and must not start Wimp applications.
 
 ## Roadmap
 
-1. PackMan package (`riscos/RiscPkg/Control` is ready; the zip layout is
+1. Filetypes for files written over SFTP (MimeMap by extension, and the
+   `,xxx` suffix convention).
+2. PackMan package (`riscos/RiscPkg/Control` is ready; the zip layout is
    what `package-zip` produces).
-2. SFTP (libssh has the server side; needs a RISC OS path mapping).
 3. Window-size and colour handling for the TaskWindow session.
 
 ## Licence

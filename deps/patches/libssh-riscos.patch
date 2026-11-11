@@ -1,5 +1,5 @@
 --- a/cmake/Modules/DefineCMakeDefaults.cmake	2026-06-12 13:53:41
-+++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-11 11:35:18
++++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-11 15:48:46
 @@ -17,5 +17,8 @@
  # Create the compile command database for clang by default
  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -12,7 +12,7 @@
 +  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 +endif()
 --- a/src/misc.c	2026-07-16 10:57:23
-+++ b/src/misc.c	2026-11-11 11:32:49
++++ b/src/misc.c	2026-11-11 15:48:46
 @@ -71,6 +71,16 @@
  
  #include "libssh/priv.h"
@@ -30,8 +30,79 @@
  #include "libssh/session.h"
  
  #ifdef HAVE_LIBGCRYPT
+--- a/src/sftpserver.c	2026-07-16 10:57:23
++++ b/src/sftpserver.c	2026-11-11 16:35:39
+@@ -866,6 +866,9 @@
+ SSH_SFTP_CALLBACK(process_remove);
+ SSH_SFTP_CALLBACK(process_extended_statvfs);
+ SSH_SFTP_CALLBACK(process_setstat);
++#ifdef __riscos__
++SSH_SFTP_CALLBACK(process_fsetstat_riscos);
++#endif
+ 
+ const struct sftp_message_handler message_handlers[] = {
+     {"open", NULL, SSH_FXP_OPEN, process_open},
+@@ -875,6 +878,9 @@
+     {"lstat", NULL, SSH_FXP_LSTAT, process_lstat},
+     {"fstat", NULL, SSH_FXP_FSTAT, process_unsupposed},
+     {"setstat", NULL, SSH_FXP_SETSTAT, process_setstat},
++#ifdef __riscos__
++    {"fsetstat", NULL, SSH_FXP_FSETSTAT, process_fsetstat_riscos},
++#endif
+     {"fsetstat", NULL, SSH_FXP_FSETSTAT, process_unsupposed},
+     {"opendir", NULL, SSH_FXP_OPENDIR, process_opendir},
+     {"readdir", NULL, SSH_FXP_READDIR, process_readdir},
+@@ -996,6 +1002,17 @@
+         SSH_LOG(SSH_LOG_PROTOCOL, "invalid fd (%d) received from handle", fd);
+         return SSH_ERROR;
+     }
++#ifdef __riscos__
++    {
++        /* UnixLib's read() at exactly end-of-file does not return 0, so
++         * answer reads at or beyond the end from the file size instead. */
++        struct stat st;
++        if (fstat(fd, &st) == 0 && client_msg->offset >= (uint64_t)st.st_size) {
++            sftp_reply_status(client_msg, SSH_FX_EOF, NULL);
++            return SSH_OK;
++        }
++    }
++#endif
+     off = lseek(fd, client_msg->offset, SEEK_SET);
+     if (off == -1) {
+         sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
+@@ -1497,7 +1514,18 @@
+     return SSH_OK;
+ }
+ 
++#ifdef __riscos__
+ static int
++process_fsetstat_riscos(sftp_client_message client_msg)
++{
++    /* Permissions, owner and times cannot be applied on RISC OS; a size
++     * change through a handle is rare (sftp "put" never sends one). */
++    sftp_reply_status(client_msg, SSH_FX_OK, NULL);
++    return SSH_OK;
++}
++#endif
++
++static int
+ process_setstat(sftp_client_message client_msg)
+ {
+     int rv;
+@@ -1526,6 +1554,11 @@
+         }
+     }
+ 
++#ifdef __riscos__
++    /* No Unix permissions, owners or settable times to speak of: accept
++     * the request once the size has been handled. */
++    msg_flags &= ~(SSH_FILEXFER_ATTR_PERMISSIONS | SSH_FILEXFER_ATTR_UIDGID | SSH_FILEXFER_ATTR_ACMODTIME);
++#endif
+     if (msg_flags & SSH_FILEXFER_ATTR_PERMISSIONS) {
+         rv = chmod(filename, client_msg->attr->permissions);
+         if (rv < 0) {
 --- a/src/ttyopts.c	2026-07-16 10:56:26
-+++ b/src/ttyopts.c	2026-11-11 11:32:49
++++ b/src/ttyopts.c	2026-11-11 15:48:46
 @@ -176,8 +176,10 @@
          return 57600;
      case B115200:

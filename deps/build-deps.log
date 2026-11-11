@@ -1,5 +1,6 @@
 patching file cmake/Modules/DefineCMakeDefaults.cmake
 patching file src/misc.c
+patching file src/sftpserver.c
 patching file src/ttyopts.c
 -- The C compiler identification is GNU 4.7.4
 -- Check for working C compiler: /home/riscos/cross/bin/arm-unknown-riscos-gcc
@@ -246,18 +247,18 @@ patching file src/ttyopts.c
 -- Generating done
 -- Build files have been written to: /work/deps/src/libssh-0.11.5/build-riscos
 Scanning dependencies of target ssh
-[  2%] Building C object src/CMakeFiles/ssh.dir/agent.c.o
 [  2%] Building C object src/CMakeFiles/ssh.dir/auth.c.o
+[  2%] Building C object src/CMakeFiles/ssh.dir/base64.c.o
+[  3%] Building C object src/CMakeFiles/ssh.dir/buffer.c.o
 [  5%] Building C object src/CMakeFiles/ssh.dir/callbacks.c.o
-[  6%] Building C object src/CMakeFiles/ssh.dir/base64.c.o
-[  7%] Building C object src/CMakeFiles/ssh.dir/buffer.c.o
+[  7%] Building C object src/CMakeFiles/ssh.dir/agent.c.o
 [  7%] Building C object src/CMakeFiles/ssh.dir/bignum.c.o
-/work/deps/src/libssh-0.11.5/src/agent.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
-/work/deps/src/libssh-0.11.5/src/callbacks.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/auth.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]/work/deps/src/libssh-0.11.5/src/base64.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+
 /work/deps/src/libssh-0.11.5/src/buffer.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
-/work/deps/src/libssh-0.11.5/src/base64.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/callbacks.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/agent.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/bignum.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
-/work/deps/src/libssh-0.11.5/src/auth.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [  9%] Building C object src/CMakeFiles/ssh.dir/channels.c.o
 [ 10%] Building C object src/CMakeFiles/ssh.dir/client.c.o
 /work/deps/src/libssh-0.11.5/src/channels.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
@@ -270,8 +271,8 @@ Scanning dependencies of target ssh
 /work/deps/src/libssh-0.11.5/src/connector.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 15%] Building C object src/CMakeFiles/ssh.dir/crypto_common.c.o
 [ 17%] Building C object src/CMakeFiles/ssh.dir/curve25519.c.o
-/work/deps/src/libssh-0.11.5/src/crypto_common.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 18%] Building C object src/CMakeFiles/ssh.dir/dh.c.o
+/work/deps/src/libssh-0.11.5/src/crypto_common.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/curve25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/dh.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 19%] Building C object src/CMakeFiles/ssh.dir/ecdh.c.o
@@ -279,23 +280,25 @@ Scanning dependencies of target ssh
 [ 21%] Building C object src/CMakeFiles/ssh.dir/error.c.o
 /work/deps/src/libssh-0.11.5/src/error.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 22%] Building C object src/CMakeFiles/ssh.dir/getpass.c.o
-[ 23%] Building C object src/CMakeFiles/ssh.dir/gzip.c.o
-[ 25%] Building C object src/CMakeFiles/ssh.dir/init.c.o
 /work/deps/src/libssh-0.11.5/src/getpass.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 23%] Building C object src/CMakeFiles/ssh.dir/gzip.c.o
 /work/deps/src/libssh-0.11.5/src/gzip.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
-/work/deps/src/libssh-0.11.5/src/init.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 25%] Building C object src/CMakeFiles/ssh.dir/init.c.o
 [ 26%] Building C object src/CMakeFiles/ssh.dir/kdf.c.o
+/work/deps/src/libssh-0.11.5/src/init.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/kdf.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 27%] Building C object src/CMakeFiles/ssh.dir/kex.c.o
 /work/deps/src/libssh-0.11.5/src/kex.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
-[ 28%] Building C object src/CMakeFiles/ssh.dir/known_hosts.c.o
+[ 30%] Building C object src/CMakeFiles/ssh.dir/known_hosts.c.o
 [ 30%] Building C object src/CMakeFiles/ssh.dir/knownhosts.c.o
-/work/deps/src/libssh-0.11.5/src/known_hosts.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/knownhosts.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/known_hosts.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 31%] Building C object src/CMakeFiles/ssh.dir/legacy.c.o
 /work/deps/src/libssh-0.11.5/src/legacy.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 32%] Building C object src/CMakeFiles/ssh.dir/log.c.o
+[ 34%] Building C object src/CMakeFiles/ssh.dir/match.c.o
 /work/deps/src/libssh-0.11.5/src/log.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/match.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/legacy.c: In function 'ssh_userauth_privatekey_file':
 /work/deps/src/libssh-0.11.5/src/legacy.c:130:3: warning: 'publickey_from_file' is deprecated (declared at /work/deps/src/libssh-0.11.5/include/libssh/legacy.h:101) [-Wdeprecated-declarations]
 /work/deps/src/libssh-0.11.5/src/legacy.c:134:5: warning: 'privatekey_from_file' is deprecated (declared at /work/deps/src/libssh-0.11.5/include/libssh/legacy.h:96) [-Wdeprecated-declarations]
@@ -307,49 +310,47 @@ Scanning dependencies of target ssh
 /work/deps/src/libssh-0.11.5/src/legacy.c:296:3: warning: 'ssh_channel_select' is deprecated (declared at /work/deps/src/libssh-0.11.5/include/libssh/libssh.h:584) [-Wdeprecated-declarations]
 /work/deps/src/libssh-0.11.5/src/legacy.c: In function 'ssh_try_publickey_from_file':
 /work/deps/src/libssh-0.11.5/src/legacy.c:729:5: warning: 'publickey_from_file' is deprecated (declared at /work/deps/src/libssh-0.11.5/src/legacy.c:494) [-Wdeprecated-declarations]
-[ 34%] Building C object src/CMakeFiles/ssh.dir/match.c.o
-/work/deps/src/libssh-0.11.5/src/match.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 35%] Building C object src/CMakeFiles/ssh.dir/messages.c.o
-[ 36%] Building C object src/CMakeFiles/ssh.dir/misc.c.o
 /work/deps/src/libssh-0.11.5/src/messages.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 36%] Building C object src/CMakeFiles/ssh.dir/misc.c.o
 /work/deps/src/libssh-0.11.5/src/misc.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 38%] Building C object src/CMakeFiles/ssh.dir/options.c.o
 /work/deps/src/libssh-0.11.5/src/options.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 39%] Building C object src/CMakeFiles/ssh.dir/packet.c.o
-/work/deps/src/libssh-0.11.5/src/packet.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 40%] Building C object src/CMakeFiles/ssh.dir/packet_cb.c.o
-/work/deps/src/libssh-0.11.5/src/packet_cb.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 42%] Building C object src/CMakeFiles/ssh.dir/packet_crypt.c.o
+/work/deps/src/libssh-0.11.5/src/packet.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/packet_cb.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/packet_crypt.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 43%] Building C object src/CMakeFiles/ssh.dir/pcap.c.o
 [ 44%] Building C object src/CMakeFiles/ssh.dir/pki.c.o
 /work/deps/src/libssh-0.11.5/src/pcap.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/pki.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 46%] Building C object src/CMakeFiles/ssh.dir/pki_container_openssh.c.o
-[ 47%] Building C object src/CMakeFiles/ssh.dir/poll.c.o
 /work/deps/src/libssh-0.11.5/src/pki_container_openssh.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
-[ 48%] Building C object src/CMakeFiles/ssh.dir/session.c.o
+[ 47%] Building C object src/CMakeFiles/ssh.dir/poll.c.o
 /work/deps/src/libssh-0.11.5/src/poll.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 48%] Building C object src/CMakeFiles/ssh.dir/session.c.o
 [ 50%] Building C object src/CMakeFiles/ssh.dir/scp.c.o
 /work/deps/src/libssh-0.11.5/src/session.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/scp.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 51%] Building C object src/CMakeFiles/ssh.dir/socket.c.o
 /work/deps/src/libssh-0.11.5/src/scp.c: In function 'ssh_scp_new':
 /work/deps/src/libssh-0.11.5/src/scp.c:110:5: warning: 'ssh_scp_free' is deprecated (declared at /work/deps/src/libssh-0.11.5/include/libssh/libssh.h:590) [-Wdeprecated-declarations]
+/work/deps/src/libssh-0.11.5/src/socket.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/scp.c: In function 'ssh_scp_free':
 /work/deps/src/libssh-0.11.5/src/scp.c:303:9: warning: 'ssh_scp_close' is deprecated (declared at /work/deps/src/libssh-0.11.5/src/scp.c:249) [-Wdeprecated-declarations]
 /work/deps/src/libssh-0.11.5/src/scp.c: In function 'ssh_scp_push_file':
 /work/deps/src/libssh-0.11.5/src/scp.c:577:5: warning: 'ssh_scp_push_file64' is deprecated (declared at /work/deps/src/libssh-0.11.5/src/scp.c:472) [-Wdeprecated-declarations]
 /work/deps/src/libssh-0.11.5/src/scp.c: In function 'ssh_scp_read':
 /work/deps/src/libssh-0.11.5/src/scp.c:1039:9: warning: 'ssh_scp_accept_request' is deprecated (declared at /work/deps/src/libssh-0.11.5/src/scp.c:985) [-Wdeprecated-declarations]
-[ 51%] Building C object src/CMakeFiles/ssh.dir/socket.c.o
-/work/deps/src/libssh-0.11.5/src/socket.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 52%] Building C object src/CMakeFiles/ssh.dir/string.c.o
 /work/deps/src/libssh-0.11.5/src/string.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 53%] Building C object src/CMakeFiles/ssh.dir/threads.c.o
 /work/deps/src/libssh-0.11.5/src/threads.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 55%] Building C object src/CMakeFiles/ssh.dir/ttyopts.c.o
-[ 56%] Building C object src/CMakeFiles/ssh.dir/wrapper.c.o
 /work/deps/src/libssh-0.11.5/src/ttyopts.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 56%] Building C object src/CMakeFiles/ssh.dir/wrapper.c.o
 /work/deps/src/libssh-0.11.5/src/wrapper.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 57%] Building C object src/CMakeFiles/ssh.dir/external/bcrypt_pbkdf.c.o
 /work/deps/src/libssh-0.11.5/src/external/bcrypt_pbkdf.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
@@ -364,8 +365,8 @@ Scanning dependencies of target ssh
 [ 64%] Building C object src/CMakeFiles/ssh.dir/threads/noop.c.o
 /work/deps/src/libssh-0.11.5/src/threads/noop.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 65%] Building C object src/CMakeFiles/ssh.dir/threads/pthread.c.o
-[ 67%] Building C object src/CMakeFiles/ssh.dir/threads/mbedtls.c.o
 /work/deps/src/libssh-0.11.5/src/threads/pthread.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 67%] Building C object src/CMakeFiles/ssh.dir/threads/mbedtls.c.o
 /work/deps/src/libssh-0.11.5/src/threads/mbedtls.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 68%] Building C object src/CMakeFiles/ssh.dir/libmbedcrypto.c.o
 /work/deps/src/libssh-0.11.5/src/libmbedcrypto.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
@@ -373,25 +374,25 @@ Scanning dependencies of target ssh
 /work/deps/src/libssh-0.11.5/src/mbedcrypto_missing.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 71%] Building C object src/CMakeFiles/ssh.dir/pki_mbedcrypto.c.o
 [ 72%] Building C object src/CMakeFiles/ssh.dir/ecdh_mbedcrypto.c.o
-/work/deps/src/libssh-0.11.5/src/ecdh_mbedcrypto.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/pki_mbedcrypto.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/ecdh_mbedcrypto.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 73%] Building C object src/CMakeFiles/ssh.dir/getrandom_mbedcrypto.c.o
 [ 75%] Building C object src/CMakeFiles/ssh.dir/md_mbedcrypto.c.o
 /work/deps/src/libssh-0.11.5/src/getrandom_mbedcrypto.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/md_mbedcrypto.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 76%] Building C object src/CMakeFiles/ssh.dir/dh_key.c.o
-[ 77%] Building C object src/CMakeFiles/ssh.dir/pki_ed25519.c.o
 /work/deps/src/libssh-0.11.5/src/dh_key.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
-/work/deps/src/libssh-0.11.5/src/pki_ed25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 77%] Building C object src/CMakeFiles/ssh.dir/pki_ed25519.c.o
 [ 78%] Building C object src/CMakeFiles/ssh.dir/external/ed25519.c.o
+/work/deps/src/libssh-0.11.5/src/pki_ed25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/external/ed25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 80%] Building C object src/CMakeFiles/ssh.dir/external/fe25519.c.o
-[ 81%] Building C object src/CMakeFiles/ssh.dir/external/ge25519.c.o
 /work/deps/src/libssh-0.11.5/src/external/fe25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 81%] Building C object src/CMakeFiles/ssh.dir/external/ge25519.c.o
 /work/deps/src/libssh-0.11.5/src/external/ge25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 82%] Building C object src/CMakeFiles/ssh.dir/external/sc25519.c.o
-/work/deps/src/libssh-0.11.5/src/external/sc25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 84%] Building C object src/CMakeFiles/ssh.dir/external/chacha.c.o
+/work/deps/src/libssh-0.11.5/src/external/sc25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/external/chacha.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 85%] Building C object src/CMakeFiles/ssh.dir/external/poly1305.c.o
 /work/deps/src/libssh-0.11.5/src/external/poly1305.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
@@ -400,15 +401,15 @@ Scanning dependencies of target ssh
 [ 88%] Building C object src/CMakeFiles/ssh.dir/sftp.c.o
 /work/deps/src/libssh-0.11.5/src/sftp.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 89%] Building C object src/CMakeFiles/ssh.dir/sftp_common.c.o
-/work/deps/src/libssh-0.11.5/src/sftp_common.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 90%] Building C object src/CMakeFiles/ssh.dir/sftp_aio.c.o
+/work/deps/src/libssh-0.11.5/src/sftp_common.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 92%] Building C object src/CMakeFiles/ssh.dir/sftpserver.c.o
 /work/deps/src/libssh-0.11.5/src/sftp_aio.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/sftpserver.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 [ 93%] Building C object src/CMakeFiles/ssh.dir/server.c.o
 /work/deps/src/libssh-0.11.5/src/server.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
 /work/deps/src/libssh-0.11.5/src/sftpserver.c: In function 'process_extended_statvfs':
-/work/deps/src/libssh-0.11.5/src/sftpserver.c:1705:20: warning: declaration of 'sftp_statvfs' shadows a global declaration [-Wshadow]
+/work/deps/src/libssh-0.11.5/src/sftpserver.c:1738:20: warning: declaration of 'sftp_statvfs' shadows a global declaration [-Wshadow]
 In file included from /work/deps/src/libssh-0.11.5/src/sftpserver.c:50:0:
 /work/deps/src/libssh-0.11.5/include/libssh/sftp.h:1082:27: warning: shadowed declaration is here [-Wshadow]
 /work/deps/src/libssh-0.11.5/src/sftp_aio.c: In function 'sftp_aio_wait_read':
@@ -433,9 +434,9 @@ In file included from /work/deps/src/libssh-0.11.5/include/libssh/libssh.h:890:0
 -- Up-to-date: /work/deps/sysroot/include/libssh/ssh2.h
 -- Up-to-date: /work/deps/sysroot/include/libssh/legacy.h
 -- Up-to-date: /work/deps/sysroot/include/libssh/libsshpp.hpp
--- Installing: /work/deps/sysroot/include/libssh/sftp.h
+-- Up-to-date: /work/deps/sysroot/include/libssh/sftp.h
 -- Up-to-date: /work/deps/sysroot/include/libssh/server.h
--- Installing: /work/deps/sysroot/include/libssh/sftpserver.h
+-- Up-to-date: /work/deps/sysroot/include/libssh/sftpserver.h
 -- Installing: /work/deps/sysroot/include/libssh/libssh_version.h
 -- Installing: /work/deps/sysroot/lib/libssh.a
 -- Installing: /work/deps/sysroot/lib/cmake/libssh/libssh-config.cmake
@@ -447,23 +448,17 @@ Dependencies installed in /work/deps/sysroot
 -- Generating done
 -- Build files have been written to: /work/build
 Scanning dependencies of target sshd
-[ 13%] Building C object CMakeFiles/sshd.dir/src/backend_exec.c.o
-[ 20%] Building C object CMakeFiles/sshd.dir/src/auth.c.o
-[ 26%] Building C object CMakeFiles/sshd.dir/src/server.c.o
-[ 33%] Building C object CMakeFiles/sshd.dir/src/main.c.o
-[ 33%] Building C object CMakeFiles/sshd.dir/src/backend_shell.c.o
-[ 40%] Building C object CMakeFiles/sshd.dir/src/hostkey.c.o
-[ 46%] Building C object CMakeFiles/sshd.dir/src/riscos.c.o
-[ 53%] Building C object CMakeFiles/sshd.dir/src/riscos_entropy.c.o
-[ 60%] Building C object CMakeFiles/sshd.dir/src/log.c.o
-[ 66%] Building C object CMakeFiles/sshd.dir/src/wimp.c.o
-[ 73%] Building C object CMakeFiles/sshd.dir/src/keyfetch.c.o
-[ 80%] Building C object CMakeFiles/sshd.dir/src/backend_taskwindow.c.o
-[ 86%] Building C object CMakeFiles/sshd.dir/src/backend_sftp.c.o
-[ 93%] Building C object CMakeFiles/sshd.dir/src/riscos_compat.c.o
-/work/src/backend_sftp.c: In function 'sftp_stop':
-/work/src/backend_sftp.c:60:13: warning: implicit declaration of function 'sftp_server_free' [-Wimplicit-function-declaration]
-[100%] Linking C executable sshd,e1f
+[ 26%] Building C object CMakeFiles/sshd.dir/src/main.c.o
+[ 26%] Building C object CMakeFiles/sshd.dir/src/backend_shell.c.o
+[ 33%] Building C object CMakeFiles/sshd.dir/src/server.c.o
+[ 33%] Building C object CMakeFiles/sshd.dir/src/backend_exec.c.o
+[ 33%] Building C object CMakeFiles/sshd.dir/src/hostkey.c.o
+[ 40%] Building C object CMakeFiles/sshd.dir/src/auth.c.o
+[ 46%] Building C object CMakeFiles/sshd.dir/src/wimp.c.o
+[ 53%] Building C object CMakeFiles/sshd.dir/src/keyfetch.c.o
+[ 60%] Building C object CMakeFiles/sshd.dir/src/backend_taskwindow.c.o
+[ 66%] Building C object CMakeFiles/sshd.dir/src/backend_sftp.c.o
+[ 73%] Linking C executable sshd,e1f
 Creating !SSHd application
 [100%] Built target sshd
 [ 93%] Built target sshd

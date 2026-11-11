@@ -39,7 +39,15 @@ they behave like a task window: line input, Escape via Ctrl-C, output as
 it is produced, and the same limits for Wimp applications.  A command's
 RISC OS error appears in its output; the SSH exit status is 0 either way.
 
+File transfer
+-------------
+sftp and scp work (scp in its modern SFTP mode; the old scp -O protocol
+does not).  Clients start in the directory given with -r, by default the
+boot disc, and see RISC OS paths the UnixLib way: HostFS::HostFS.$.Public
+is /HostFS::HostFS.$/Public, and dir.file/txt is /dir/file.txt.
+
 Options (edit !Run, or run sshd by hand in a TaskWindow with -t):
+  -r dir     directory SFTP clients start in (default <Boot$Dir>.^)
   -p port    listen on another port
   -d dir     use another configuration directory
   -t         text mode: no icon bar, log to the TaskWindow, Escape quits
