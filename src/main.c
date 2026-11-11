@@ -14,6 +14,8 @@
 #include <signal.h>
 #include <unistd.h>
 #include <unixlib/local.h>
+#include <kernel.h>
+#include <swis.h>
 #include <libssh/libssh.h>
 #include <libssh/callbacks.h>
 
@@ -24,6 +26,10 @@
 #include "riscos.h"
 #include "wimp.h"
 #include "log.h"
+
+#ifndef SSHD_VERSION
+#define SSHD_VERSION "dev"
+#endif
 
 struct sshd_config cfg = { 22, "0.0.0.0", NULL, NULL, NULL, NULL, NULL };
 
@@ -78,7 +84,7 @@ static int fatal(const char *fmt, const char *arg)
     char msg[300];
     snprintf(msg, sizeof msg, fmt, arg);
     log_msg("startup failed: %s", msg);
-    if (!text_mode) {
+    if (!text_mode && wimp_init() == 0) {
         log_msg("fix the cause, then Quit from the icon bar menu and run !SSHd again");
         wimp_open_log_window();
         wimp_run();
@@ -151,9 +157,6 @@ int main(int argc, char **argv)
         }
     }
 
-    if (!text_mode && wimp_init() < 0)
-        return 1;
-
     ssh_threads_set_callbacks(ssh_threads_get_noop());
     if (ssh_init() < 0)
         return fatal("libssh initialisation failed%s", "");
@@ -214,10 +217,21 @@ int main(int argc, char **argv)
         return fatal("Cannot load or generate the host key (is CryptRandom loaded?)%s", "");
 
     if (server_init(hostkey) < 0) {
-        char port[16];
+        char port[16], running_ver[32];
         snprintf(port, sizeof port, "%d", cfg.port);
+        /* A second copy started by hand while one runs: say so in a box
+         * (someone is at the keyboard) and leave no second icon behind. */
+        if (!text_mode && ro_read_var("SSHd$Running", running_ver, sizeof running_ver) == 0) {
+            char msg[128];
+            snprintf(msg, sizeof msg, "SSHd %s is already running (port %s in use)", running_ver, port);
+            wimp_report_error(msg);
+            return 1;
+        }
         return fatal("Cannot listen on port %s: is another SSH server running?", port);
     }
+    _swix(OS_SetVarVal, _INR(0, 4), "SSHd$Running", SSHD_VERSION, (int)strlen(SSHD_VERSION), 0, 0);
+    if (!text_mode && wimp_init() < 0)
+        return 1;
 
     signal(SIGTERM, on_term);
     signal(SIGHUP, on_term);
@@ -235,6 +249,7 @@ int main(int argc, char **argv)
     }
 
     log_msg("shutting down");
+    ro_unset_var("SSHd$Running");
     server_shutdown();
     auth_free();
     ssh_finalize();

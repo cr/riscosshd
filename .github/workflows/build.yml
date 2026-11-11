@@ -11,7 +11,7 @@ jobs:
           path: deps/sysroot
           key: deps-${{ hashFiles('tools/build-deps.sh', 'deps/mbedtls_riscos_config.h', 'deps/patches/**', 'deps/riscos-compat/**', 'cmake/toolchain-riscos.cmake') }}
       - name: Host-side unit test
-        run: sudo apt-get install -y --no-install-recommends libssh-dev pkg-config && make check
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libssh-dev pkg-config && make check
       - name: Build (image, dependencies, server, package)
         run: make ENGINE=docker
       - uses: actions/upload-artifact@v4

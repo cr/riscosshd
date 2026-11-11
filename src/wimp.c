@@ -42,7 +42,7 @@ enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
 #define ROW_H     44
 #define KEYS_W    1200
 
-enum { MENU_INFO = 0, MENU_LOG, MENU_KEYS, MENU_QUIT, MENU_ITEMS };
+enum { MENU_INFO = 0, MENU_LOG, MENU_VERBOSE, MENU_KEYS, MENU_QUIT, MENU_ITEMS };
 /* Info window icons: label/value pairs */
 enum { II_NAME = 0, II_PURPOSE, II_WEBSITE, II_VERSION, II_BUILT, II_COMPILER, II_LIBSSH, II_CRYPTO,
        II_LICENCE, II_COUNT };
@@ -112,6 +112,7 @@ struct wimp_menu {
 #define WIN_TOGGLE      (1u << 27)
 #define WIN_VSCROLL     (1u << 28)
 #define WIN_ADJUST      (1u << 29)
+#define WIN_HSCROLL     (1u << 30)
 #define WIN_NEWFORMAT   (1u << 31)
 
 
@@ -125,6 +126,7 @@ static int poll_block[64];
 
 #define LOG_LINES 400
 #define LOG_LINE_H 40
+#define LOG_WIDTH (160 * 18)      /* the longest line in the desktop font */
 static char log_lines[LOG_LINES][160];
 static int log_count, log_first;   /* ring: oldest line is log_first */
 
@@ -143,6 +145,7 @@ static char keys_title[40] = "SSHd Authorized Keys";
 /* Menu entries are indirected, so they may be longer than 12 characters. */
 static const char menu_info[] = "Info...";
 static const char menu_log[] = "Log Window";
+static const char menu_verbose[] = "Verbose";
 static const char menu_keys[] = "Keys...";
 static const char menu_quit[] = "Quit";
 #define MENU_ITEM_FLAGS (ICON_TEXT | ICON_FILLED | ICON_INDIRECTED | ICON_FG(7) | ICON_BG(0))
@@ -151,6 +154,7 @@ static struct wimp_menu menu = {
     {
         { 2,    -1, MENU_ITEM_FLAGS, { .ind = { menu_info, (const char *)-1, sizeof menu_info } } },
         { 0,    -1, MENU_ITEM_FLAGS, { .ind = { menu_log,  (const char *)-1, sizeof menu_log } } },
+        { 2,    -1, MENU_ITEM_FLAGS, { .ind = { menu_verbose, (const char *)-1, sizeof menu_verbose } } },
         { 2,    -1, MENU_ITEM_FLAGS, { .ind = { menu_keys, (const char *)-1, sizeof menu_keys } } },
         { 0x80, -1, MENU_ITEM_FLAGS, { .ind = { menu_quit, (const char *)-1, sizeof menu_quit } } },
     }
@@ -287,7 +291,7 @@ static void keys_delete_row(int i)
 static void log_window_extent(void)
 {
     int n = log_count < 12 ? 12 : log_count;
-    int ext[4] = { 0, -(n * LOG_LINE_H), 1600, 0 };
+    int ext[4] = { 0, -(n * LOG_LINE_H), LOG_WIDTH, 0 };
     if (log_win >= 0)
         _swix(Wimp_SetExtent, _INR(0, 1), log_win, ext);
 }
@@ -301,8 +305,10 @@ static int window_is_open(int win)
     return (state[8] & (1 << 16)) != 0;   /* window flags bit 16: open */
 }
 
-/* Scroll to the bottom and redraw: the "tail -f" behaviour. */
-static void log_window_follow(void)
+/* Scroll to the bottom and redraw: the "tail -f" behaviour.  With
+ * force 0 the window follows only if it was already showing the end, so
+ * someone reading older lines is not dragged down by each new one. */
+static void log_window_follow(int force)
 {
     int state[9];
     if (log_win < 0 || !window_is_open(log_win))
@@ -313,10 +319,16 @@ static void log_window_follow(void)
     {
         int vis_h = state[4] - state[2];
         int ext_h = (log_count < 12 ? 12 : log_count) * LOG_LINE_H;
-        state[6] = ext_h > vis_h ? -(ext_h - vis_h) : 0;
+        int bottom = ext_h > vis_h ? -(ext_h - vis_h) : 0;
+        /* before this line was added the end was one line higher */
+        if (!force && state[6] > bottom + LOG_LINE_H) {
+            _swix(Wimp_ForceRedraw, _INR(0, 4), log_win, 0, -(LOG_LINES * LOG_LINE_H), LOG_WIDTH, 0);
+            return;
+        }
+        state[6] = bottom;
     }
     _swix(Wimp_OpenWindow, _IN(1), state);
-    _swix(Wimp_ForceRedraw, _INR(0, 4), log_win, 0, -(LOG_LINES * LOG_LINE_H), 1600, 0);
+    _swix(Wimp_ForceRedraw, _INR(0, 4), log_win, 0, -(LOG_LINES * LOG_LINE_H), LOG_WIDTH, 0);
 }
 
 static void log_sink(const char *line)
@@ -330,7 +342,7 @@ static void log_sink(const char *line)
     }
     snprintf(log_lines[idx], sizeof log_lines[idx], "%s", line);
     log_window_extent();
-    log_window_follow();
+    log_window_follow(0);
 }
 
 static const char *log_line(int i)
@@ -386,7 +398,7 @@ void wimp_open_log_window(void)
         return;
     state[7] = -1;   /* on top */
     _swix(Wimp_OpenWindow, _IN(1), state);
-    log_window_follow();
+    log_window_follow(1);
 }
 
 /* --- keys window --------------------------------------------------------- */
@@ -592,10 +604,11 @@ static void create_windows(void)
     w = &log_wdef;
     memset(w, 0, sizeof *w);
     w->x0 = 100; w->y0 = 200; w->x1 = 1100; w->y1 = 680; w->behind = -1;
-    w->flags = WIN_NEWFORMAT | WIN_MOVEABLE | WIN_BACK | WIN_CLOSE | WIN_TITLE | WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST;
+    w->flags = WIN_NEWFORMAT | WIN_MOVEABLE | WIN_BACK | WIN_CLOSE | WIN_TITLE | WIN_TOGGLE | WIN_VSCROLL |
+               WIN_ADJUST | WIN_HSCROLL;
     w->title_fg = 7; w->title_bg = 2; w->work_fg = 7; w->work_bg = 0;
     w->scroll_outer = 3; w->scroll_inner = 1; w->highlight = 12;
-    w->ex0 = 0; w->ey0 = -(12 * LOG_LINE_H); w->ex1 = 1600; w->ey1 = 0;
+    w->ex0 = 0; w->ey0 = -(12 * LOG_LINE_H); w->ex1 = LOG_WIDTH; w->ey1 = 0;
     w->title_flags = ICON_TEXT | ICON_HCENTRE | ICON_VCENTRE | ICON_INDIRECTED;
     w->sprite_area = (void *)1;
     w->title.ind.text = log_title; w->title.ind.valid = (const char *)-1; w->title.ind.size = sizeof log_title;
@@ -605,7 +618,7 @@ static void create_windows(void)
     /* Keys window: add section at the top, dynamic key rows below. */
     w = &keys_wdef;
     memset(w, 0, sizeof *w);
-    w->x0 = 100; w->y0 = 100; w->x1 = 100 + KEYS_W; w->y1 = 920; w->behind = -1;
+    w->x0 = 40; w->y0 = 100; w->x1 = 40 + KEYS_W; w->y1 = 920; w->behind = -1;
     w->flags = WIN_NEWFORMAT | WIN_MOVEABLE | WIN_AUTOREDRAW | WIN_BACK | WIN_CLOSE | WIN_TITLE |
                WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST;
     w->title_fg = 7; w->title_bg = 2; w->work_fg = 7; w->work_bg = 1;
@@ -683,10 +696,10 @@ static int create_iconbar_icon(void)
 
 int wimp_init(void)
 {
-    static int messages[] = { 1 /* DataSave */, 3 /* DataLoad */, Message_TaskWindow_Output,
+    static int messages[] = { 1 /* DataSave */, 3 /* DataLoad */, 0x502 /* HelpRequest */, Message_TaskWindow_Output,
                               Message_TaskWindow_Ego, Message_TaskWindow_Morio, Message_TaskWindow_NewTask,
                               Message_TaskCloseDown, 0 };
-    _kernel_oserror *e = _swix(Wimp_Initialise, _INR(0, 3) | _OUT(1), 310, TASK_MAGIC, "SSHd",
+    _kernel_oserror *e = _swix(Wimp_Initialise, _INR(0, 3) | _OUT(1), 350, TASK_MAGIC, "SSHd",
                                messages, &task_handle);
     if (e) {
         report_oserror("Wimp_Initialise", e);
@@ -707,6 +720,7 @@ int wimp_init(void)
 
 static void open_menu(int x)
 {
+    menu.item[MENU_VERBOSE].flags = (menu.item[MENU_VERBOSE].flags & ~1u) | (log_verbose ? 1u : 0u);  /* tick */
     menu_x = x - 64;
     menu_y = 96 + MENU_ITEMS * 44;
     _swix(Wimp_CreateMenu, _INR(1, 3), &menu, menu_x, menu_y);
@@ -718,12 +732,18 @@ static void menu_selection(int *items)
     switch (items[0]) {
     case MENU_INFO: wimp_open_info_window(); break;
     case MENU_LOG:  wimp_open_log_window(); break;
+    case MENU_VERBOSE:
+        log_verbose = log_verbose ? 0 : 1;
+        log_msg("verbose logging %s", log_verbose ? "on" : "off");
+        break;
     case MENU_KEYS: wimp_open_keys_window(); break;
     case MENU_QUIT: running = 0; break;
     }
     /* Adjust keeps the menu open. */
-    if (_swix(Wimp_GetPointerInfo, _IN(1), ptr) == NULL && (ptr[2] & 1))
+    if (_swix(Wimp_GetPointerInfo, _IN(1), ptr) == NULL && (ptr[2] & 1)) {
+        menu.item[MENU_VERBOSE].flags = (menu.item[MENU_VERBOSE].flags & ~1u) | (log_verbose ? 1u : 0u);
         _swix(Wimp_CreateMenu, _INR(1, 3), &menu, menu_x, menu_y);
+    }
 }
 
 static void mouse_click(int *b)
@@ -768,12 +788,51 @@ static void key_pressed(int *b)
     _swix(Wimp_ProcessKey, _IN(0), key);
 }
 
+/* Interactive help: Message_HelpRequest (0x502) names a window and icon,
+ * Message_HelpReply (0x503) carries the text. */
+static void help_request(int *b)
+{
+    int win = b[8], ic = b[9];
+    const char *text = NULL;
+    if (win == -2) {
+        text = "This is the SSH server. Click SELECT to open its log, ADJUST for the authorized keys, MENU for options.";
+    } else if (win == log_win) {
+        text = "The server's log, newest line at the bottom. The same lines go to Choices:SSHd.log.";
+    } else if (win == info_win) {
+        text = "Information about this copy of SSHd.";
+    } else if (win == keys_win) {
+        switch (ic) {
+        case KI_INPUT: text = "Type or paste a public key here (the content of an id_*.pub file), then press RETURN or click Add."; break;
+        case KI_ADD:   text = "Click SELECT to add the key in the field to the authorized keys."; break;
+        case KI_CLOSE: text = "Click SELECT to close this window."; break;
+        case KI_FHOST: text = "The account on another machine whose public keys you want to allow, as user@host."; break;
+        case KI_FPASS: text = "That account's password. It is used once to log in and read ~/.ssh/id_*.pub, then forgotten."; break;
+        case KI_FETCH: text = "Click SELECT to log in to the machine named on the left and import its public keys."; break;
+        case KI_HOST: case KI_HOST2: case KI_HOSTLABEL:
+                       text = "This server's own public host key, which clients see on their first connection."; break;
+        default:
+            text = row_of_delete_icon(ic) >= 0
+                 ? "Click SELECT to remove this key; it will no longer be able to log in."
+                 : "Drop a file containing public keys anywhere on this window to add them.";
+        }
+    }
+    if (!text)
+        return;
+    snprintf((char *)&b[5], 236, "%s", text);
+    b[0] = (int)((20 + strlen((char *)&b[5]) + 1 + 3) & ~3u);
+    b[3] = b[2];
+    b[4] = 0x503;
+    _swix(Wimp_SendMessage, _INR(0, 2), 17, b, b[1]);
+}
+
 static void user_message(int reason, int *b)
 {
     int action = b[4];
     if (tw_message(reason, b))
         return;
-    if (action == 0) {                     /* Message_Quit */
+    if (action == 0x502) {                 /* Message_HelpRequest */
+        help_request(b);
+    } else if (action == 0) {              /* Message_Quit */
         running = 0;
     } else if (action == 1 && b[5] == keys_win) {   /* Message_DataSave: drag from an app */
         static const char scrap[] = "<Wimp$Scrap>";

@@ -14,4 +14,5 @@ Description: SSH server for RISC OS 5
  (LGPL 2.1), mbedTLS (Apache 2.0) and UnixLib, see RiscPkg.Copyright.
 Homepage: https://github.com/cr/riscosshd
 Depends: CryptRandom
+OSDepends: RISC OS (>= 5.00)
 Components: Apps.Network.!SSHd (Movable LookAt Run)

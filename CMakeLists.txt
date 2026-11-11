@@ -63,7 +63,8 @@ add_custom_target(package-zip
   COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/pkg
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pkg/Apps/Network
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${APP_DIR} "${CMAKE_BINARY_DIR}/pkg/Apps/Network/!SSHd"
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/riscos/RiscPkg ${CMAKE_BINARY_DIR}/pkg/RiscPkg
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pkg/RiscPkg
+  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/riscos/RiscPkg/Control ${CMAKE_BINARY_DIR}/pkg/RiscPkg/Control
   COMMAND sh ${CMAKE_SOURCE_DIR}/tools/mkcopyright.sh ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}/pkg/RiscPkg/Copyright
   COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}/pkg zip -q -r -9 ${CMAKE_BINARY_DIR}/SSHd.zip .
   DEPENDS sshd
