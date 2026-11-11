@@ -25,6 +25,12 @@
 
 struct sshd_config cfg = { 22, "0.0.0.0", NULL, NULL, NULL, NULL, NULL };
 
+/* UnixLib path translation: plain dot/slash swapping only.  By default it
+ * also looks extensions up in MimeMap and rewrites them, which would turn
+ * "notes.txt" into "notes/Text"; filetypes are handled by src/riscos_sftp.c
+ * instead.  UnixLib reads this application-defined global. */
+int __riscosify_control = __RISCOSIFY_NO_SUFFIX | __RISCOSIFY_FILETYPE_NOT_SET;
+
 static volatile int running = 1;
 static int text_mode;
 
@@ -101,12 +107,6 @@ int main(int argc, char **argv)
         usage();
         return 1;
     }
-
-    /* UnixLib path translation: plain dot/slash swapping only.  By default
-     * it also looks extensions up in MimeMap and rewrites them, which
-     * would turn "notes.txt" into "notes/Text"; filetypes are handled by
-     * src/riscos_sftp.c instead. */
-    __riscosify_control |= __RISCOSIFY_NO_SUFFIX | __RISCOSIFY_FILETYPE_NOT_SET;
 
     if (!text_mode && wimp_init() < 0)
         return 1;
