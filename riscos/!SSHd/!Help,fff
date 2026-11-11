@@ -1,0 +1,31 @@
+!SSHd - an SSH server for RISC OS 5
+====================================
+
+Double-click !SSHd to start the server in a TaskWindow.  It listens on
+TCP port 22 and accepts public-key logins only.
+
+Setup
+-----
+Configuration lives in <Choices$Write>.SSHd (normally !Boot.Choices.SSHd):
+
+  authkeys   Your SSH public keys, one per line, in the format ssh-keygen
+             writes to id_ed25519.pub / id_rsa.pub (OpenSSH authorized_keys
+             format, options prefixes are not supported).  The file is
+             created empty on first run; nobody can log in until you fill it.
+  hostkey    The server's ed25519 host key, generated on first run using the
+             CryptRandom module.  Delete it to generate a new one.
+
+Use
+---
+  ssh user@riscos-host '*Cat'      run one command, output comes back
+  ssh user@riscos-host             line-mode * prompt; 'exit' or Ctrl-D ends
+
+The user name is not checked; only the key is.  Commands run through OS_CLI
+inside the server's own task with their VDU output captured to a file, so
+they cannot be interactive and must not start a Wimp application.  A
+TaskWindow-based interactive session is planned.
+
+Options (edit !Run or run sshd from a TaskWindow by hand):
+  -p port    listen on another port
+  -d dir     use another configuration directory
+  -v         verbose logging (-vv includes SSH protocol messages)

@@ -1,0 +1,32 @@
+--- a/src/misc.c	2026-07-16 10:57:23
++++ b/src/misc.c	2026-11-11 00:03:09
+@@ -71,6 +71,16 @@
+ 
+ #include "libssh/priv.h"
+ #include "libssh/misc.h"
++
++#ifdef __riscos__
++/* UnixLib declares but does not implement if_nametoindex(); treat every
++ * interface name as unknown, which only affects IPv6 link-local scopes. */
++static unsigned int if_nametoindex(const char *ifname)
++{
++    (void)ifname;
++    return 0;
++}
++#endif
+ #include "libssh/session.h"
+ 
+ #ifdef HAVE_LIBGCRYPT
+--- a/src/ttyopts.c	2026-07-16 10:56:26
++++ b/src/ttyopts.c	2026-11-11 00:05:36
+@@ -176,8 +176,10 @@
+         return 57600;
+     case B115200:
+         return 115200;
++#ifdef B230400
+     case B230400:
+         return 230400;
++#endif
+     }
+ }
+ 

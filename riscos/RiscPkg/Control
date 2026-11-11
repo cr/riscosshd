@@ -1,0 +1,14 @@
+Package: SSHd
+Priority: Optional
+Section: Network
+Maintainer: Christiane Ruetten
+Standards-Version: 0.6.0
+Version: 0.1.0-1
+Licence: Free
+Description: SSH server for RISC OS 5
+ A minimal SSH server built on libssh and mbedTLS.  Accepts public-key
+ logins and runs *commands through OS_CLI, returning their output over the
+ SSH channel.  Configuration lives in Choices:SSHd.
+Homepage: https://github.com/cr/riscosshd
+Depends:
+Components: Apps.Network.!SSHd (Movable)

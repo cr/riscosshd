@@ -1,0 +1,108 @@
+# Toolchain
+
+Findings as of 2026-11-10, verified by fetching the pages and running the
+tools listed, not from memory.
+
+## build.riscos.online (Gerph's RISC OS Build service)
+
+- Alive: `https://build.riscos.online/` answers HTTP 200.  The front page's
+  "Service status: Unknown" is a static placeholder.
+- It is **not** a cross-compiler.  Builds run inside a RISC OS environment
+  (Pyromaniac) on the server.  The `about.html` page lists the complete
+  toolset: `amu`, `cc` (Norcroft), `libfile`, `link`, `objasm`, `squeeze`,
+  `CMunge`, `perl` 5.0, `ResGen`, `bison`, `flex`, `sed`, `basic`,
+  `jfpatch`, `p2c`.  **No GCC, no UnixLib, no CMake.**  GCCSDK version:
+  none; it does not offer GCCSDK at all.
+- Submission: a zip (or a single file) is POSTed to
+  `http://json.build.riscos.online/build/json` (`curl -F source=@archive.zip`),
+  or sent with the `riscos-build-online` client from
+  `https://github.com/gerph/robuild-client`
+  (`riscos-build-online -i source.zip -o output`).  The CI page
+  (`ci-build.html`) shows a GitHub workflow that calls curl/jq; there is no
+  dedicated GitHub Action.
+- Project configuration: `.robuild.yaml` with a single `jobs.build` entry
+  holding `env` (system variables), optional `dir`, `script` (a list of
+  RISC OS `*` commands; any failure fails the build) and `artifacts`
+  (exactly one `path`).  Flow YAML, block strings, anchors and tags are not
+  supported.  Files use `,xxx` filetype suffixes.
+- Limits: ephemeral filesystem, no boot sequence, no desktop, no network
+  access documented from inside the build, 1 minute timeout on the plain
+  HTTP endpoint, client timeout of up to 10 minutes.
+
+**Conclusion:** the service cannot build this project.  libssh and mbedTLS
+are CMake projects written against POSIX sockets and headers, which on
+RISC OS exist only in GCCSDK's UnixLib.  Porting both to Norcroft and AMU
+makefiles would be a project of its own.  The service remains an option
+for a future Norcroft-only component (for example a small helper module).
+
+## GCCSDK
+
+- Source of truth: the GCCSDK Subversion repository
+  (`svn://svn.riscos.info/gccsdk/trunk`).  `www.riscos.info` was returning
+  503/403 during this research; `https://github.com/jhamby/riscos-gccsdk`
+  is a readable mirror of GCCSDK plus the autobuilder.
+- Release in use: **GCC 4.7.4 Release 5** (`arm-unknown-riscos-gcc`), with
+  UnixLib and the `elf2aif` converter.  Default target is ARMv3 (no long
+  multiply), which is why the mbedTLS inline assembly is disabled.
+- Docker image: `riscosdotinfo/riscos-gccsdk-4.7` on Docker Hub, tags
+  `latest`/`r7510` (2021), `r7687`/`ci` (2022).  **linux/amd64 only**, no
+  arm64 build.  On Apple Silicon it runs under emulation; Colima with
+  `binfmt: true` (the default) handles `--platform linux/amd64`.  The image
+  is Ubuntu 20.04 with git, svn, wget and make but **no cmake**;
+  `docker/Dockerfile` adds cmake 3.16 and zip on top.
+- Paths inside the image: compiler in `/home/riscos/cross/bin`, UnixLib
+  headers in `/home/riscos/cross/arm-unknown-riscos/include`, porting
+  wrappers (`ro-make`, `ro-config`, `toolchain-riscos.cmake`) in
+  `/home/riscos/env`.
+- UnixLib provides BSD sockets (`sys/socket.h`, `select`, `poll.h`),
+  `O_NONBLOCK`/`FIONBIO`, `gettimeofday`, `getopt`.  There is no
+  `/dev/urandom` and no `getrandom`; entropy comes from the CryptRandom
+  module (SWI `CryptRandom_Block` 0x51983, `CryptRandom_Byte` 0x51980).
+
+## Autobuilder recipes
+
+Checked in the autobuilder tree (`autobuilder/` in the mirror):
+
+| package   | recipe                                  | notes |
+|-----------|-----------------------------------------|-------|
+| mbedtls   | `libraries/network/mbedtls/setvars`     | builds git master with `CFLAGS=-Dunix=1`, packages `!mbedTLS` |
+| openssl   | none under that name (only via `AB_DISTRO=testing` libssl3 for libssh2) | |
+| libssh    | **none** | only `libraries/libssh2` (client library, not usable for a server) |
+| oslib     | `libraries/riscos/oslib/setvars`        | SVN trunk, ELF build |
+| libgcrypt | `libraries/libgcrypt20`, `network/nettle` | GPL/LGPL, not needed |
+
+CMake support exists in the autobuilder (`AB_CMAKE=yes`, toolchain file
+`$GCCSDK_INSTALL_ENV/toolchain-riscos.cmake`), so CMake projects are a
+known quantity for GCCSDK.
+
+## Crypto backend decision
+
+**mbedTLS 3.6 LTS** (Apache 2.0).  It builds with the GCCSDK toolchain
+file after two small platform hooks that live in this repository:
+`MBEDTLS_ENTROPY_HARDWARE_ALT` (CryptRandom) and
+`MBEDTLS_PLATFORM_MS_TIME_ALT` (gettimeofday), both configured in
+`deps/mbedtls_riscos_config.h` and implemented in `src/riscos_entropy.c`.
+`MBEDTLS_NET_C` and `MBEDTLS_TIMING_C` are disabled because their sources
+refuse to build off Unix/Windows and libssh does not use them.  OpenSSL
+was not needed.
+
+## How dependencies are built
+
+Option chosen: **build them in the same container job, from release
+tarballs, into `deps/sysroot`** (git-ignored), driven by
+`tools/build-deps.sh`.  Reasons: reproducible from pinned versions, no
+binary blobs in git, the CI job and the local Colima build run the exact
+same script.  Vendoring prebuilt `.a` files was rejected because the
+GCC/UnixLib ABI would be frozen in the repository.
+
+- `tools/build.sh` builds the Docker image once and runs
+  `tools/ci-build.sh` inside it with the repository mounted at `/work`.
+- `tools/ci-build.sh` builds the dependencies if `deps/sysroot/lib/libssh.a`
+  is missing, then configures and builds the server with
+  `cmake/toolchain-riscos.cmake`, producing `build/!SSHd/sshd,ff8` and
+  `build/SSHd.zip`.
+- `.github/workflows/build.yml` runs the same two scripts on an amd64
+  GitHub runner, where the image needs no emulation, and uploads
+  `SSHd.zip` as an artifact.
+
+Pinned versions: mbedTLS 3.6.7, libssh 0.11.5.

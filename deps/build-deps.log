@@ -1,0 +1,458 @@
+patching file src/misc.c
+patching file src/ttyopts.c
+-- The C compiler identification is GNU 4.7.4
+-- Check for working C compiler: /home/riscos/cross/bin/arm-unknown-riscos-gcc
+-- Check for working C compiler: /home/riscos/cross/bin/arm-unknown-riscos-gcc -- works
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Performing Test REQUIRED_FLAGS_WERROR
+-- Performing Test REQUIRED_FLAGS_WERROR - Success
+-- Performing Test WITH_WPEDANTIC_FLAG
+-- Performing Test WITH_WPEDANTIC_FLAG - Failed
+-- Performing Test WITH_WALL_FLAG
+-- Performing Test WITH_WALL_FLAG - Success
+-- Performing Test WITH_WSHADOW_FLAG
+-- Performing Test WITH_WSHADOW_FLAG - Success
+-- Performing Test WITH_WMISSING_PROTOTYPES_FLAG
+-- Performing Test WITH_WMISSING_PROTOTYPES_FLAG - Success
+-- Performing Test WITH_WCAST_ALIGN_FLAG
+-- Performing Test WITH_WCAST_ALIGN_FLAG - Success
+-- Performing Test WITH_WERROR_ADDRESS_FLAG
+-- Performing Test WITH_WERROR_ADDRESS_FLAG - Success
+-- Performing Test WITH_WSTRICT_PROTOTYPES_FLAG
+-- Performing Test WITH_WSTRICT_PROTOTYPES_FLAG - Success
+-- Performing Test WITH_WERROR_STRICT_PROTOTYPES_FLAG
+-- Performing Test WITH_WERROR_STRICT_PROTOTYPES_FLAG - Success
+-- Performing Test WITH_WWRITE_STRINGS_FLAG
+-- Performing Test WITH_WWRITE_STRINGS_FLAG - Success
+-- Performing Test WITH_WERROR_WRITE_STRINGS_FLAG
+-- Performing Test WITH_WERROR_WRITE_STRINGS_FLAG - Success
+-- Performing Test WITH_WERROR_IMPLICIT_FUNCTION_DECLARATION_FLAG
+-- Performing Test WITH_WERROR_IMPLICIT_FUNCTION_DECLARATION_FLAG - Success
+-- Performing Test WITH_WPOINTER_ARITH_FLAG
+-- Performing Test WITH_WPOINTER_ARITH_FLAG - Success
+-- Performing Test WITH_WERROR_POINTER_ARITH_FLAG
+-- Performing Test WITH_WERROR_POINTER_ARITH_FLAG - Success
+-- Performing Test WITH_WDECLARATION_AFTER_STATEMENT_FLAG
+-- Performing Test WITH_WDECLARATION_AFTER_STATEMENT_FLAG - Success
+-- Performing Test WITH_WERROR_DECLARATION_AFTER_STATEMENT_FLAG
+-- Performing Test WITH_WERROR_DECLARATION_AFTER_STATEMENT_FLAG - Success
+-- Performing Test WITH_WRETURN_TYPE_FLAG
+-- Performing Test WITH_WRETURN_TYPE_FLAG - Success
+-- Performing Test WITH_WERROR_RETURN_TYPE_FLAG
+-- Performing Test WITH_WERROR_RETURN_TYPE_FLAG - Success
+-- Performing Test WITH_WUNINITIALIZED_FLAG
+-- Performing Test WITH_WUNINITIALIZED_FLAG - Success
+-- Performing Test WITH_WERROR_UNINITIALIZED_FLAG
+-- Performing Test WITH_WERROR_UNINITIALIZED_FLAG - Success
+-- Performing Test WITH_WIMPLICIT_FALLTHROUGH_FLAG
+-- Performing Test WITH_WIMPLICIT_FALLTHROUGH_FLAG - Failed
+-- Performing Test WITH_WERROR_STRICT_OVERFLOW_FLAG
+-- Performing Test WITH_WERROR_STRICT_OVERFLOW_FLAG - Success
+-- Performing Test WITH_WSTRICT_OVERFLOW_2_FLAG
+-- Performing Test WITH_WSTRICT_OVERFLOW_2_FLAG - Success
+-- Performing Test WITH_WNO_FORMAT_ZERO_LENGTH_FLAG
+-- Performing Test WITH_WNO_FORMAT_ZERO_LENGTH_FLAG - Success
+-- Performing Test WITH_WMISSING_FIELD_INITIALIZERS_FLAG
+-- Performing Test WITH_WMISSING_FIELD_INITIALIZERS_FLAG - Success
+-- Performing Test WITH_WSIGN_COMPARE_FLAG
+-- Performing Test WITH_WSIGN_COMPARE_FLAG - Success
+-- Performing Test WITH_WOLD_STYLE_DEFINITION_FLAG
+-- Performing Test WITH_WOLD_STYLE_DEFINITION_FLAG - Success
+-- Performing Test WITH_WERROR_OLD_STYLE_DEFINITION_FLAG
+-- Performing Test WITH_WERROR_OLD_STYLE_DEFINITION_FLAG - Success
+-- Performing Test WITH_WIMPLICIT_INT_FLAG
+-- Performing Test WITH_WIMPLICIT_INT_FLAG - Success
+-- Performing Test WITH_WERROR_IMPLICIT_INT_FLAG
+-- Performing Test WITH_WERROR_IMPLICIT_INT_FLAG - Success
+-- Performing Test WITH_WINT_CONVERSION_FLAG
+-- Performing Test WITH_WINT_CONVERSION_FLAG - Failed
+-- Performing Test WITH_WERROR_INT_CONVERSION_FLAG
+-- Performing Test WITH_WERROR_INT_CONVERSION_FLAG - Failed
+-- Performing Test WITH_WERROR_UNUSED_VARIABLE_FLAG
+-- Performing Test WITH_WERROR_UNUSED_VARIABLE_FLAG - Success
+-- Performing Test REQUIRED_FLAGS_WFORMAT
+-- Performing Test REQUIRED_FLAGS_WFORMAT - Success
+-- Performing Test WITH_WFORMAT_SECURITY_FLAG
+-- Performing Test WITH_WFORMAT_SECURITY_FLAG - Success
+-- Performing Test WITH_WERROR_FORMAT_SECURITY_FLAG
+-- Performing Test WITH_WERROR_FORMAT_SECURITY_FLAG - Success
+-- Performing Test WITH_FNO_COMMON_FLAG
+-- Performing Test WITH_FNO_COMMON_FLAG - Success
+-- Performing Test WITH_STACK_PROTECTOR_STRONG
+-- Performing Test WITH_STACK_PROTECTOR_STRONG - Failed
+-- Performing Test WITH_STACK_PROTECTOR
+-- Performing Test WITH_STACK_PROTECTOR - Success
+-- Performing Test WITH_STACK_CLASH_PROTECTION
+-- Performing Test WITH_STACK_CLASH_PROTECTION - Failed
+-- Performing Test WITH_WNO_DEPRECATED_DECLARATIONS_FLAG
+-- Performing Test WITH_WNO_DEPRECATED_DECLARATIONS_FLAG - Success
+-- Found MbedTLS: /work/deps/sysroot/include  
+-- Looking for pthread.h
+-- Looking for pthread.h - found
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Found Python: /usr/bin/python3.8 (found version "3.8.5") found components: Interpreter 
+-- Could not find `abimap` in PATH. It can be found in PyPI as `abimap` (try `pip install abimap`)
+-- Could NOT find ABIMap (missing: ABIMAP_EXECUTABLE) (Required is at least version "0.4.0")
+-- Performing Test WITH_VISIBILITY_HIDDEN
+-- Performing Test WITH_VISIBILITY_HIDDEN - Success
+-- Looking for argp_parse
+-- Looking for argp_parse - not found
+-- Looking for argp.h
+-- Looking for argp.h - not found
+-- Looking for pty.h
+-- Looking for pty.h - not found
+-- Looking for utmp.h
+-- Looking for utmp.h - not found
+-- Looking for termios.h
+-- Looking for termios.h - found
+-- Looking for unistd.h
+-- Looking for unistd.h - found
+-- Looking for stdint.h
+-- Looking for stdint.h - found
+-- Looking for util.h
+-- Looking for util.h - not found
+-- Looking for libutil.h
+-- Looking for libutil.h - not found
+-- Looking for sys/time.h
+-- Looking for sys/time.h - found
+-- Looking for sys/utime.h
+-- Looking for sys/utime.h - not found
+-- Looking for sys/param.h
+-- Looking for sys/param.h - found
+-- Looking for arpa/inet.h
+-- Looking for arpa/inet.h - found
+-- Looking for byteswap.h
+-- Looking for byteswap.h - found
+-- Looking for glob.h
+-- Looking for glob.h - found
+-- Looking for valgrind/valgrind.h
+-- Looking for valgrind/valgrind.h - not found
+-- Looking for ifaddrs.h
+-- Looking for ifaddrs.h - not found
+-- Looking for isblank
+-- Looking for isblank - found
+-- Looking for strncpy
+-- Looking for strncpy - found
+-- Looking for strndup
+-- Looking for strndup - found
+-- Looking for strtoull
+-- Looking for strtoull - found
+-- Looking for explicit_bzero
+-- Looking for explicit_bzero - not found
+-- Looking for memset_s
+-- Looking for memset_s - not found
+-- Performing Test HAVE_GLOB_GL_FLAGS_MEMBER
+-- Performing Test HAVE_GLOB_GL_FLAGS_MEMBER - Success
+-- Looking for glob
+-- Looking for glob - found
+-- Looking for vsnprintf
+-- Looking for vsnprintf - found
+-- Looking for snprintf
+-- Looking for snprintf - found
+-- Looking for poll
+-- Looking for poll - found
+-- Looking for select
+-- Looking for select - found
+-- Looking for getaddrinfo
+-- Looking for getaddrinfo - found
+-- Looking for ntohll
+-- Looking for ntohll - not found
+-- Looking for htonll
+-- Looking for htonll - not found
+-- Looking for getaddrinfo in socket
+-- Looking for getaddrinfo in socket - not found
+-- Looking for inet_pton in nsl
+-- Looking for inet_pton in nsl - not found
+-- Looking for nanosleep in rt
+-- Looking for nanosleep in rt - not found
+-- Looking for clock_gettime in rt
+-- Looking for clock_gettime in rt - not found
+-- Looking for forkpty in util
+-- Looking for forkpty in util - not found
+-- Looking for cfmakeraw
+-- Looking for cfmakeraw - not found
+-- Looking for __strtoull
+-- Looking for __strtoull - not found
+-- Looking for chacha20.h
+-- Looking for chacha20.h - not found
+-- Looking for poly1305.h
+-- Looking for poly1305.h - not found
+-- Performing Test HAVE_GCC_THREAD_LOCAL_STORAGE
+-- Performing Test HAVE_GCC_THREAD_LOCAL_STORAGE - Success
+-- Performing Test HAVE_MSC_THREAD_LOCAL_STORAGE
+-- Performing Test HAVE_MSC_THREAD_LOCAL_STORAGE - Failed
+-- Performing Test HAVE_CONSTRUCTOR_ATTRIBUTE
+-- Performing Test HAVE_CONSTRUCTOR_ATTRIBUTE - Success
+-- Performing Test HAVE_DESTRUCTOR_ATTRIBUTE
+-- Performing Test HAVE_DESTRUCTOR_ATTRIBUTE - Success
+-- Performing Test HAVE_FALLTHROUGH_ATTRIBUTE
+-- Performing Test HAVE_FALLTHROUGH_ATTRIBUTE - Failed
+-- Performing Test HAVE_WEAK_ATTRIBUTE
+-- Performing Test HAVE_WEAK_ATTRIBUTE - Success
+-- Performing Test HAVE_UNUSED_ATTRIBUTE
+-- Performing Test HAVE_UNUSED_ATTRIBUTE - Success
+-- Performing Test HAVE_GCC_VOLATILE_MEMORY_PROTECTION
+-- Performing Test HAVE_GCC_VOLATILE_MEMORY_PROTECTION - Success
+-- Performing Test HAVE_COMPILER__FUNC__
+-- Performing Test HAVE_COMPILER__FUNC__ - Success
+-- Performing Test HAVE_COMPILER__FUNCTION__
+-- Performing Test HAVE_COMPILER__FUNCTION__ - Success
+-- Performing Test HAVE_LD_VERSION_SCRIPT
+-- Performing Test HAVE_LD_VERSION_SCRIPT - Success
+-- Check if the system is big endian
+-- Searching 16 bit integer
+-- Looking for sys/types.h
+-- Looking for sys/types.h - found
+-- Looking for stddef.h
+-- Looking for stddef.h - found
+-- Check size of unsigned short
+-- Check size of unsigned short - done
+-- Using unsigned short
+-- Check if the system is big endian - little endian
+-- Could NOT find Argp (missing: ARGP_LIBRARIES ARGP_INCLUDE_DIR) 
+-- Found Doxygen: /usr/bin/doxygen (found version "1.8.17") found components: doxygen missing components: dot
+-- Threads_FOUND=TRUE
+-- ********************************************
+-- ********** libssh build options : **********
+-- Build type: Release
+-- Coverage: 
+-- zlib support: OFF
+-- libgcrypt support: OFF
+-- libmbedTLS support: ON
+-- libnacl support: OFF
+-- SFTP support: OFF
+-- Server support : ON
+-- GSSAPI support : OFF
+-- GEX support : ON
+-- Support insecure none cipher and MAC : OFF
+-- Support exec : ON
+-- Pcap debugging support : OFF
+-- Build shared library: OFF
+-- Unit testing: OFF
+-- Client code testing: OFF
+-- Blowfish cipher support: 
+-- PKCS #11 URI support: OFF
+-- With PKCS #11 provider support: OFF
+-- Server code testing: OFF
+-- Public API documentation generation
+-- Benchmarks: OFF
+-- Symbol versioning: OFF
+-- Allow ABI break: OFF
+-- Release is final: 
+-- Global client config: /etc/ssh/ssh_config
+-- Global bind config: /etc/ssh/libssh_server_config
+-- ********************************************
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /work/deps/src/libssh-0.11.5/build-riscos
+Scanning dependencies of target ssh
+[  5%] Building C object src/CMakeFiles/ssh.dir/agent.c.o
+[  6%] Building C object src/CMakeFiles/ssh.dir/base64.c.o
+[  6%] Building C object src/CMakeFiles/ssh.dir/auth.c.o
+[  8%] Building C object src/CMakeFiles/ssh.dir/callbacks.c.o
+[  8%] Building C object src/CMakeFiles/ssh.dir/bignum.c.o
+[  8%] Building C object src/CMakeFiles/ssh.dir/buffer.c.o
+/work/deps/src/libssh-0.11.5/src/agent.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/auth.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/base64.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/callbacks.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/bignum.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/buffer.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[  9%] Building C object src/CMakeFiles/ssh.dir/channels.c.o
+/work/deps/src/libssh-0.11.5/src/channels.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 11%] Building C object src/CMakeFiles/ssh.dir/client.c.o
+[ 12%] Building C object src/CMakeFiles/ssh.dir/config.c.o
+/work/deps/src/libssh-0.11.5/src/client.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/config.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 13%] Building C object src/CMakeFiles/ssh.dir/connect.c.o
+/work/deps/src/libssh-0.11.5/src/connect.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 15%] Building C object src/CMakeFiles/ssh.dir/connector.c.o
+/work/deps/src/libssh-0.11.5/src/connector.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 16%] Building C object src/CMakeFiles/ssh.dir/crypto_common.c.o
+/work/deps/src/libssh-0.11.5/src/crypto_common.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 18%] Building C object src/CMakeFiles/ssh.dir/curve25519.c.o
+/work/deps/src/libssh-0.11.5/src/curve25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 19%] Building C object src/CMakeFiles/ssh.dir/dh.c.o
+/work/deps/src/libssh-0.11.5/src/dh.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 20%] Building C object src/CMakeFiles/ssh.dir/ecdh.c.o
+/work/deps/src/libssh-0.11.5/src/ecdh.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 22%] Building C object src/CMakeFiles/ssh.dir/error.c.o
+/work/deps/src/libssh-0.11.5/src/error.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 23%] Building C object src/CMakeFiles/ssh.dir/getpass.c.o
+/work/deps/src/libssh-0.11.5/src/getpass.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 25%] Building C object src/CMakeFiles/ssh.dir/gzip.c.o
+/work/deps/src/libssh-0.11.5/src/gzip.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 26%] Building C object src/CMakeFiles/ssh.dir/init.c.o
+/work/deps/src/libssh-0.11.5/src/init.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 27%] Building C object src/CMakeFiles/ssh.dir/kdf.c.o
+/work/deps/src/libssh-0.11.5/src/kdf.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 29%] Building C object src/CMakeFiles/ssh.dir/kex.c.o
+/work/deps/src/libssh-0.11.5/src/kex.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 30%] Building C object src/CMakeFiles/ssh.dir/known_hosts.c.o
+[ 31%] Building C object src/CMakeFiles/ssh.dir/knownhosts.c.o
+/work/deps/src/libssh-0.11.5/src/known_hosts.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/knownhosts.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 33%] Building C object src/CMakeFiles/ssh.dir/legacy.c.o
+/work/deps/src/libssh-0.11.5/src/legacy.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/legacy.c: In function 'ssh_userauth_privatekey_file':
+/work/deps/src/libssh-0.11.5/src/legacy.c:130:3: warning: 'publickey_from_file' is deprecated (declared at /work/deps/src/libssh-0.11.5/include/libssh/legacy.h:101) [-Wdeprecated-declarations]
+/work/deps/src/libssh-0.11.5/src/legacy.c:134:5: warning: 'privatekey_from_file' is deprecated (declared at /work/deps/src/libssh-0.11.5/include/libssh/legacy.h:96) [-Wdeprecated-declarations]
+/work/deps/src/libssh-0.11.5/src/legacy.c:137:5: warning: 'privatekey_from_file' is deprecated (declared at /work/deps/src/libssh-0.11.5/include/libssh/legacy.h:96) [-Wdeprecated-declarations]
+/work/deps/src/libssh-0.11.5/src/legacy.c:144:3: warning: 'privatekey_free' is deprecated (declared at /work/deps/src/libssh-0.11.5/include/libssh/legacy.h:95) [-Wdeprecated-declarations]
+/work/deps/src/libssh-0.11.5/src/legacy.c: In function 'channel_get_exit_status':
+/work/deps/src/libssh-0.11.5/src/legacy.c:198:3: warning: 'ssh_channel_get_exit_status' is deprecated (declared at /work/deps/src/libssh-0.11.5/include/libssh/libssh.h:471) [-Wdeprecated-declarations]
+/work/deps/src/libssh-0.11.5/src/legacy.c: In function 'channel_select':
+/work/deps/src/libssh-0.11.5/src/legacy.c:296:3: warning: 'ssh_channel_select' is deprecated (declared at /work/deps/src/libssh-0.11.5/include/libssh/libssh.h:584) [-Wdeprecated-declarations]
+[ 34%] Building C object src/CMakeFiles/ssh.dir/log.c.o
+/work/deps/src/libssh-0.11.5/src/legacy.c: In function 'ssh_try_publickey_from_file':
+/work/deps/src/libssh-0.11.5/src/legacy.c:729:5: warning: 'publickey_from_file' is deprecated (declared at /work/deps/src/libssh-0.11.5/src/legacy.c:494) [-Wdeprecated-declarations]
+/work/deps/src/libssh-0.11.5/src/log.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 36%] Building C object src/CMakeFiles/ssh.dir/match.c.o
+/work/deps/src/libssh-0.11.5/src/match.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 37%] Building C object src/CMakeFiles/ssh.dir/messages.c.o
+/work/deps/src/libssh-0.11.5/src/messages.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 38%] Building C object src/CMakeFiles/ssh.dir/misc.c.o
+/work/deps/src/libssh-0.11.5/src/misc.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 40%] Building C object src/CMakeFiles/ssh.dir/options.c.o
+[ 41%] Building C object src/CMakeFiles/ssh.dir/packet.c.o
+/work/deps/src/libssh-0.11.5/src/options.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/packet.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 43%] Building C object src/CMakeFiles/ssh.dir/packet_cb.c.o
+/work/deps/src/libssh-0.11.5/src/packet_cb.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 44%] Building C object src/CMakeFiles/ssh.dir/packet_crypt.c.o
+/work/deps/src/libssh-0.11.5/src/packet_crypt.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 45%] Building C object src/CMakeFiles/ssh.dir/pcap.c.o
+/work/deps/src/libssh-0.11.5/src/pcap.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 47%] Building C object src/CMakeFiles/ssh.dir/pki.c.o
+/work/deps/src/libssh-0.11.5/src/pki.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 48%] Building C object src/CMakeFiles/ssh.dir/pki_container_openssh.c.o
+/work/deps/src/libssh-0.11.5/src/pki_container_openssh.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 50%] Building C object src/CMakeFiles/ssh.dir/poll.c.o
+/work/deps/src/libssh-0.11.5/src/poll.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 51%] Building C object src/CMakeFiles/ssh.dir/session.c.o
+/work/deps/src/libssh-0.11.5/src/session.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 52%] Building C object src/CMakeFiles/ssh.dir/scp.c.o
+[ 54%] Building C object src/CMakeFiles/ssh.dir/socket.c.o
+/work/deps/src/libssh-0.11.5/src/scp.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/socket.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/scp.c: In function 'ssh_scp_new':
+/work/deps/src/libssh-0.11.5/src/scp.c:110:5: warning: 'ssh_scp_free' is deprecated (declared at /work/deps/src/libssh-0.11.5/include/libssh/libssh.h:590) [-Wdeprecated-declarations]
+/work/deps/src/libssh-0.11.5/src/scp.c: In function 'ssh_scp_free':
+/work/deps/src/libssh-0.11.5/src/scp.c:303:9: warning: 'ssh_scp_close' is deprecated (declared at /work/deps/src/libssh-0.11.5/src/scp.c:249) [-Wdeprecated-declarations]
+/work/deps/src/libssh-0.11.5/src/scp.c: In function 'ssh_scp_push_file':
+/work/deps/src/libssh-0.11.5/src/scp.c:577:5: warning: 'ssh_scp_push_file64' is deprecated (declared at /work/deps/src/libssh-0.11.5/src/scp.c:472) [-Wdeprecated-declarations]
+/work/deps/src/libssh-0.11.5/src/scp.c: In function 'ssh_scp_read':
+/work/deps/src/libssh-0.11.5/src/scp.c:1039:9: warning: 'ssh_scp_accept_request' is deprecated (declared at /work/deps/src/libssh-0.11.5/src/scp.c:985) [-Wdeprecated-declarations]
+[ 55%] Building C object src/CMakeFiles/ssh.dir/string.c.o
+/work/deps/src/libssh-0.11.5/src/string.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 56%] Building C object src/CMakeFiles/ssh.dir/threads.c.o
+/work/deps/src/libssh-0.11.5/src/threads.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 58%] Building C object src/CMakeFiles/ssh.dir/ttyopts.c.o
+[ 59%] Building C object src/CMakeFiles/ssh.dir/wrapper.c.o
+/work/deps/src/libssh-0.11.5/src/ttyopts.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/wrapper.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 61%] Building C object src/CMakeFiles/ssh.dir/external/bcrypt_pbkdf.c.o
+/work/deps/src/libssh-0.11.5/src/external/bcrypt_pbkdf.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 62%] Building C object src/CMakeFiles/ssh.dir/external/blowfish.c.o
+/work/deps/src/libssh-0.11.5/src/external/blowfish.c:1:0: warning: -fstack-protector not supported for this target [enabled by default][ 63%] Building C object src/CMakeFiles/ssh.dir/config_parser.c.o
+
+[ 65%] Building C object src/CMakeFiles/ssh.dir/token.c.o
+/work/deps/src/libssh-0.11.5/src/config_parser.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/token.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 66%] Building C object src/CMakeFiles/ssh.dir/pki_ed25519_common.c.o
+[ 68%] Building C object src/CMakeFiles/ssh.dir/threads/noop.c.o
+/work/deps/src/libssh-0.11.5/src/pki_ed25519_common.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/threads/noop.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 69%] Building C object src/CMakeFiles/ssh.dir/threads/pthread.c.o
+[ 70%] Building C object src/CMakeFiles/ssh.dir/threads/mbedtls.c.o
+/work/deps/src/libssh-0.11.5/src/threads/pthread.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/threads/mbedtls.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 72%] Building C object src/CMakeFiles/ssh.dir/libmbedcrypto.c.o
+/work/deps/src/libssh-0.11.5/src/libmbedcrypto.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 73%] Building C object src/CMakeFiles/ssh.dir/mbedcrypto_missing.c.o
+/work/deps/src/libssh-0.11.5/src/mbedcrypto_missing.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 75%] Building C object src/CMakeFiles/ssh.dir/pki_mbedcrypto.c.o
+[ 76%] Building C object src/CMakeFiles/ssh.dir/ecdh_mbedcrypto.c.o
+/work/deps/src/libssh-0.11.5/src/pki_mbedcrypto.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/ecdh_mbedcrypto.c:1:0: warning: -fstack-protector not supported for this target [enabled by default][ 77%] Building C object src/CMakeFiles/ssh.dir/getrandom_mbedcrypto.c.o
+
+/work/deps/src/libssh-0.11.5/src/getrandom_mbedcrypto.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 79%] Building C object src/CMakeFiles/ssh.dir/md_mbedcrypto.c.o
+/work/deps/src/libssh-0.11.5/src/md_mbedcrypto.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 80%] Building C object src/CMakeFiles/ssh.dir/dh_key.c.o
+[ 81%] Building C object src/CMakeFiles/ssh.dir/pki_ed25519.c.o
+/work/deps/src/libssh-0.11.5/src/dh_key.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/pki_ed25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 83%] Building C object src/CMakeFiles/ssh.dir/external/ed25519.c.o
+/work/deps/src/libssh-0.11.5/src/external/ed25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 84%] Building C object src/CMakeFiles/ssh.dir/external/fe25519.c.o
+/work/deps/src/libssh-0.11.5/src/external/fe25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 86%] Building C object src/CMakeFiles/ssh.dir/external/ge25519.c.o
+/work/deps/src/libssh-0.11.5/src/external/ge25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 87%] Building C object src/CMakeFiles/ssh.dir/external/sc25519.c.o
+/work/deps/src/libssh-0.11.5/src/external/sc25519.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 88%] Building C object src/CMakeFiles/ssh.dir/external/chacha.c.o
+/work/deps/src/libssh-0.11.5/src/external/chacha.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 90%] Building C object src/CMakeFiles/ssh.dir/external/poly1305.c.o
+[ 91%] Building C object src/CMakeFiles/ssh.dir/chachapoly.c.o
+/work/deps/src/libssh-0.11.5/src/external/poly1305.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/chachapoly.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 93%] Building C object src/CMakeFiles/ssh.dir/server.c.o
+/work/deps/src/libssh-0.11.5/src/server.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 94%] Building C object src/CMakeFiles/ssh.dir/bind.c.o
+[ 95%] Building C object src/CMakeFiles/ssh.dir/bind_config.c.o
+/work/deps/src/libssh-0.11.5/src/bind.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+/work/deps/src/libssh-0.11.5/src/bind_config.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 97%] Building C object src/CMakeFiles/ssh.dir/dh-gex.c.o
+/work/deps/src/libssh-0.11.5/src/dh-gex.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[ 98%] Building C object src/CMakeFiles/ssh.dir/external/curve25519_ref.c.o
+/work/deps/src/libssh-0.11.5/src/external/curve25519_ref.c:1:0: warning: -fstack-protector not supported for this target [enabled by default]
+[100%] Linking C static library libssh.a
+[100%] Built target ssh
+-- Install configuration: "Release"
+-- Installing: /work/deps/sysroot/include/libssh/callbacks.h
+-- Installing: /work/deps/sysroot/include/libssh/libssh.h
+-- Installing: /work/deps/sysroot/include/libssh/ssh2.h
+-- Installing: /work/deps/sysroot/include/libssh/legacy.h
+-- Installing: /work/deps/sysroot/include/libssh/libsshpp.hpp
+-- Installing: /work/deps/sysroot/include/libssh/server.h
+-- Installing: /work/deps/sysroot/include/libssh/libssh_version.h
+-- Installing: /work/deps/sysroot/lib/libssh.a
+-- Installing: /work/deps/sysroot/lib/cmake/libssh/libssh-config.cmake
+-- Installing: /work/deps/sysroot/lib/cmake/libssh/libssh-config-release.cmake
+-- Installing: /work/deps/sysroot/lib/pkgconfig/libssh.pc
+-- Installing: /work/deps/sysroot/lib/cmake/libssh/libssh-config-version.cmake
+Dependencies installed in /work/deps/sysroot
+-- The C compiler identification is GNU 4.7.4
+-- Check for working C compiler: /home/riscos/cross/bin/arm-unknown-riscos-gcc
+-- Check for working C compiler: /home/riscos/cross/bin/arm-unknown-riscos-gcc -- works
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /work/build
+Scanning dependencies of target sshd
+[ 10%] Building C object CMakeFiles/sshd.dir/src/main.c.o
+[ 40%] Building C object CMakeFiles/sshd.dir/src/backend_shell.c.o
+[ 40%] Building C object CMakeFiles/sshd.dir/src/backend_exec.c.o
+[ 40%] Building C object CMakeFiles/sshd.dir/src/auth.c.o
+[ 50%] Building C object CMakeFiles/sshd.dir/src/server.c.o
+[ 60%] Building C object CMakeFiles/sshd.dir/src/hostkey.c.o
+[ 70%] Building C object CMakeFiles/sshd.dir/src/riscos.c.o
+[ 80%] Building C object CMakeFiles/sshd.dir/src/riscos_entropy.c.o
+[ 90%] Building C object CMakeFiles/sshd.dir/src/log.c.o
+[100%] Linking C executable sshd,e1f
+Creating !SSHd application
+[100%] Built target sshd
+[ 90%] Built target sshd
+Scanning dependencies of target package-zip
+[100%] Creating SSHd.zip
+[100%] Built target package-zip
+exit 0
