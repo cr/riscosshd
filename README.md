@@ -6,7 +6,10 @@ cross-compiled with GCCSDK.  Public-key authentication only.  The first
 milestone runs `*commands` for `ssh host '*Cat'` and offers a line-mode `*`
 prompt for `ssh host`.
 
-Status: milestone 1 (exec over OS_CLI).  See "Roadmap".
+Status: milestone 1 reached on 2026-11-11.  `ssh -p 2222 riscos@localhost '*Cat'`
+against RISC OS 5.30 in RPCEmu returns the directory listing, RISC OS
+errors come back with exit status 1, and the line-mode shell works over a
+pipe.  See "Roadmap" for what is next.
 
 ## Why it looks the way it does
 
@@ -78,7 +81,9 @@ explains why build.riscos.online is not used.
    `docs/rpcemu.md`).
 2. Put your public key(s), one per line, in `!Boot.Choices.SSHd.authkeys`
    (created empty on first run).
-3. Double-click `!SSHd`.  It opens a TaskWindow, generates
+3. Install the CryptRandom module with PackMan if it is not present
+   (`!Run` soft-loads `System:Modules.CryptRand`).
+4. Double-click `!SSHd`.  It opens a TaskWindow, generates
    `Choices:SSHd.hostkey` on first start, and listens on port 22.
 
 ```bash

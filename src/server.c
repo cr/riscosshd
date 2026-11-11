@@ -7,6 +7,7 @@
 #include <string.h>
 #include <errno.h>
 #include <poll.h>
+#include <time.h>
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 #include <libssh/callbacks.h>
@@ -29,6 +30,8 @@ struct session_ctx {
     int authenticated;
     char user[64];
     struct chan_ctx *chan;      /* one channel per session for now */
+    time_t close_deadline;      /* after the channel closed: drop the session
+                                   if the client has not disconnected by then */
     struct ssh_server_callbacks_struct server_cb;
     struct ssh_channel_callbacks_struct channel_cb;
     struct session_ctx *next;
@@ -415,10 +418,14 @@ int server_poll(int timeout_ms)
             if (c->closed && c->out_len == 0 && !ssh_channel_is_open(c->channel)) {
                 chan_free(c);
                 s->chan = NULL;
-                /* Single-channel policy: the session ends with its channel. */
+                /* Single-channel policy: the session ends with its channel.
+                 * Give the client a moment to send its own disconnect so
+                 * it does not report "closed by remote host". */
                 log_msg("%s: session closed", s->user);
-                session_destroy(s);
+                s->close_deadline = time(NULL) + 2;
             }
+        } else if (s->close_deadline && time(NULL) >= s->close_deadline) {
+            session_destroy(s);
         }
     }
     return nsessions;

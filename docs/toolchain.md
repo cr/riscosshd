@@ -106,3 +106,20 @@ GCC/UnixLib ABI would be frozen in the repository.
   `SSHd.zip` as an artifact.
 
 Pinned versions: mbedTLS 3.6.7, libssh 0.11.5.
+
+## Porting notes (what actually broke, and the fix in this repo)
+
+| symptom on RISC OS | cause | fix |
+|---|---|---|
+| mbedTLS: `#error "No mbedtls_ms_time available"` | not Unix/Windows | `MBEDTLS_PLATFORM_MS_TIME_ALT`, `mbedtls_ms_time()` in `src/riscos_entropy.c` |
+| libssh: `strndup` implicit | UnixLib hides it without `_GNU_SOURCE` | `-D_GNU_SOURCE` in `tools/build-deps.sh` |
+| libssh: `if_nametoindex` implicit | UnixLib declares it under `#if 0` | stub in `deps/patches/libssh-riscos.patch` |
+| libssh: `B230400` undeclared | UnixLib's termios stops at 115200 | `#ifdef` guard in the patch |
+| segfault in `libssh_constructor()` at start | libssh forces `-fPIC`; GCCSDK PIC globals go through a table only the shared-object manager fills in, absent in a static AIF | patch `DefineCMakeDefaults.cmake` to skip PIC when the toolchain file name contains `riscos`; constructor/destructor attributes and `__thread` disabled with `-DHAVE_CONSTRUCTOR_ATTRIBUTE=0` etc. |
+| "branch through zero" in `mbedtls_ctr_drbg_reseed_internal` | with the constructor gone, `ssh_init()` must run before any key operation | `main()` calls `ssh_init()` first |
+| `ssh_init failed` | libssh picked pthread locking (UnixLib has `pthread.h`) but mbedTLS has no `MBEDTLS_THREADING_C` | `ssh_threads_set_callbacks(ssh_threads_get_noop())` before `ssh_init()` |
+| `SSHd needs the CryptRandom module` | not in the 5.30 ROM; PackMan puts it in `System:Modules.CryptRand` and nothing loads it | `!Run` does `RMLoad System:Modules.CryptRand` |
+| "EMT trap" with no message | UnixLib maps hardware exceptions inside SWIs and RISC OS 5's branch-through-zero trap to SIGEMT | `src/riscos.c` installs a SIGEMT/SIGOSERROR handler that prints `_kernel_last_oserror()` |
+
+`CryptRandom_Block` (R0 = buffer, R1 = length) works as documented; an
+earlier suspicion that it faulted was the unseeded DRBG above.
