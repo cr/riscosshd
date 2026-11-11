@@ -10,6 +10,7 @@
  *                  file and returned, then the channel closes.
  *   backend_shell  a line-mode "*" prompt built on the same capture
  *                  mechanism, one OS_CLI call per line.
+ *   backend_sftp   libssh's built-in SFTP server on the channel.
  *   backend_taskwindow  a real interactive session: a TaskWindow child
  *                  task with Message_TaskWindow_Input/Output relayed over
  *                  Wimp messages.  Used for shell requests when the server
@@ -76,5 +77,6 @@ int backend_run_cli(struct chan_ctx *c, const char *command);
 
 extern const struct backend_ops backend_exec;
 extern const struct backend_ops backend_shell;
+extern const struct backend_ops backend_sftp;
 
 #endif

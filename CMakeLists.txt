@@ -27,9 +27,11 @@ add_executable(sshd
   src/log.c
   src/wimp.c
   src/keyfetch.c
-  src/backend_taskwindow.c)
-target_include_directories(sshd PRIVATE ${LIBSSH_INCLUDE_DIR})
-target_compile_definitions(sshd PRIVATE LIBSSH_STATIC=1)
+  src/backend_taskwindow.c
+  src/backend_sftp.c
+  src/riscos_compat.c)
+target_include_directories(sshd PRIVATE ${LIBSSH_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/deps/riscos-compat)
+target_compile_definitions(sshd PRIVATE LIBSSH_STATIC=1 WITH_SERVER=1)
 target_link_libraries(sshd PRIVATE
   ${LIBSSH_LIBRARY} ${MBEDTLS_LIBRARY} ${MBEDX509_LIBRARY} ${MBEDCRYPTO_LIBRARY})
 set_target_properties(sshd PROPERTIES OUTPUT_NAME "sshd" SUFFIX ",e1f")

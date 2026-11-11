@@ -205,6 +205,19 @@ static int cb_shell_request(ssh_session session, ssh_channel channel, void *user
     return start_backend(c, &backend_shell, NULL) < 0 ? 1 : 0;
 }
 
+static int cb_subsystem_request(ssh_session session, ssh_channel channel,
+                                const char *subsystem, void *userdata)
+{
+    struct chan_ctx *c = userdata;
+    (void)session; (void)channel;
+    if (strcmp(subsystem, "sftp") != 0) {
+        log_msg("%s: subsystem '%s' refused", c->owner->user, subsystem);
+        return 1;
+    }
+    log_msg("%s: sftp", c->owner->user);
+    return start_backend(c, &backend_sftp, NULL) < 0 ? 1 : 0;
+}
+
 static int cb_data(ssh_session session, ssh_channel channel, void *data,
                    uint32_t len, int is_stderr, void *userdata)
 {
@@ -282,6 +295,7 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
     s->channel_cb.channel_pty_window_change_function = cb_pty_resize;
     s->channel_cb.channel_exec_request_function = cb_exec_request;
     s->channel_cb.channel_shell_request_function = cb_shell_request;
+    s->channel_cb.channel_subsystem_request_function = cb_subsystem_request;
     s->channel_cb.channel_data_function = cb_data;
     s->channel_cb.channel_eof_function = cb_eof;
     s->channel_cb.channel_close_function = cb_close;

@@ -22,7 +22,7 @@
 #include "wimp.h"
 #include "log.h"
 
-struct sshd_config cfg = { 22, "0.0.0.0", NULL, NULL, NULL, NULL };
+struct sshd_config cfg = { 22, "0.0.0.0", NULL, NULL, NULL, NULL, NULL };
 
 static volatile int running = 1;
 static int text_mode;
@@ -53,6 +53,7 @@ static void usage(void)
             "Usage: sshd [-p port] [-d config-dir] [-t] [-v]\n"
             "  -p port        TCP port to listen on (default 22)\n"
             "  -d dir         configuration directory (default <Choices$Write>.SSHd)\n"
+            "  -r dir         directory SFTP clients start in (default <Boot$Dir>.^, the boot disc)\n"
             "  -t             text mode: no Wimp, log to this window (run in a TaskWindow)\n"
             "  -v             verbose; -vv also logs the SSH protocol\n"
             "The directory holds 'hostkey' (generated on first run) and\n"
@@ -81,13 +82,15 @@ int main(int argc, char **argv)
 {
     ssh_key hostkey;
     const char *dir_arg = "<Choices$Write>.SSHd";
+    const char *root_arg = "<Boot$Dir>.^";
     const char *err;
     int n, opt;
 
-    while ((opt = getopt(argc, argv, "p:d:tvh")) != -1) {
+    while ((opt = getopt(argc, argv, "p:d:r:tvh")) != -1) {
         switch (opt) {
         case 'p': cfg.port = atoi(optarg); break;
         case 'd': dir_arg = optarg; break;
+        case 'r': root_arg = optarg; break;
         case 't': text_mode = 1; break;
         case 'v': log_verbose++; break;
         default: usage(); return 1;
@@ -120,6 +123,14 @@ int main(int argc, char **argv)
     cfg.authorized_keys_path = join(cfg.config_dir, "authkeys");
     cfg.capture_path = join(cfg.config_dir, "capture");
     log_msg("configuration in %s", cfg.config_dir);
+
+    /* SFTP: libssh's server resolves paths relative to the process's
+     * current directory, so make that the configured root. */
+    cfg.sftp_root = ro_gstrans(root_arg);
+    if (cfg.sftp_root && *cfg.sftp_root && chdir(cfg.sftp_root) == 0)
+        log_msg("sftp root %s", cfg.sftp_root);
+    else
+        log_msg("sftp root '%s' not usable: clients start in the server's directory", root_arg);
 
     n = auth_load_keys(cfg.authorized_keys_path);
     if (n < 0) {

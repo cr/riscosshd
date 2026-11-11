@@ -10,4 +10,4 @@ IfThere <Choices$Write>.SSHd Then Else CDir <Choices$Write>.SSHd
 | UnixLib: no filename suffix swapping, keep our RISC OS paths as they are
 Set UnixEnv$sshd$sfix ""
 WimpSlot -min 2048K -max 2048K
-Run <SSHd$Dir>.sshd -d <Choices$Write>.SSHd %*0
+Run <SSHd$Dir>.sshd -d <Choices$Write>.SSHd -r <Boot$Dir>.^ %*0

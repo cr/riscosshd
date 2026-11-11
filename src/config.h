@@ -8,6 +8,7 @@ struct sshd_config {
     char *hostkey_path;         /* config_dir.hostkey */
     char *authorized_keys_path; /* config_dir.authkeys */
     char *capture_path;         /* scratch file for command output */
+    char *sftp_root;            /* RISC OS directory SFTP clients start in */
 };
 extern struct sshd_config cfg;
 #endif
