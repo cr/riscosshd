@@ -125,7 +125,10 @@ Pinned versions: mbedTLS 3.6.7, libssh 0.11.5.
 earlier suspicion that it faulted was the unseeded DRBG above.
 
 Later additions to `deps/patches/libssh-riscos.patch` for the SFTP server:
-`fstat`, `rename`/`posix-rename@openssh.com` and `fsetstat` handlers
-(libssh ships none), reads at or past end-of-file answered from the file
-size, `setstat` ignoring modes, owner and times, and a failed `realpath`
-being a client error rather than a fatal one.
+`fstat`, `rename` (fails on an existing target), `posix-rename@openssh.com`
+(replaces it) and `fsetstat` handlers (libssh ships none), `open` honouring
+TRUNC and EXCL, read requests clamped to 32 KB, reads at or past
+end-of-file answered from the file size, `setstat` ignoring modes, owner
+and times, a failed `realpath` being a client error rather than a fatal
+one, and `sftp_server_close_handles()` so a dropped client's files are
+closed.

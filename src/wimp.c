@@ -44,8 +44,9 @@ enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
 
 enum { MENU_INFO = 0, MENU_LOG, MENU_KEYS, MENU_QUIT, MENU_ITEMS };
 /* Info window icons: label/value pairs */
-enum { II_NAME = 0, II_PURPOSE, II_WEBSITE, II_VERSION, II_BUILT, II_COMPILER, II_LIBSSH, II_CRYPTO, II_COUNT };
-#define MAX_FIXED_ICONS 16        /* largest icon count of any window defined here */
+enum { II_NAME = 0, II_PURPOSE, II_WEBSITE, II_VERSION, II_BUILT, II_COMPILER, II_LIBSSH, II_CRYPTO,
+       II_LICENCE, II_COUNT };
+#define MAX_FIXED_ICONS 20        /* largest icon count of any window defined here */
 
 /* --- Wimp data structures (as the SWIs expect them) --------------------- */
 
@@ -550,11 +551,11 @@ static char info_title[16] = "About SSHd";
 #define SSHD_VERSION "dev"
 #endif
 static char info_labels[II_COUNT][12] = {
-    "Name", "Purpose", "Website", "Version", "Built", "Compiler", "libssh", "Crypto"
+    "Name", "Purpose", "Website", "Version", "Built", "Compiler", "libssh", "Crypto", "Licences"
 };
 static char info_values[II_COUNT][96] = {
     "SSHd", "SSH server for RISC OS", "https://github.com/cr/riscosshd", SSHD_VERSION,
-    __DATE__ " " __TIME__, "GCC " __VERSION__ " (GCCSDK, UnixLib)", "", ""
+    __DATE__ " " __TIME__, "", "", "", "MIT; libssh LGPL 2.1; mbedTLS Apache 2.0; UnixLib (see !Help)"
 };
 
 void wimp_open_info_window(void)
@@ -562,6 +563,7 @@ void wimp_open_info_window(void)
     int state[9];
     if (info_win < 0)
         return;
+    snprintf(info_values[II_COMPILER], sizeof info_values[II_COMPILER], "GCC %s (GCCSDK, UnixLib)", __VERSION__);
     snprintf(info_values[II_LIBSSH], sizeof info_values[II_LIBSSH], "%s", ssh_version(0));
     snprintf(info_values[II_CRYPTO], sizeof info_values[II_CRYPTO], "mbedTLS %s, CryptRandom entropy",
              MBEDTLS_VERSION_STRING);
@@ -570,7 +572,7 @@ void wimp_open_info_window(void)
         return;
     state[7] = -1;
     _swix(Wimp_OpenWindow, _IN(1), state);
-    _swix(Wimp_ForceRedraw, _INR(0, 4), info_win, 0, -400, 1000, 0);
+    _swix(Wimp_ForceRedraw, _INR(0, 4), info_win, 0, -(16 + II_COUNT * 44), 1000, 0);
 }
 static char prompt_text[] = "Add a public key (type, paste, or drop file, then Add):";
 static char group_dummy[] = "";
@@ -642,11 +644,11 @@ static void create_windows(void)
     /* Info window: the usual label/value box, icons only. */
     w = &info_wdef;
     memset(w, 0, sizeof *w);
-    w->x0 = 300; w->y0 = 400; w->x1 = 1240; w->y1 = 780; w->behind = -1;
+    w->x0 = 300; w->y0 = 360; w->x1 = 1240; w->y1 = 780; w->behind = -1;
     w->flags = WIN_NEWFORMAT | WIN_MOVEABLE | WIN_AUTOREDRAW | WIN_BACK | WIN_CLOSE | WIN_TITLE;
     w->title_fg = 7; w->title_bg = 2; w->work_fg = 7; w->work_bg = 1;
     w->scroll_outer = 3; w->scroll_inner = 1; w->highlight = 12;
-    w->ex0 = 0; w->ey0 = -380; w->ex1 = 940; w->ey1 = 0;
+    w->ex0 = 0; w->ey0 = -(16 + II_COUNT * 44); w->ex1 = 940; w->ey1 = 0;
     w->title_flags = ICON_TEXT | ICON_HCENTRE | ICON_VCENTRE | ICON_INDIRECTED;
     w->sprite_area = (void *)1;
     w->title.ind.text = info_title; w->title.ind.valid = (const char *)-1; w->title.ind.size = sizeof info_title;
@@ -681,8 +683,9 @@ static int create_iconbar_icon(void)
 
 int wimp_init(void)
 {
-    static int messages[] = { 3 /* DataLoad */, Message_TaskWindow_Output, Message_TaskWindow_Ego,
-                              Message_TaskWindow_Morio, Message_TaskWindow_NewTask, 0 };
+    static int messages[] = { 1 /* DataSave */, 3 /* DataLoad */, Message_TaskWindow_Output,
+                              Message_TaskWindow_Ego, Message_TaskWindow_Morio, Message_TaskWindow_NewTask,
+                              Message_TaskCloseDown, 0 };
     _kernel_oserror *e = _swix(Wimp_Initialise, _INR(0, 3) | _OUT(1), 310, TASK_MAGIC, "SSHd",
                                messages, &task_handle);
     if (e) {
@@ -772,19 +775,38 @@ static void user_message(int reason, int *b)
         return;
     if (action == 0) {                     /* Message_Quit */
         running = 0;
-    } else if (action == 3 && b[5] == keys_win) {   /* Message_DataLoad */
-        keys_add_from_file((const char *)&b[11]);
+    } else if (action == 1 && b[5] == keys_win) {   /* Message_DataSave: drag from an app */
+        static const char scrap[] = "<Wimp$Scrap>";
         b[3] = b[2];                       /* your_ref = my_ref */
+        b[4] = 2;                          /* Message_DataSaveAck */
+        b[9] = -1;                         /* "not a safe destination" */
+        memcpy(&b[11], scrap, sizeof scrap);
+        b[0] = (int)((44 + sizeof scrap + 3) & ~3u);
+        _swix(Wimp_SendMessage, _INR(0, 2), 17, b, b[1]);
+    } else if (action == 3 && b[5] == keys_win) {   /* Message_DataLoad */
+        char path[212];
+        const char *name = (const char *)&b[11];
+        size_t n = 0;
+        while (n < sizeof path - 1 && (unsigned char)name[n] >= 0x20)   /* any control char ends it */
+            n++;
+        memcpy(path, name, n);
+        path[n] = '\0';
+        keys_add_from_file(path);
+        if (b[3] != 0)                     /* our scrap transfer: the file is ours to delete */
+            _swix(OS_File, _INR(0, 1), 6, path);
+        b[3] = b[2];
         b[4] = 4;                          /* Message_DataLoadAck */
         _swix(Wimp_SendMessage, _INR(0, 2), 17, b, b[1]);
     }
 }
 
+static int active_sessions;
+
 /* One Wimp_Poll event.  Shared by the main loop and wimp_pump(). */
 static void dispatch(int reason, int *block)
 {
     switch (reason) {
-    case 0:  server_poll(0); break;
+    case 0:  active_sessions = server_poll(0); break;
     case 1:  if (block[0] == log_win) redraw_log(block); else redraw_empty(block); break;
     case 2:  _swix(Wimp_OpenWindow, _IN(1), block); break;
     case 3:  _swix(Wimp_CloseWindow, _IN(1), block); break;
@@ -800,9 +822,11 @@ void wimp_run(void)
     while (running) {
         int reason = 0, now = 0;
         _swix(OS_ReadMonotonicTime, _OUT(0), &now);
-        /* mask: pointer leaving/entering (bits 4,5), lose/gain caret (11,12) */
+        /* mask: pointer leaving/entering (bits 4,5), lose/gain caret (11,12).
+         * Poll the server 50 times a second while sessions exist, 4 times
+         * a second otherwise. */
         if (_swix(Wimp_PollIdle, _INR(0, 2) | _OUT(0), (1 << 4) | (1 << 5) | (1 << 11) | (1 << 12),
-                  poll_block, now + 2, &reason))
+                  poll_block, now + (active_sessions ? 2 : 25), &reason))
             continue;
         dispatch(reason, poll_block);
     }

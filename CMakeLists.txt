@@ -7,7 +7,7 @@ if(NOT CMAKE_C_COMPILER MATCHES "arm-unknown-riscos")
 endif()
 
 set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -O2")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")   # optimisation comes from CMAKE_BUILD_TYPE
 
 # (find_* REQUIRED needs CMake 3.18; the container has 3.16, so check by hand.)
 find_path(LIBSSH_INCLUDE_DIR libssh/libssh.h)
@@ -56,13 +56,14 @@ add_custom_command(TARGET sshd POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/riscos/!SSHd ${APP_DIR}
   COMMENT "Creating !SSHd application")
 
-# Zip in the layout PackMan / riscpkg expect: Apps/Network/!SSHd + RiscPkg/Control.
+# Zip in the layout PackMan / riscpkg expect: Apps/Network/!SSHd + RiscPkg/Control
+# + RiscPkg/Copyright (our licence plus those of the statically linked libraries).
 add_custom_target(package-zip
   COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/pkg
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pkg/Apps/Network
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${APP_DIR} "${CMAKE_BINARY_DIR}/pkg/Apps/Network/!SSHd"
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/riscos/RiscPkg ${CMAKE_BINARY_DIR}/pkg/RiscPkg
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/LICENSE ${CMAKE_BINARY_DIR}/pkg/RiscPkg/Copyright
+  COMMAND sh ${CMAKE_SOURCE_DIR}/tools/mkcopyright.sh ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}/pkg/RiscPkg/Copyright
   COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}/pkg zip -q -r -9 ${CMAKE_BINARY_DIR}/SSHd.zip .
   DEPENDS sshd
   COMMENT "Creating SSHd.zip")

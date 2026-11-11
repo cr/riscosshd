@@ -27,17 +27,27 @@ char *ro_gstrans(const char *src)
 
 char *ro_load_file(const char *path, size_t *len_out)
 {
-    int type = 0, len = 0;
+    int type = 0, len = 0, fh = 0, unread = 0;
     char *buf;
     if (_swix(OS_File, _INR(0, 1) | _OUT(0) | _OUT(4), 17, path, &type, &len) || type != 1)
         return NULL;
     buf = malloc((size_t)len + 1);
     if (!buf)
         return NULL;
-    if (_swix(OS_File, _INR(0, 3), 255, path, buf, 0)) {
+    /* Read through a handle for at most the size just seen, so a file
+     * that grows between the two calls cannot overrun the buffer. */
+    if (_swix(OS_Find, _INR(0, 1) | _OUT(0), 0x4f, path, &fh) || fh == 0) {
         free(buf);
         return NULL;
     }
+    if (_swix(OS_GBPB, _INR(0, 3) | _OUT(3), 4, fh, buf, len, &unread)) {
+        _swix(OS_Find, _INR(0, 1), 0, fh);
+        free(buf);
+        return NULL;
+    }
+    _swix(OS_Find, _INR(0, 1), 0, fh);
+    if (unread > 0 && unread <= len)
+        len -= unread;
     buf[len] = '\0';
     if (len_out)
         *len_out = (size_t)len;

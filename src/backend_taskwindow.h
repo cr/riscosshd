@@ -11,6 +11,9 @@
 #define Message_TaskWindow_Morio   0x808C3
 #define Message_TaskWindow_Morite  0x808C4
 #define Message_TaskWindow_NewTask 0x808C5
+#define Message_TaskWindow_Suspend 0x808C6
+#define Message_TaskWindow_Resume  0x808C7
+#define Message_TaskCloseDown      0x400C3
 
 extern const struct backend_ops backend_taskwindow;
 

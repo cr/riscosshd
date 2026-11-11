@@ -6,12 +6,14 @@
  * Message_TaskWindow_Input.  That is what Edit's task windows use; here
  * the controlling task is sshd and the "window" is an SSH channel.
  *
- *   shell request  -> Wimp_StartTask("TaskWindow -task &us -txt &id ...")
+ *   shell/exec request -> Wimp_StartTask("TaskWindow -task &us -txt &id ...")
  *   Message_TaskWindow_Ego     child announces itself: learn its task handle
  *   Message_TaskWindow_Output  child's VDU output -> channel
  *   channel data               -> Message_TaskWindow_Input (<= 232 bytes each)
  *   Message_TaskWindow_Morio   child exited -> close channel
+ *   Message_TaskCloseDown      child killed some other way -> close channel
  *   channel closed             -> Message_TaskWindow_Morite kills the child
+ *   output queue too long      -> Message_TaskWindow_Suspend, later _Resume
  *
  * The child's command line echoes what it reads, so nothing is echoed
  * locally; a DEL it echoes after a backspace is turned into the
@@ -32,13 +34,20 @@
 
 #define MAX_INPUT_CHUNK 232    /* 256-byte message minus the 24-byte header */
 #define PENDING_MAX 4096
+#define OUT_HIGH_WATER (256 * 1024)   /* suspend the child above this much unsent output */
+#define OUT_LOW_WATER  (32 * 1024)    /* resume it below this */
+#define EOF_QUIET_CS   100            /* non-pty shell: finish 1 s after the last output */
 
 struct tw_state {
-    struct chan_ctx *chan;
+    struct chan_ctx *chan;     /* NULL once the channel went away before Ego */
     int txt;                   /* our id, echoed back in Message_TaskWindow_Ego */
     int child;                 /* child's Wimp task handle, 0 until Ego */
-    int dead;                  /* Morio received or kill sent */
+    int dead;                  /* Morio/TaskCloseDown received or kill sent */
+    int orphaned;              /* channel gone before Ego: kill on arrival */
+    int suspended;             /* Message_TaskWindow_Suspend sent */
     int dropped;               /* input dropped because the child was not reading */
+    int eof_pending;           /* non-pty shell: client sent EOF */
+    int last_activity;         /* centiseconds, OS_ReadMonotonicTime */
     char pending[PENDING_MAX]; /* input typed before the child was ready */
     size_t npending;
     struct tw_state *next;
@@ -58,6 +67,13 @@ int tw_available(void)
     return our_task != 0;
 }
 
+static int now_cs(void)
+{
+    int t = 0;
+    _swix(OS_ReadMonotonicTime, _OUT(0), &t);
+    return t;
+}
+
 static struct tw_state *find_by_txt(int txt)
 {
     for (struct tw_state *s = states; s; s = s->next)
@@ -74,6 +90,17 @@ static struct tw_state *find_by_child(int child)
     return NULL;
 }
 
+static void unlink_state(struct tw_state *s)
+{
+    for (struct tw_state **pp = &states; *pp; pp = &(*pp)->next) {
+        if (*pp == s) {
+            *pp = s->next;
+            break;
+        }
+    }
+    free(s);
+}
+
 static void send_to_child(struct tw_state *s, int action, const char *data, size_t len)
 {
     int block[64];
@@ -84,6 +111,15 @@ static void send_to_child(struct tw_state *s, int action, const char *data, size
     if (len)
         memcpy(&block[6], data, len);
     _swix(Wimp_SendMessage, _INR(0, 2), 17, block, s->child);
+}
+
+static void kill_child(struct tw_state *s)
+{
+    if (s->child && !s->dead) {
+        send_to_child(s, Message_TaskWindow_Morite, NULL, 0);
+        s->dead = 1;
+        log_debug("task window %08x killed", (unsigned)s->txt);
+    }
 }
 
 static void flush_pending(struct tw_state *s)
@@ -123,15 +159,22 @@ static int tw_start(struct chan_ctx *c, const char *command)
 
     if (!our_task)
         return -1;           /* text mode: let the line shell / capture take over */
-    /* The command rides inside a quoted TaskWindow argument, so quotes in
-     * it cannot be passed through; the caller falls back to OS_CLI capture. */
-    if (command && (strchr(command, '"') || strlen(command) > 200))
-        return -1;
+    if (command) {
+        /* The command rides inside a quoted TaskWindow argument: quotes
+         * cannot be passed through and a control character would end the
+         * *TaskWindow line early, losing -task and -txt. */
+        if (strlen(command) > 200)
+            return -1;
+        for (const char *p = command; *p; p++)
+            if ((unsigned char)*p < 0x20 || *p == 0x7f || *p == '"')
+                return -1;
+    }
     s = calloc(1, sizeof *s);
     if (!s)
         return -1;
     s->chan = c;
     s->txt = next_txt++;
+    s->last_activity = now_cs();
     s->next = states;
     states = s;
     c->backend_data = s;
@@ -145,10 +188,9 @@ static int tw_start(struct chan_ctx *c, const char *command)
     e = _swix(Wimp_StartTask, _IN(0), cmd);
     if (e) {
         log_msg("cannot start TaskWindow: %s", e->errmess);
-        states = s->next;
-        free(s);
+        unlink_state(s);
         c->backend_data = NULL;
-        return -1;                       /* caller falls back to the line shell */
+        return -1;                       /* caller falls back or refuses */
     }
     log_debug("task window %08x started", (unsigned)s->txt);
     return 0;
@@ -157,11 +199,15 @@ static int tw_start(struct chan_ctx *c, const char *command)
 static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
 {
     struct tw_state *s = c->backend_data;
-    char out[PENDING_MAX];
+    char out[MAX_INPUT_CHUNK];
     size_t n = 0;
 
-    for (size_t i = 0; i < len && n < sizeof out - 2; i++) {
+    for (size_t i = 0; i < len; i++) {
         unsigned char ch = (unsigned char)buf[i];
+        if (n == sizeof out) {           /* translate in message-sized chunks */
+            queue_input(s, out, n);
+            n = 0;
+        }
         if (ch == '\n' || ch == '\r') {
             out[n++] = '\r';                 /* RISC OS line end for ReadLine */
             if (ch == '\r' && i + 1 < len && buf[i + 1] == '\n')
@@ -188,31 +234,50 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
 
 static void tw_eof(struct chan_ctx *c)
 {
-    (void)c;   /* piped input finished; the child keeps running until the channel closes */
+    struct tw_state *s = c->backend_data;
+    /* Piped input is finished.  A pty session ends with Ctrl-D or the
+     * child's exit; a plain pipe ends once the child has gone quiet. */
+    if (!c->pty) {
+        s->eof_pending = 1;
+        s->last_activity = now_cs();
+    }
 }
 
 static void tw_poll(struct chan_ctx *c)
 {
-    flush_pending(c->backend_data);
+    struct tw_state *s = c->backend_data;
+    flush_pending(s);
+    /* Flow control: a child printing faster than the client reads would
+     * otherwise grow the channel's output queue without bound. */
+    if (s->child && !s->dead) {
+        if (!s->suspended && c->out_len > OUT_HIGH_WATER) {
+            send_to_child(s, Message_TaskWindow_Suspend, NULL, 0);
+            s->suspended = 1;
+        } else if (s->suspended && c->out_len < OUT_LOW_WATER) {
+            send_to_child(s, Message_TaskWindow_Resume, NULL, 0);
+            s->suspended = 0;
+        }
+    }
+    if (s->eof_pending && s->npending == 0 && !c->finished &&
+        now_cs() - s->last_activity > EOF_QUIET_CS)
+        chan_finish(c, 0);
 }
 
 static void tw_stop(struct chan_ctx *c)
 {
-    struct tw_state *s = c->backend_data, **pp;
+    struct tw_state *s = c->backend_data;
     if (!s)
         return;
-    if (s->child && !s->dead) {
-        send_to_child(s, Message_TaskWindow_Morite, NULL, 0);
-        log_debug("task window %08x killed", (unsigned)s->txt);
-    }
-    for (pp = &states; *pp; pp = &(*pp)->next) {
-        if (*pp == s) {
-            *pp = s->next;
-            break;
-        }
-    }
-    free(s);
     c->backend_data = NULL;
+    if (s->child || s->dead) {
+        kill_child(s);
+        unlink_state(s);
+    } else {
+        /* The child has not said Ego yet; keep the record so that it can
+         * be killed when it does instead of living on unattended. */
+        s->chan = NULL;
+        s->orphaned = 1;
+    }
 }
 
 const struct backend_ops backend_taskwindow = {
@@ -220,6 +285,16 @@ const struct backend_ops backend_taskwindow = {
 };
 
 /* ---- Wimp messages ------------------------------------------------------- */
+
+static void child_gone(struct tw_state *s, const char *how)
+{
+    s->dead = 1;
+    log_debug("task window %08x %s", (unsigned)s->txt, how);
+    if (s->chan)
+        chan_finish(s->chan, 0);
+    else
+        unlink_state(s);          /* orphan: nothing else refers to it */
+}
 
 int tw_message(int reason, int *block)
 {
@@ -231,13 +306,18 @@ int tw_message(int reason, int *block)
         s = find_by_txt(block[5]);
         if (s) {
             s->child = sender;
-            log_msg("task window ready for %s", s->chan->owner_name);
-            flush_pending(s);
+            if (s->orphaned) {
+                kill_child(s);
+                unlink_state(s);
+            } else {
+                log_msg("task window ready for %s", s->chan->owner_name);
+                flush_pending(s);
+            }
         }
         return 1;
     case Message_TaskWindow_Output:
         s = find_by_child(sender);
-        if (s && !s->chan->finished) {
+        if (s && s->chan && !s->chan->finished) {
             const char *d = (const char *)&block[6];
             size_t n = (size_t)block[5], start = 0;
             /* the length comes from another task: keep it inside the message */
@@ -255,6 +335,7 @@ int tw_message(int reason, int *block)
                 }
             }
             chan_output_vdu(s->chan, d + start, n - start);
+            s->last_activity = now_cs();
         }
         if (reason == 18) {                      /* acknowledge, or the child kills itself */
             block[3] = block[2];
@@ -263,11 +344,13 @@ int tw_message(int reason, int *block)
         return 1;
     case Message_TaskWindow_Morio:
         s = find_by_child(sender);
-        if (s) {
-            s->dead = 1;
-            log_debug("task window %08x exited", (unsigned)s->txt);
-            chan_finish(s->chan, 0);
-        }
+        if (s)
+            child_gone(s, "exited");
+        return 1;
+    case Message_TaskCloseDown:                  /* killed from the Task Manager, say */
+        s = find_by_child(sender);
+        if (s)
+            child_gone(s, "closed down");
         return 1;
     case Message_TaskWindow_NewTask:
         return 1;                                /* nested task windows: ignored */

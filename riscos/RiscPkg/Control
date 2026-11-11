@@ -1,7 +1,7 @@
 Package: SSHd
 Priority: Optional
 Section: Network
-Maintainer: Christiane Ruetten
+Maintainer: Christiane Ruetten <cr@users.noreply.github.com>
 Standards-Version: 0.6.0
 Version: 0.1.0-1
 Licence: Free
@@ -10,7 +10,8 @@ Description: SSH server for RISC OS 5
  Accepts public-key logins only; runs *commands and interactive sessions
  in a TaskWindow, and serves sftp/scp.  Authorized keys are managed in a
  window, with an import from another machine.  Configuration lives in
- Choices:SSHd.
+ Choices:SSHd.  SSHd itself is MIT licensed; it statically links libssh
+ (LGPL 2.1), mbedTLS (Apache 2.0) and UnixLib, see RiscPkg.Copyright.
 Homepage: https://github.com/cr/riscosshd
 Depends: CryptRandom
 Components: Apps.Network.!SSHd (Movable LookAt Run)

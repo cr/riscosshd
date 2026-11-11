@@ -92,6 +92,7 @@ image is amd64 only and runs under emulation on Apple Silicon.
 make            # image (once), dependencies (once), sshd, !SSHd, dist/SSHd_<version>.zip
 make install    # copy !SSHd into a local RPCEmu HostFS and authorise ~/.ssh/id_ed25519.pub
 make test       # run *Time and an sftp listing against localhost:2222
+make check      # host-side unit test of the key parser (needs libssh on the host)
 ```
 
 Other targets: `make image` rebuilds the toolchain container from
@@ -135,7 +136,11 @@ sftp riscos-host                # or scp; paths look like /HostFS::HostFS.$/Publ
 ```
 
 Commands run in a TaskWindow child, so they behave as in Edit's task
-windows: line input, no Wimp applications.  The exit status is always 0
+windows: line input, no Wimp applications.  A child that prints faster
+than the client reads is suspended and resumed with the TaskWindow
+module's own messages.  If the server itself dies with a fatal error, any
+children keep running and show in the Task Manager as "SSH session";
+quit them there.  The exit status is always 0
 on that path, because the TaskWindow module does not report a command's
 error.  Connections that do not authenticate within 60 s, or sit logged
 in without a channel for 120 s, are dropped; at most 8 connections are
@@ -151,5 +156,7 @@ held at once.
 
 ## Licence
 
-MIT for this repository.  libssh is LGPL 2.1 (statically linked; the
-build scripts here let anyone relink), mbedTLS is Apache 2.0.
+MIT for this repository.  The binary statically links libssh (LGPL 2.1),
+mbedTLS (Apache 2.0) and GCCSDK's UnixLib; the package's
+`RiscPkg/Copyright` carries all four texts, and the build scripts here let
+anyone relink against a modified libssh as the LGPL requires.

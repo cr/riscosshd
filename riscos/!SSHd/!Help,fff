@@ -50,6 +50,13 @@ does not).  Clients start in the directory given with -r, by default the
 boot disc, and see RISC OS paths the UnixLib way: HostFS::HostFS.$.Public
 is /HostFS::HostFS.$/Public, and dir.file/txt is /dir/file.txt.
 
+Licences
+--------
+SSHd is MIT licensed.  The binary statically links libssh (LGPL 2.1),
+mbedTLS (Apache 2.0) and GCCSDK's UnixLib; their licence texts are in the
+package's RiscPkg.Copyright, and the build scripts at the website let
+anyone relink against a modified libssh as the LGPL requires.
+
 Options (edit !Run, or run sshd by hand in a TaskWindow with -t):
   -p port    listen on another port
   -d dir     use another configuration directory

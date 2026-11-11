@@ -38,8 +38,6 @@ struct session_ctx {
     struct chan_ctx *chan;      /* one channel per session for now */
     time_t deadline;            /* drop the session if not authenticated, or
                                    with no channel, by this time; 0 = none */
-    time_t close_deadline;      /* after the channel closed: drop the session
-                                   if the client has not disconnected by then */
     struct ssh_server_callbacks_struct server_cb;
     struct ssh_channel_callbacks_struct channel_cb;
     struct session_ctx *next;
@@ -189,8 +187,8 @@ static int cb_exec_request(ssh_session session, ssh_channel channel,
     if (start_backend(c, &backend_taskwindow, command) == 0)
         return 0;
     if (tw_available()) {
-        refuse_with_message(c, "Command refused: double quotes and commands over 200 characters "
-                               "cannot be run through a TaskWindow");
+        refuse_with_message(c, "Command refused: double quotes, control characters and commands "
+                               "over 200 characters cannot be run through a TaskWindow");
         return 0;
     }
     return start_backend(c, &backend_exec, command) < 0 ? 1 : 0;
@@ -278,8 +276,16 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
     struct session_ctx *s = userdata;
     struct chan_ctx *c;
 
-    if (!s->authenticated || s->chan)
+    if (!s->authenticated)
         return NULL;
+    if (s->chan) {
+        /* One channel at a time; a closed one may be replaced at once, as
+         * multiplexing clients close and open in the same burst. */
+        if (!s->chan->closed || ssh_channel_is_open(s->chan->channel))
+            return NULL;
+        chan_free(s->chan);
+        s->chan = NULL;
+    }
     c = calloc(1, sizeof *c);
     if (!c)
         return NULL;
@@ -470,14 +476,12 @@ int server_poll(int timeout_ms)
             if (c->closed && c->out_len == 0 && !ssh_channel_is_open(c->channel)) {
                 chan_free(c);
                 s->chan = NULL;
-                /* Single-channel policy: the session ends with its channel.
-                 * Give the client a moment to send its own disconnect so
-                 * it does not report "closed by remote host". */
-                log_msg("%s: session closed", s->user);
-                s->close_deadline = time(NULL) + 2;
+                /* The connection stays for another channel (OpenSSH
+                 * multiplexing) until the idle deadline or the client's
+                 * own disconnect. */
+                log_debug("%s: channel closed", s->user);
+                s->deadline = now + IDLE_TIMEOUT;
             }
-        } else if (s->close_deadline && now >= s->close_deadline) {
-            session_destroy(s);
         }
     }
     return nsessions;

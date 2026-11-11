@@ -12,12 +12,21 @@ MBEDTLS_VER=3.6.7
 LIBSSH_VER=0.11.5
 MBEDTLS_URL="https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-$MBEDTLS_VER/mbedtls-$MBEDTLS_VER.tar.bz2"
 LIBSSH_URL="https://www.libssh.org/files/${LIBSSH_VER%.*}/libssh-$LIBSSH_VER.tar.xz"
+MBEDTLS_SHA256=a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6
+LIBSSH_SHA256=6898ba9dd836d618b71dc7a4bb786a502c173cef5cafbf20fe5e0567ba4ea30c
 NPROC=$(nproc 2>/dev/null || echo 2)
 
 mkdir -p "$DL" "$SRC" "$SYSROOT"
-fetch() { [ -f "$DL/$2" ] || curl -fsSL -o "$DL/$2" "$1"; }
-fetch "$MBEDTLS_URL" "mbedtls-$MBEDTLS_VER.tar.bz2"
-fetch "$LIBSSH_URL"  "libssh-$LIBSSH_VER.tar.xz"
+# fetch URL FILE SHA256: download if missing, then verify the digest.
+fetch() {
+    [ -f "$DL/$2" ] || curl -fsSL -o "$DL/$2" "$1"
+    echo "$3  $DL/$2" | sha256sum -c - >/dev/null || {
+        echo "checksum mismatch for $2; delete it and retry, or update the pin" >&2
+        exit 1
+    }
+}
+fetch "$MBEDTLS_URL" "mbedtls-$MBEDTLS_VER.tar.bz2" "$MBEDTLS_SHA256"
+fetch "$LIBSSH_URL"  "libssh-$LIBSSH_VER.tar.xz" "$LIBSSH_SHA256"
 
 # --- mbedTLS -------------------------------------------------------------
 if [ ! -f "$SYSROOT/lib/libmbedcrypto.a" ]; then

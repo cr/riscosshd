@@ -6,6 +6,7 @@
 #   make engine     show the container engine in use (starts Colima if needed)
 #   make install    copy !SSHd into a local RPCEmu HostFS and authorise your key
 #   make test       run a command and an sftp listing against the server
+#   make check      host-side unit test of the key parser (needs libssh on the host)
 #   make clean      remove the build tree;  make distclean  also the dependencies
 #
 # Variables you may override: ENGINE (docker|podman), IMAGE, RPCEMU_HOSTFS,
@@ -34,7 +35,7 @@ DEPS_INPUTS := tools/build-deps.sh deps/mbedtls_riscos_config.h \
        deps/patches/libssh-riscos.patch cmake/toolchain-riscos.cmake \
        $(wildcard deps/riscos-compat/sys/*.h)
 
-.PHONY: all engine image deps build package sprites install test clean distclean
+.PHONY: all engine image deps build package sprites install test check clean distclean
 
 all: package
 
@@ -94,6 +95,20 @@ test:
 	@echo "+ sftp: pwd, ls"
 	@printf 'pwd\nls\n' | sftp -q -P $(SSH_PORT) -o ConnectTimeout=15 -o StrictHostKeyChecking=no \
 	    -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -b - $(SSH_USER)@$(SSH_HOST) | head -6
+
+# --- host-side unit test -----------------------------------------------------
+# Compiles src/auth.c against the host's libssh (brew install libssh, or
+# apt install libssh-dev) with a stdio stand-in for the RISC OS file calls.
+check: build/host/test_auth
+	@test -f build/host/k1.pub || ssh-keygen -q -t ed25519 -N '' -C 'test key one' -f build/host/k1
+	@test -f build/host/k2.pub || ssh-keygen -q -t rsa -b 2048 -N '' -C 'test key two' -f build/host/k2
+	build/host/test_auth build/host/k1.pub build/host/k2.pub build/host/authkeys
+
+build/host/test_auth: tests/test_auth.c tests/riscos_stub.c src/auth.c src/log.c src/auth.h
+	@pkg-config --exists libssh || { echo "libssh not found on the host (pkg-config libssh)"; exit 1; }
+	@mkdir -p build/host
+	cc -std=gnu99 -D_GNU_SOURCE -Wall -Wextra -Isrc $$(pkg-config --cflags libssh) -o $@ \
+	    tests/test_auth.c tests/riscos_stub.c src/auth.c src/log.c $$(pkg-config --libs libssh)
 
 clean:
 	rm -rf build dist
