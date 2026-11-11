@@ -35,19 +35,28 @@ static int sftp_start(struct chan_ctx *c, const char *command)
 static int sftp_data(struct chan_ctx *c, const char *buf, size_t len)
 {
     sftp_session *sp = c->backend_data;
-    int rc = sftp_channel_default_data_callback(c->session, c->channel, (void *)buf, (uint32_t)len, 0, sp);
-    if (rc < 0) {
-        /* Either the buffer does not yet hold a complete SFTP packet (a
-         * 32 KB write spans two SSH packets) and libssh will call again
-         * with more, or a real protocol error made libssh close the
-         * channel.  Consume nothing; the pump notices a closed channel. */
-        if (!ssh_channel_is_open(c->channel)) {
-            c->finished = 1;
-            c->closed = 1;
-        }
-        return 0;
+    size_t off = 0;
+    int rc = 0;
+
+    /* libssh calls this once per incoming SSH packet and the default
+     * handler processes one SFTP packet per call, so several SFTP packets
+     * in one burst (the tail of a write plus a CLOSE, say) would leave the
+     * later ones stranded until more data arrived.  Drain what is complete. */
+    while (off < len) {
+        rc = sftp_channel_default_data_callback(c->session, c->channel, (void *)(buf + off),
+                                                (uint32_t)(len - off), 0, sp);
+        if (rc <= 0)
+            break;
+        off += (size_t)rc;
     }
-    return rc;
+    if (rc < 0 && !ssh_channel_is_open(c->channel)) {
+        /* a real protocol error: libssh sent EOF and closed the channel */
+        c->finished = 1;
+        c->closed = 1;
+    }
+    /* rc < 0 with the channel open just means "incomplete packet, call
+     * again with more"; whatever was consumed is reported. */
+    return (int)off;
 }
 
 static void sftp_eof(struct chan_ctx *c)
