@@ -1,14 +1,13 @@
-| !SSHd - SSH server for RISC OS
-| Runs the server in a TaskWindow so the desktop keeps multitasking.
+| !SSHd - SSH server for RISC OS: a Wimp task with an icon-bar icon.
 Set SSHd$Dir <Obey$Dir>
-IfThere <SSHd$Dir>.!Sprites Then IconSprites <SSHd$Dir>.!Sprites
+IconSprites <SSHd$Dir>.!Sprites
 | CryptRandom is not in the ROM; PackMan installs it as System:Modules.CryptRand
 RMEnsure CryptRandom 0.00 RMLoad System:Modules.CryptRand
 RMEnsure CryptRandom 0.00 Error SSHd needs the CryptRandom module (install it with PackMan)
-RMEnsure TaskWindow 0.00 Error SSHd needs the TaskWindow module
 RMEnsure Internet 5.00 Error SSHd needs the Internet module (networking is not configured)
 If "<Choices$Write>" = "" Then Error SSHd needs the Choices system (boot from !Boot)
 IfThere <Choices$Write>.SSHd Then Else CDir <Choices$Write>.SSHd
 | UnixLib: no filename suffix swapping, keep our RISC OS paths as they are
 Set UnixEnv$sshd$sfix ""
-TaskWindow "<SSHd$Dir>.sshd -d <Choices$Write>.SSHd %*0" -name "SSH server" -wimpslot 2048K -quit -ctrl
+WimpSlot -min 2048K -max 2048K
+Run <SSHd$Dir>.sshd -d <Choices$Write>.SSHd %*0

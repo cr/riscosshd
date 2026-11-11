@@ -24,7 +24,8 @@ add_executable(sshd
   src/hostkey.c
   src/riscos.c
   src/riscos_entropy.c
-  src/log.c)
+  src/log.c
+  src/wimp.c)
 target_include_directories(sshd PRIVATE ${LIBSSH_INCLUDE_DIR})
 target_compile_definitions(sshd PRIVATE LIBSSH_STATIC=1)
 target_link_libraries(sshd PRIVATE

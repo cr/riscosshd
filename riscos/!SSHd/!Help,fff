@@ -1,20 +1,24 @@
 !SSHd - an SSH server for RISC OS 5
 ====================================
 
-Double-click !SSHd to start the server in a TaskWindow.  It listens on
-TCP port 22 and accepts public-key logins only.
+Double-click !SSHd: it puts an icon on the icon bar and listens on TCP
+port 22, accepting public-key logins only.
 
-Setup
------
-Configuration lives in <Choices$Write>.SSHd (normally !Boot.Choices.SSHd):
+Icon bar
+--------
+  Select  opens the log window (follows new lines, like tail -f)
+  Adjust  opens the Keys window
+  Menu    Log window / Keys... / Quit
 
-  authkeys   Your SSH public keys, one per line, in the format ssh-keygen
-             writes to id_ed25519.pub / id_rsa.pub (OpenSSH authorized_keys
-             format, options prefixes are not supported).  The file is
-             created empty on first run; nobody can log in until you fill it.
-  hostkey    The server's ed25519 host key, generated on first run using the
-             CryptRandom module (installed with PackMan; !Run soft-loads it).  Delete
-             it to generate a new one.
+Keys window
+-----------
+Lists the public keys that may log in and lets you add one: type or paste
+it into the field (the format ssh-keygen writes to id_ed25519.pub or
+id_rsa.pub), or drop such a file onto the window, then click Add or press
+Return.  Keys are stored in <Choices$Write>.SSHd.authkeys, one per line.
+The window opens by itself when no key is configured yet.  The server's
+own host key is shown at the bottom; it is generated on first run with the
+CryptRandom module and kept in Choices:SSHd.hostkey.
 
 Use
 ---
@@ -26,7 +30,8 @@ inside the server's own task with their VDU output captured to a file, so
 they cannot be interactive and must not start a Wimp application.  A
 TaskWindow-based interactive session is planned.
 
-Options (edit !Run or run sshd from a TaskWindow by hand):
+Options (edit !Run, or run sshd by hand in a TaskWindow with -t):
   -p port    listen on another port
   -d dir     use another configuration directory
+  -t         text mode: no icon bar, log to the TaskWindow, Escape quits
   -v         verbose logging (-vv includes SSH protocol messages)

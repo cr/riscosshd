@@ -1,18 +1,16 @@
-/* sshd for RISC OS: entry point and cooperative main loop.
+/* sshd for RISC OS: entry point.
  *
- * This first milestone is a plain command-line program (run it in a
- * TaskWindow so the desktop keeps going).  The loop body, server_poll(),
- * is written so that a Wimp front end can call it from a null-event
- * handler later.
+ * By default this is a Wimp task with an icon-bar icon (src/wimp.c); the
+ * server loop body, server_poll(), runs on null events.  With -t it is a
+ * plain command-line program for a TaskWindow, handy for debugging.
  *
- * Usage: sshd [-p port] [-d <config dir>] [-v]
+ * Usage: sshd [-p port] [-d <config dir>] [-t] [-v]
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
-
 #include <libssh/libssh.h>
 #include <libssh/callbacks.h>
 
@@ -21,11 +19,13 @@
 #include "auth.h"
 #include "hostkey.h"
 #include "riscos.h"
+#include "wimp.h"
 #include "log.h"
 
 struct sshd_config cfg = { 22, "0.0.0.0", NULL, NULL, NULL, NULL };
 
 static volatile int running = 1;
+static int text_mode;
 
 static void on_term(int sig)
 {
@@ -50,24 +50,45 @@ static char *join(const char *dir, const char *leaf)
 static void usage(void)
 {
     fprintf(stderr,
-            "Usage: sshd [-p port] [-d config-dir] [-v]\n"
+            "Usage: sshd [-p port] [-d config-dir] [-t] [-v]\n"
             "  -p port        TCP port to listen on (default 22)\n"
             "  -d dir         configuration directory (default <Choices$Write>.SSHd)\n"
+            "  -t             text mode: no Wimp, log to this window (run in a TaskWindow)\n"
             "  -v             verbose; -vv also logs the SSH protocol\n"
             "The directory holds 'hostkey' (generated on first run) and\n"
             "'authkeys' (OpenSSH authorized_keys format; one key per line).\n");
+}
+
+/* Fatal startup error: error box on the desktop, message in text mode. */
+static int fatal(const char *fmt, const char *arg)
+{
+    char msg[300];
+    snprintf(msg, sizeof msg, fmt, arg);
+    if (text_mode)
+        log_msg("%s", msg);
+    else
+        wimp_report_error(msg);
+    return 1;
+}
+
+static void libssh_log(int priority, const char *function, const char *buffer, void *userdata)
+{
+    (void)priority; (void)function; (void)userdata;
+    log_msg("libssh: %s", buffer);
 }
 
 int main(int argc, char **argv)
 {
     ssh_key hostkey;
     const char *dir_arg = "<Choices$Write>.SSHd";
+    const char *err;
     int n, opt;
 
-    while ((opt = getopt(argc, argv, "p:d:vh")) != -1) {
+    while ((opt = getopt(argc, argv, "p:d:tvh")) != -1) {
         switch (opt) {
         case 'p': cfg.port = atoi(optarg); break;
         case 'd': dir_arg = optarg; break;
+        case 't': text_mode = 1; break;
         case 'v': log_verbose++; break;
         default: usage(); return 1;
         }
@@ -77,18 +98,24 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    cfg.config_dir = ro_gstrans(dir_arg);
-    if (!cfg.config_dir || !*cfg.config_dir) {
-        log_msg("cannot resolve configuration directory '%s'", dir_arg);
+    if (!text_mode && wimp_init() < 0)
         return 1;
+
+    ssh_threads_set_callbacks(ssh_threads_get_noop());
+    if (ssh_init() < 0)
+        return fatal("libssh initialisation failed%s", "");
+    if (log_verbose > 1) {
+        ssh_set_log_level(SSH_LOG_PROTOCOL);
+        ssh_set_log_callback(libssh_log);
     }
-    {
-        const char *err = ro_mkdir(cfg.config_dir);
-        if (err) {
-            log_msg("cannot create %s: %s", cfg.config_dir, err);
-            return 1;
-        }
-    }
+    ro_init_signals(on_quit);
+
+    cfg.config_dir = ro_gstrans(dir_arg);
+    if (!cfg.config_dir || !*cfg.config_dir)
+        return fatal("Cannot resolve configuration directory '%s'", dir_arg);
+    err = ro_mkdir(cfg.config_dir);
+    if (err)
+        return fatal("Cannot create configuration directory: %s", err);
     cfg.hostkey_path = join(cfg.config_dir, "hostkey");
     cfg.authorized_keys_path = join(cfg.config_dir, "authkeys");
     cfg.capture_path = join(cfg.config_dir, "capture");
@@ -96,43 +123,39 @@ int main(int argc, char **argv)
 
     n = auth_load_keys(cfg.authorized_keys_path);
     if (n < 0) {
-        log_msg("no %s: nobody can log in. Put your public key there (one per line).",
-                cfg.authorized_keys_path);
+        log_msg("no %s yet: add your public key in the Keys window", cfg.authorized_keys_path);
         ro_save_file(cfg.authorized_keys_path, 0xfff, "", 0);
+        n = 0;
     } else {
         log_msg("%d authorized key%s", n, n == 1 ? "" : "s");
     }
 
-    /* libssh is built without its constructor (see tools/build-deps.sh), so
-     * initialise it by hand before any key or crypto call.  The server is
-     * single-threaded and mbedTLS is built without MBEDTLS_THREADING_C, so
-     * tell libssh not to install pthread locking callbacks (ssh_init would
-     * fail with them). */
-    ssh_threads_set_callbacks(ssh_threads_get_noop());
-    if (ssh_init() < 0) {
-        log_msg("ssh_init failed");
-        return 1;
-    }
-    ro_init_signals(on_quit);
     hostkey = hostkey_load_or_create(cfg.hostkey_path);
     if (!hostkey)
-        return 1;
+        return fatal("Cannot load or generate the host key (is CryptRandom loaded?)%s", "");
 
     if (server_init(hostkey) < 0)
-        return 1;
+        return fatal("Cannot listen on port %s: is another SSH server running?", "22");
 
     signal(SIGTERM, on_term);
     signal(SIGHUP, on_term);
 
-    log_msg("press Escape in this window to stop the server");
-    while (running) {
-        server_poll(100);
-        ro_yield();
+    if (text_mode) {
+        log_msg("press Escape in this window to stop the server");
+        while (running) {
+            server_poll(100);
+            ro_yield();
+        }
+    } else {
+        if (n == 0)
+            wimp_open_keys_window();
+        wimp_run();
     }
 
     log_msg("shutting down");
     server_shutdown();
     auth_free();
     ssh_finalize();
+    wimp_shutdown();
     return 0;
 }

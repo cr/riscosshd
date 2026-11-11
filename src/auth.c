@@ -8,72 +8,163 @@
 #include "riscos.h"
 #include "log.h"
 
-static ssh_key *keys;
-static int nkeys;
+struct akey {
+    ssh_key key;
+    char *type;
+    char *comment;
+};
 
-static void add_key(ssh_key k)
+static struct akey *keys;
+static int nkeys;
+static const char *keys_path;
+
+static int add_key(ssh_key k, const char *type, const char *comment)
 {
-    ssh_key *n = realloc(keys, sizeof *keys * (size_t)(nkeys + 1));
+    struct akey *n = realloc(keys, sizeof *keys * (size_t)(nkeys + 1));
     if (!n)
-        return;
+        return -1;
     keys = n;
-    keys[nkeys++] = k;
+    keys[nkeys].key = k;
+    keys[nkeys].type = strdup(type);
+    keys[nkeys].comment = strdup(comment ? comment : "");
+    nkeys++;
+    return 0;
 }
 
-/* Parse one "type base64 [comment]" line (options prefixes are not supported). */
-static void parse_line(char *line)
+/* Parse one "type base64 [comment]" line (options prefixes are not
+ * supported).  Returns 1 if a key was added, 0 for blank/comment lines,
+ * -1 on a parse error with a message in err. */
+static int parse_line(const char *src, char *err, size_t errlen)
 {
-    char *type, *b64, *save = NULL;
+    char *line, *type, *b64, *comment, *save = NULL;
     enum ssh_keytypes_e kt;
     ssh_key k = NULL;
+    int rc;
 
-    while (isspace((unsigned char)*line))
-        line++;
-    if (*line == '\0' || *line == '#')
-        return;
-    type = strtok_r(line, " \t", &save);
+    while (isspace((unsigned char)*src))
+        src++;
+    if (*src == '\0' || *src == '#')
+        return 0;
+    line = strdup(src);
+    if (!line)
+        return -1;
+    type = strtok_r(line, " \t\r\n", &save);
     b64 = type ? strtok_r(NULL, " \t\r\n", &save) : NULL;
-    if (!type || !b64)
-        return;
+    comment = b64 ? strtok_r(NULL, "\r\n", &save) : NULL;
+    if (!type || !b64) {
+        snprintf(err, errlen, "expected 'type base64 [comment]'");
+        free(line);
+        return -1;
+    }
     kt = ssh_key_type_from_name(type);
     if (kt == SSH_KEYTYPE_UNKNOWN) {
-        log_msg("authorized_keys: unknown key type '%s'", type);
-        return;
+        snprintf(err, errlen, "unknown key type '%s'", type);
+        free(line);
+        return -1;
     }
     if (ssh_pki_import_pubkey_base64(b64, kt, &k) != SSH_OK) {
-        log_msg("authorized_keys: cannot parse %s key", type);
-        return;
+        snprintf(err, errlen, "cannot decode %s key", type);
+        free(line);
+        return -1;
     }
-    add_key(k);
+    rc = add_key(k, type, comment);
+    free(line);
+    return rc < 0 ? -1 : 1;
 }
 
 int auth_load_keys(const char *path)
 {
+    char err[128];
     char *data = ro_load_file(path, NULL), *p, *nl;
+    keys_path = path;
     if (!data)
         return -1;
     for (p = data; p && *p; p = nl) {
         nl = strchr(p, '\n');
         if (nl)
             *nl++ = '\0';
-        parse_line(p);
+        if (parse_line(p, err, sizeof err) < 0)
+            log_msg("authkeys: skipped line: %s", err);
     }
     free(data);
     return nkeys;
 }
 
+int auth_add_key_line(const char *line, char *err, size_t errlen)
+{
+    char *data;
+    size_t len = 0, add;
+    const char *e;
+    int rc = parse_line(line, err, errlen);
+
+    if (rc < 0)
+        return -1;
+    if (rc == 0) {
+        snprintf(err, errlen, "no key on that line");
+        return -1;
+    }
+    if (!keys_path)
+        return 0;
+    /* Append to the file: existing content + line + newline. */
+    data = ro_load_file(keys_path, &len);
+    add = strlen(line) + 2;
+    data = realloc(data, len + add + 1);
+    if (!data) {
+        snprintf(err, errlen, "out of memory");
+        return -1;
+    }
+    if (len > 0 && data[len - 1] != '\n')
+        data[len++] = '\n';
+    memcpy(data + len, line, strlen(line));
+    len += strlen(line);
+    data[len++] = '\n';
+    e = ro_save_file(keys_path, 0xfff, data, len);
+    free(data);
+    if (e) {
+        snprintf(err, errlen, "key added for this session only; cannot save: %s", e);
+        return -1;
+    }
+    log_msg("added %s key %s", keys[nkeys - 1].type, keys[nkeys - 1].comment);
+    return 0;
+}
+
+int auth_count(void)
+{
+    return nkeys;
+}
+
+void auth_describe(char *buf, size_t len)
+{
+    size_t used = 0;
+    if (nkeys == 0) {
+        snprintf(buf, len, "none - nobody can log in");
+        return;
+    }
+    buf[0] = '\0';
+    for (int i = 0; i < nkeys && used < len; i++) {
+        int n = snprintf(buf + used, len - used, "%s%s%s%s", i ? ", " : "",
+                         keys[i].type, keys[i].comment[0] ? " " : "", keys[i].comment);
+        if (n < 0)
+            break;
+        used += (size_t)n;
+    }
+}
+
 int auth_key_allowed(ssh_key pubkey)
 {
     for (int i = 0; i < nkeys; i++)
-        if (ssh_key_cmp(pubkey, keys[i], SSH_KEY_CMP_PUBLIC) == 0)
+        if (ssh_key_cmp(pubkey, keys[i].key, SSH_KEY_CMP_PUBLIC) == 0)
             return 1;
     return 0;
 }
 
 void auth_free(void)
 {
-    for (int i = 0; i < nkeys; i++)
-        ssh_key_free(keys[i]);
+    for (int i = 0; i < nkeys; i++) {
+        ssh_key_free(keys[i].key);
+        free(keys[i].type);
+        free(keys[i].comment);
+    }
     free(keys);
     keys = NULL;
     nkeys = 0;

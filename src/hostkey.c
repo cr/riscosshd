@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <libssh/libssh.h>
@@ -5,6 +6,22 @@
 #include "hostkey.h"
 #include "riscos.h"
 #include "log.h"
+
+static char public_line[512] = "(none)";
+
+const char *hostkey_public_line(void)
+{
+    return public_line;
+}
+
+static void remember_public(ssh_key key)
+{
+    char *pub = NULL;
+    if (ssh_pki_export_pubkey_base64(key, &pub) == SSH_OK) {
+        snprintf(public_line, sizeof public_line, "%s %s", ssh_key_type_to_char(ssh_key_type(key)), pub);
+        ssh_string_free_char(pub);
+    }
+}
 
 ssh_key hostkey_load_or_create(const char *path)
 {
@@ -18,6 +35,7 @@ ssh_key hostkey_load_or_create(const char *path)
             log_msg("host key %s is unreadable; delete it to generate a new one", path);
             return NULL;
         }
+        remember_public(key);
         return key;
     }
 
@@ -40,12 +58,7 @@ ssh_key hostkey_load_or_create(const char *path)
             return NULL;
         }
     }
-    {
-        char *pub = NULL;
-        if (ssh_pki_export_pubkey_base64(key, &pub) == SSH_OK) {
-            log_msg("host key fingerprint source: ssh-ed25519 %s", pub);
-            ssh_string_free_char(pub);
-        }
-    }
+    remember_public(key);
+    log_msg("new host key: %s", public_line);
     return key;
 }
