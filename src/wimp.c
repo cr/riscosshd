@@ -132,11 +132,11 @@ static char keys_title[40] = "SSHd Authorized Keys";
 
 /* Menu entries are indirected, so they may be longer than 12 characters. */
 static const char menu_log[] = "Log Window";
-static const char menu_keys[] = "Authorized Keys...";
+static const char menu_keys[] = "Keys...";
 static const char menu_quit[] = "Quit";
 #define MENU_ITEM_FLAGS (ICON_TEXT | ICON_FILLED | ICON_INDIRECTED | ICON_FG(7) | ICON_BG(0))
 static struct wimp_menu menu = {
-    "SSHd", 7, 2, 7, 0, 360, 44, 0,
+    "SSHd", 7, 2, 7, 0, 220, 44, 0,
     {
         { 0,    -1, MENU_ITEM_FLAGS, { .ind = { menu_log,  (const char *)-1, sizeof menu_log } } },
         { 2,    -1, MENU_ITEM_FLAGS, { .ind = { menu_keys, (const char *)-1, sizeof menu_keys } } },
