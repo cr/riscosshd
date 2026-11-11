@@ -38,6 +38,7 @@ struct tw_state {
     int txt;                   /* our id, echoed back in Message_TaskWindow_Ego */
     int child;                 /* child's Wimp task handle, 0 until Ego */
     int dead;                  /* Morio received or kill sent */
+    int dropped;               /* input dropped because the child was not reading */
     char pending[PENDING_MAX]; /* input typed before the child was ready */
     size_t npending;
     struct tw_state *next;
@@ -50,6 +51,11 @@ static struct tw_state *states;
 void tw_set_task_handle(int handle)
 {
     our_task = handle;
+}
+
+int tw_available(void)
+{
+    return our_task != 0;
 }
 
 static struct tw_state *find_by_txt(int txt)
@@ -97,8 +103,11 @@ static void flush_pending(struct tw_state *s)
 
 static void queue_input(struct tw_state *s, const char *data, size_t len)
 {
-    if (s->npending + len > PENDING_MAX)
+    if (s->npending + len > PENDING_MAX) {
         len = PENDING_MAX - s->npending;   /* drop the excess: the child is not reading */
+        if (!s->dropped++)
+            log_msg("task window %08x: input dropped, child not reading", (unsigned)s->txt);
+    }
     memcpy(s->pending + s->npending, data, len);
     s->npending += len;
     flush_pending(s);
@@ -231,6 +240,9 @@ int tw_message(int reason, int *block)
         if (s && !s->chan->finished) {
             const char *d = (const char *)&block[6];
             size_t n = (size_t)block[5], start = 0;
+            /* the length comes from another task: keep it inside the message */
+            if (block[0] < 24 || n > (size_t)(block[0] - 24) || n > MAX_INPUT_CHUNK)
+                n = block[0] > 24 ? (size_t)(block[0] - 24) : 0;
             if (s->chan->pty) {
                 /* ReadLine echoes DEL for a deleted character; terminals
                  * need backspace, space, backspace to show that. */

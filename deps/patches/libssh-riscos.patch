@@ -1,5 +1,5 @@
 --- a/cmake/Modules/DefineCMakeDefaults.cmake	2026-06-12 13:53:41
-+++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-11 16:50:27
++++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-11 17:08:52
 @@ -17,5 +17,8 @@
  # Create the compile command database for clang by default
  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -12,7 +12,7 @@
 +  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 +endif()
 --- a/src/misc.c	2026-07-16 10:57:23
-+++ b/src/misc.c	2026-11-11 16:50:27
++++ b/src/misc.c	2026-11-11 17:08:52
 @@ -71,6 +71,16 @@
  
  #include "libssh/priv.h"
@@ -31,20 +31,26 @@
  
  #ifdef HAVE_LIBGCRYPT
 --- a/src/sftpserver.c	2026-07-16 10:57:23
-+++ b/src/sftpserver.c	2026-11-11 16:56:05
-@@ -866,6 +866,10 @@
++++ b/src/sftpserver.c	2026-11-11 17:34:56
+@@ -866,6 +866,11 @@
  SSH_SFTP_CALLBACK(process_remove);
  SSH_SFTP_CALLBACK(process_extended_statvfs);
  SSH_SFTP_CALLBACK(process_setstat);
 +#ifdef __riscos__
 +SSH_SFTP_CALLBACK(process_fsetstat_riscos);
 +SSH_SFTP_CALLBACK(process_rename_riscos);
++SSH_SFTP_CALLBACK(process_fstat_riscos);
 +#endif
  
  const struct sftp_message_handler message_handlers[] = {
      {"open", NULL, SSH_FXP_OPEN, process_open},
-@@ -875,6 +879,9 @@
+@@ -873,8 +878,14 @@
+     {"read", NULL, SSH_FXP_READ, process_read},
+     {"write", NULL, SSH_FXP_WRITE, process_write},
      {"lstat", NULL, SSH_FXP_LSTAT, process_lstat},
++#ifdef __riscos__
++    {"fstat", NULL, SSH_FXP_FSTAT, process_fstat_riscos},
++#endif
      {"fstat", NULL, SSH_FXP_FSTAT, process_unsupposed},
      {"setstat", NULL, SSH_FXP_SETSTAT, process_setstat},
 +#ifdef __riscos__
@@ -53,7 +59,7 @@
      {"fsetstat", NULL, SSH_FXP_FSETSTAT, process_unsupposed},
      {"opendir", NULL, SSH_FXP_OPENDIR, process_opendir},
      {"readdir", NULL, SSH_FXP_READDIR, process_readdir},
-@@ -883,6 +890,9 @@
+@@ -883,6 +894,9 @@
      {"rmdir", NULL, SSH_FXP_RMDIR, process_rmdir},
      {"realpath", NULL, SSH_FXP_REALPATH, process_realpath},
      {"stat", NULL, SSH_FXP_STAT, process_stat},
@@ -63,7 +69,7 @@
      {"rename", NULL, SSH_FXP_RENAME, process_unsupposed},
      {"readlink", NULL, SSH_FXP_READLINK, process_readlink},
      {"symlink", NULL, SSH_FXP_SYMLINK, process_symlink},
-@@ -893,6 +903,9 @@
+@@ -893,6 +907,9 @@
  const struct sftp_message_handler extended_handlers[] = {
      /* here are some extended type handlers */
      {"statvfs", "statvfs@openssh.com", 0, process_extended_statvfs},
@@ -73,7 +79,7 @@
      {NULL, NULL, 0, NULL},
  };
  
-@@ -996,6 +1009,17 @@
+@@ -996,6 +1013,17 @@
          SSH_LOG(SSH_LOG_PROTOCOL, "invalid fd (%d) received from handle", fd);
          return SSH_ERROR;
      }
@@ -91,7 +97,7 @@
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1428,7 +1452,11 @@
+@@ -1428,7 +1456,11 @@
  
          SSH_LOG(SSH_LOG_PROTOCOL, "realpath failed: %s", strerror(saved_errno));
          sftp_reply_status(client_msg, status, err_msg);
@@ -103,7 +109,7 @@
      }
      sftp_reply_name(client_msg, path, NULL);
      free(path);
-@@ -1497,7 +1525,38 @@
+@@ -1497,7 +1529,59 @@
      return SSH_OK;
  }
  
@@ -128,6 +134,27 @@
 +    return SSH_OK;
 +}
 +
++/* SSH_FXP_FSTAT: attributes of an open handle. */
++static int
++process_fstat_riscos(sftp_client_message client_msg)
++{
++    struct sftp_handle *h = sftp_handle(client_msg->sftp, client_msg->handle);
++    struct sftp_attributes_struct attr;
++    struct stat st;
++    if (h == NULL || h->type != SFTP_FILE_HANDLE || h->fd < 0) {
++        sftp_reply_status(client_msg, SSH_FX_INVALID_HANDLE, NULL);
++        return SSH_OK;
++    }
++    if (fstat(h->fd, &st) < 0) {
++        int saved_errno = errno;
++        sftp_reply_status(client_msg, unix_errno_to_ssh_stat(saved_errno), NULL);
++        return SSH_OK;
++    }
++    stat_to_filexfer_attrib(&st, &attr);
++    sftp_reply_attr(client_msg, &attr);
++    return SSH_OK;
++}
++
 +static int
 +process_fsetstat_riscos(sftp_client_message client_msg)
 +{
@@ -142,7 +169,7 @@
  process_setstat(sftp_client_message client_msg)
  {
      int rv;
-@@ -1526,6 +1585,11 @@
+@@ -1526,6 +1610,11 @@
          }
      }
  
@@ -155,7 +182,7 @@
          rv = chmod(filename, client_msg->attr->permissions);
          if (rv < 0) {
 --- a/src/ttyopts.c	2026-07-16 10:56:26
-+++ b/src/ttyopts.c	2026-11-11 16:50:27
++++ b/src/ttyopts.c	2026-11-11 17:08:52
 @@ -176,8 +176,10 @@
          return 57600;
      case B115200:

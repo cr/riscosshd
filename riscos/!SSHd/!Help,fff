@@ -8,24 +8,28 @@ Icon bar
 --------
   Select  opens the log window (follows new lines, like tail -f)
   Adjust  opens the Keys window
-  Menu    Log window / Keys... / Quit
+  Menu    Info... / Log Window / Keys... / Quit
 
 Keys window
 -----------
-Lists the public keys that may log in, each with a Delete button, and
-offers three ways to add one:
+Shows the server's own host key at the top (generated on first run with
+the CryptRandom module and kept in Choices:SSHd.hostkey), then three ways
+to add an authorized key:
   - type or paste it into the field (the format ssh-keygen writes to
     id_ed25519.pub or id_rsa.pub), then Add or Return;
   - drop such a file onto the window;
-  - Fetch: enter the account (user@host) and password of the machine
+  - Import: enter the account (user@host) and password of the machine
     whose keys you want to allow.  SSHd logs in there over SSH, shows the
     machine's host key fingerprint for you to confirm, reads
     ~/.ssh/id_*.pub and imports them.  The password is used once and not
     stored.  The desktop pauses while this runs.
-Keys are stored in <Choices$Write>.SSHd.authkeys, one per line.
-The window opens by itself when no key is configured yet.  The server's
-own host key is shown at the bottom; it is generated on first run with the
-CryptRandom module and kept in Choices:SSHd.hostkey.
+Below that is the list of authorized keys, each with a Delete button.
+Keys are stored in <Choices$Write>.SSHd.authkeys, one per line, and a key
+that is already listed is not added twice.  The window opens by itself
+when no key is configured yet.
+
+Any authorized key has full control of the machine: every *command, and
+over SFTP every filing system.  The user name is not checked.
 
 Use
 ---
@@ -47,8 +51,8 @@ boot disc, and see RISC OS paths the UnixLib way: HostFS::HostFS.$.Public
 is /HostFS::HostFS.$/Public, and dir.file/txt is /dir/file.txt.
 
 Options (edit !Run, or run sshd by hand in a TaskWindow with -t):
-  -r dir     directory SFTP clients start in (default <Boot$Dir>.^)
   -p port    listen on another port
   -d dir     use another configuration directory
+  -r dir     directory SFTP clients start in (default <Boot$Dir>.^)
   -t         text mode: no icon bar, log to the TaskWindow, Escape quits
   -v         verbose logging (-vv includes SSH protocol messages)

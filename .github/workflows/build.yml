@@ -9,7 +9,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: deps/sysroot
-          key: deps-${{ hashFiles('tools/build-deps.sh', 'deps/mbedtls_riscos_config.h', 'deps/patches/**', 'cmake/toolchain-riscos.cmake') }}
+          key: deps-${{ hashFiles('tools/build-deps.sh', 'deps/mbedtls_riscos_config.h', 'deps/patches/**', 'deps/riscos-compat/**', 'cmake/toolchain-riscos.cmake') }}
       - name: Build (image, dependencies, server, package)
         run: make ENGINE=docker
       - uses: actions/upload-artifact@v4

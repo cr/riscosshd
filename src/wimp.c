@@ -1,6 +1,7 @@
-/* Wimp front end for sshd: icon-bar icon with a menu (Log window, Keys...,
- * Quit), a tail-style log window drawn with the desktop font, and a Keys
- * window where public keys can be typed, pasted or dropped as a file.
+/* Wimp front end for sshd: icon-bar icon with a menu (Info..., Log Window,
+ * Keys..., Quit), an Info window, a tail-style log window drawn with the
+ * desktop font, and a Keys window where public keys can be typed, pasted,
+ * dropped as a file, imported from another machine, and deleted.
  * Windows and the menu are built in code, so there is no Templates file.
  * All Wimp access goes through _swix; no OSLib dependency.
  */
@@ -44,6 +45,7 @@ enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
 enum { MENU_INFO = 0, MENU_LOG, MENU_KEYS, MENU_QUIT, MENU_ITEMS };
 /* Info window icons: label/value pairs */
 enum { II_NAME = 0, II_PURPOSE, II_WEBSITE, II_VERSION, II_BUILT, II_COMPILER, II_LIBSSH, II_CRYPTO, II_COUNT };
+#define MAX_FIXED_ICONS 16        /* largest icon count of any window defined here */
 
 /* --- Wimp data structures (as the SWIs expect them) --------------------- */
 
@@ -69,7 +71,7 @@ struct wimp_window {
         struct { char *text; const char *valid; int size; } ind;
     } title;
     int nicons;
-    struct wimp_icon icon[KI_COUNT > 16 ? KI_COUNT : 16];
+    struct wimp_icon icon[MAX_FIXED_ICONS];
 };
 
 struct wimp_menu_item {
@@ -100,9 +102,6 @@ struct wimp_menu {
 #define ICON_BUTTON(t)  ((unsigned)(t) << 12)
 #define ICON_FG(c)      ((unsigned)(c) << 24)
 #define ICON_BG(c)      ((unsigned)(c) << 28)
-#define ICON_ESG(g)     ((unsigned)(g) << 16)
-#define ICON_SELECTED   (1u << 21)
-#define ICON_DELETED    (1u << 23)
 
 #define WIN_MOVEABLE    (1u << 1)
 #define WIN_AUTOREDRAW  (1u << 4)   /* icons only: the Wimp redraws it */
@@ -177,12 +176,10 @@ static void report_oserror(const char *what, _kernel_oserror *e)
     wimp_report_error(buf);
 }
 
-static void set_icon_text(int win, int icon, const char *text, char *buf, size_t size)
+/* Redraw an indirected icon after its text buffer changed. */
+static void redraw_icon(int win, int icon)
 {
     int block[4] = { win, icon, 0, 0 };
-    if (buf) {
-        snprintf(buf, size, "%s", text);
-    }
     _swix(Wimp_SetIconState, _IN(1), block);
 }
 
@@ -247,7 +244,7 @@ static void refresh_keys_list(void)
         snprintf(list_label, sizeof list_label, "Authorized keys: none yet, so nobody can log in.");
     else
         snprintf(list_label, sizeof list_label, "Authorized keys (%d):", n);
-    set_icon_text(keys_win, KI_LISTLABEL, list_label, NULL, 0);
+    redraw_icon(keys_win, KI_LISTLABEL);
 
     ext[0] = 0; ext[1] = ROW_TOP - n * ROW_H - 16; ext[2] = KEYS_W; ext[3] = 0;
     if (ext[1] > -800)
@@ -406,9 +403,9 @@ void wimp_open_keys_window(void)
         snprintf(host_line, sizeof host_line, "%.40s", sp ? sp + 1 : pub);
         snprintf(host_line2, sizeof host_line2, "%s", (sp && strlen(sp + 1) > 40) ? sp + 41 : "");
     }
-    set_icon_text(keys_win, KI_HOSTLABEL, host_label, NULL, 0);
-    set_icon_text(keys_win, KI_HOST, host_line, NULL, 0);
-    set_icon_text(keys_win, KI_HOST2, host_line2, NULL, 0);
+    redraw_icon(keys_win, KI_HOSTLABEL);
+    redraw_icon(keys_win, KI_HOST);
+    redraw_icon(keys_win, KI_HOST2);
     state[0] = keys_win;
     if (_swix(Wimp_GetWindowState, _IN(1), state))
         return;
@@ -429,7 +426,7 @@ static void keys_add_from_input(void)
         return;
     }
     key_input[0] = '\0';
-    set_icon_text(keys_win, KI_INPUT, "", NULL, 0);
+    redraw_icon(keys_win, KI_INPUT);
     _swix(Wimp_SetCaretPosition, _INR(0, 5), keys_win, KI_INPUT, 0, 0, -1, 0);
     refresh_keys_list();
 }
@@ -467,9 +464,11 @@ static void keys_add_from_file(const char *path)
 
 /* --- fetch keys from another machine ------------------------------------- */
 
-/* Handle pending desktop events (redraws after a dialogue box went away)
- * before blocking again in the SSH client.  Returns at the first null
- * event or after ~half a second. */
+static void dispatch(int reason, int *block);
+
+/* Handle pending desktop events (redraws after a dialogue box went away,
+ * TaskWindow messages for live sessions) before blocking again in the SSH
+ * client.  Returns at the first null event or after ~half a second. */
 static void wimp_pump(void)
 {
     int start = 0, now = 0;
@@ -480,12 +479,7 @@ static void wimp_pump(void)
             return;
         if (reason == 0)
             return;
-        switch (reason) {
-        case 1:  if (poll_block[0] == log_win) redraw_log(poll_block); else redraw_empty(poll_block); break;
-        case 2:  _swix(Wimp_OpenWindow, _IN(1), poll_block); break;
-        case 3:  _swix(Wimp_CloseWindow, _IN(1), poll_block); break;
-        case 17: case 18: if (poll_block[4] == 0) running = 0; break;
-        }
+        dispatch(reason, poll_block);
         _swix(OS_ReadMonotonicTime, _OUT(0), &now);
         if (now - start > 50)
             return;
@@ -521,7 +515,7 @@ static void keys_fetch(void)
     rc = keyfetch_run(fetch_host, fetch_pass, fetch_confirm, msg, sizeof msg);
     _swix(Hourglass_Off, 0);
     memset(fetch_pass, 0, sizeof fetch_pass);          /* used once, never kept */
-    set_icon_text(keys_win, KI_FPASS, "", NULL, 0);
+    redraw_icon(keys_win, KI_FPASS);
     refresh_keys_list();
     wimp_report_error(msg);
     (void)rc;
@@ -698,8 +692,10 @@ int wimp_init(void)
     log_set_sink(log_sink);
     tw_set_task_handle(task_handle);
     create_windows();
-    if (create_iconbar_icon() < 0 || log_win < 0 || keys_win < 0)
+    if (create_iconbar_icon() < 0 || log_win < 0 || keys_win < 0 || info_win < 0) {
+        wimp_shutdown();        /* leave no half-registered task behind */
         return -1;
+    }
     refresh_keys_list();
     return 0;
 }
@@ -784,6 +780,21 @@ static void user_message(int reason, int *b)
     }
 }
 
+/* One Wimp_Poll event.  Shared by the main loop and wimp_pump(). */
+static void dispatch(int reason, int *block)
+{
+    switch (reason) {
+    case 0:  server_poll(0); break;
+    case 1:  if (block[0] == log_win) redraw_log(block); else redraw_empty(block); break;
+    case 2:  _swix(Wimp_OpenWindow, _IN(1), block); break;
+    case 3:  _swix(Wimp_CloseWindow, _IN(1), block); break;
+    case 6:  mouse_click(block); break;
+    case 8:  key_pressed(block); break;
+    case 9:  menu_selection(block); break;
+    case 17: case 18: user_message(reason, block); break;
+    }
+}
+
 void wimp_run(void)
 {
     while (running) {
@@ -793,16 +804,7 @@ void wimp_run(void)
         if (_swix(Wimp_PollIdle, _INR(0, 2) | _OUT(0), (1 << 4) | (1 << 5) | (1 << 11) | (1 << 12),
                   poll_block, now + 2, &reason))
             continue;
-        switch (reason) {
-        case 0:  server_poll(0); break;
-        case 1:  if (poll_block[0] == log_win) redraw_log(poll_block); else redraw_empty(poll_block); break;
-        case 2:  _swix(Wimp_OpenWindow, _IN(1), poll_block); break;
-        case 3:  _swix(Wimp_CloseWindow, _IN(1), poll_block); break;
-        case 6:  mouse_click(poll_block); break;
-        case 8:  key_pressed(poll_block); break;
-        case 9:  menu_selection(poll_block); break;
-        case 17: case 18: user_message(reason, poll_block); break;
-        }
+        dispatch(reason, poll_block);
     }
 }
 

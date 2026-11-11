@@ -95,15 +95,15 @@ binary blobs in git, the CI job and the local Colima build run the exact
 same script.  Vendoring prebuilt `.a` files was rejected because the
 GCC/UnixLib ABI would be frozen in the repository.
 
-- `tools/build.sh` builds the Docker image once and runs
-  `tools/ci-build.sh` inside it with the repository mounted at `/work`.
-- `tools/ci-build.sh` builds the dependencies if `deps/sysroot/lib/libssh.a`
-  is missing, then configures and builds the server with
-  `cmake/toolchain-riscos.cmake`, producing `build/!SSHd/sshd,ff8` and
-  `build/SSHd.zip`.
-- `.github/workflows/build.yml` runs the same two scripts on an amd64
-  GitHub runner, where the image needs no emulation, and uploads
-  `SSHd.zip` as an artifact.
+- The `Makefile` drives everything: `make image` builds the container
+  from `docker/Dockerfile`, `make deps` runs `tools/build-deps.sh` inside
+  it, `make build` configures and builds the server with
+  `cmake/toolchain-riscos.cmake`, and `make package` produces
+  `dist/SSHd_<version>.zip`.  `tools/container-engine.sh` picks Docker,
+  Podman or Colima.
+- `.github/workflows/build.yml` runs `make ENGINE=docker` on an amd64
+  GitHub runner, where the image needs no emulation, caches
+  `deps/sysroot`, and uploads the package as an artifact.
 
 Pinned versions: mbedTLS 3.6.7, libssh 0.11.5.
 
@@ -123,3 +123,9 @@ Pinned versions: mbedTLS 3.6.7, libssh 0.11.5.
 
 `CryptRandom_Block` (R0 = buffer, R1 = length) works as documented; an
 earlier suspicion that it faulted was the unseeded DRBG above.
+
+Later additions to `deps/patches/libssh-riscos.patch` for the SFTP server:
+`fstat`, `rename`/`posix-rename@openssh.com` and `fsetstat` handlers
+(libssh ships none), reads at or past end-of-file answered from the file
+size, `setstat` ignoring modes, owner and times, and a failed `realpath`
+being a client error rather than a fatal one.

@@ -44,8 +44,10 @@ in `!Boot.Choices.SSHd.authkeys` on the RISC OS side.
 
 ## Getting the app into the emulator
 
-The `Data` install boots from HostFS, so the built `build/!SSHd` directory
-can be copied straight into `~/Documents/RPCEmu/Data/hostfs/Apps/` (the
-`,ff8`/`,feb`/`,fff` suffixes carry the filetypes).  Copy
-`~/.ssh/id_ed25519.pub` to `hostfs/!Boot/Choices/SSHd/authkeys` to
-authorise your key before the first start.
+`make install` finds the RPCEmu data directory with the newest
+`rpclog.txt` under `~/Documents/RPCEmu` (override with `RPCEMU_HOSTFS`),
+copies `build/!SSHd` into its `hostfs/Apps/Network/` (the
+`,ff8`/`,feb`/`,fff` suffixes carry the filetypes) and appends
+`~/.ssh/id_ed25519.pub` to `hostfs/!Boot/Choices/SSHd/authkeys`.  Restart
+`!SSHd` in the emulator afterwards; `make test` then checks a command and
+an sftp listing through the forwarded port.

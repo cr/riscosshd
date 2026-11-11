@@ -25,14 +25,6 @@ char *ro_gstrans(const char *src)
     return strdup(buf);
 }
 
-int ro_object_type(const char *path)
-{
-    int type = 0;
-    if (_swix(OS_File, _INR(0, 1) | _OUT(0), 17, path, &type))
-        return 0;
-    return type;
-}
-
 char *ro_load_file(const char *path, size_t *len_out)
 {
     int type = 0, len = 0;

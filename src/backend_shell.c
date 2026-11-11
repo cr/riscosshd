@@ -1,7 +1,8 @@
 /* shell backend: a minimal line-mode "*" prompt.  Each line is run through
  * OS_CLI with output captured, exactly like exec.  With a pty the client
  * terminal is in raw mode, so we echo and handle backspace ourselves.
- * This is a stopgap until the TaskWindow backend exists.
+ * Used only in text mode (-t); on the desktop backend_taskwindow serves
+ * shell requests.
  */
 #include <stdlib.h>
 #include <string.h>

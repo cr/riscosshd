@@ -27,7 +27,10 @@ static int sftp_start(struct chan_ctx *c, const char *command)
     }
     c->backend_data = sp;
     /* The SFTP server writes replies itself; a blocking session lets a
-     * large reply wait for channel window space instead of failing. */
+     * large reply wait for channel window space instead of failing.  The
+     * price: a write that waits nests packet handling inside this callback
+     * (libssh's SFTP server tolerates that in practice), and while it
+     * waits no other session and not the desktop gets a turn. */
     ssh_set_blocking(c->session, 1);
     return 0;
 }

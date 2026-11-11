@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 #include <poll.h>
 #include <time.h>
 #include <sys/socket.h>
@@ -24,8 +23,10 @@
 
 #define MAX_SESSIONS 8
 #define MAX_AUTH_TRIES 6
+#define AUTH_TIMEOUT 60     /* seconds from accept to a successful login */
+#define IDLE_TIMEOUT 120    /* seconds a logged-in session may sit without a channel */
 
-enum sess_state { SESS_KEX, SESS_RUNNING, SESS_DEAD };
+enum sess_state { SESS_KEX, SESS_RUNNING };
 
 struct session_ctx {
     ssh_session session;
@@ -35,6 +36,8 @@ struct session_ctx {
     char user[64];
     char peer[48];              /* "10.10.10.2:51234" */
     struct chan_ctx *chan;      /* one channel per session for now */
+    time_t deadline;            /* drop the session if not authenticated, or
+                                   with no channel, by this time; 0 = none */
     time_t close_deadline;      /* after the channel closed: drop the session
                                    if the client has not disconnected by then */
     struct ssh_server_callbacks_struct server_cb;
@@ -145,22 +148,17 @@ static int cb_pty_request(ssh_session session, ssh_channel channel, const char *
                           int cols, int rows, int py, int px, void *userdata)
 {
     struct chan_ctx *c = userdata;
-    (void)session; (void)channel; (void)py; (void)px;
-    c->pty = 1;
-    c->cols = cols;
-    c->rows = rows;
-    snprintf(c->term, sizeof c->term, "%s", term ? term : "");
+    (void)session; (void)channel; (void)term; (void)cols; (void)rows; (void)py; (void)px;
+    c->pty = 1;   /* the terminal size has no RISC OS counterpart yet */
     return 0;
 }
 
-static int cb_pty_resize(ssh_session session, ssh_channel channel,
-                         int cols, int rows, int py, int px, void *userdata)
+/* Accept a request but answer it with a message and exit status 1. */
+static void refuse_with_message(struct chan_ctx *c, const char *msg)
 {
-    struct chan_ctx *c = userdata;
-    (void)session; (void)channel; (void)py; (void)px;
-    c->cols = cols;
-    c->rows = rows;
-    return 0;
+    chan_output_str(c, msg);
+    chan_output_str(c, c->pty ? "\r\n" : "\n");
+    chan_finish(c, 1);
 }
 
 static int start_backend(struct chan_ctx *c, const struct backend_ops *b, const char *command)
@@ -185,10 +183,16 @@ static int cb_exec_request(ssh_session session, ssh_channel channel,
     (void)session; (void)channel;
     log_msg("%s: exec '%s'", c->owner->user, command);
     /* A TaskWindow child (-quit) on the desktop so output streams as it is
-     * produced; OS_CLI capture otherwise or for commands it cannot carry. */
+     * produced.  Commands a TaskWindow command line cannot carry are not
+     * run inside the server task, where a hung command would take the
+     * server down; the OS_CLI capture backend serves text mode only. */
     if (start_backend(c, &backend_taskwindow, command) == 0)
         return 0;
-    c->backend = NULL;
+    if (tw_available()) {
+        refuse_with_message(c, "Command refused: double quotes and commands over 200 characters "
+                               "cannot be run through a TaskWindow");
+        return 0;
+    }
     return start_backend(c, &backend_exec, command) < 0 ? 1 : 0;
 }
 
@@ -201,7 +205,6 @@ static int cb_shell_request(ssh_session session, ssh_channel channel, void *user
      * otherwise (text mode, or if the TaskWindow could not be started). */
     if (start_backend(c, &backend_taskwindow, NULL) == 0)
         return 0;
-    c->backend = NULL;
     return start_backend(c, &backend_shell, NULL) < 0 ? 1 : 0;
 }
 
@@ -258,6 +261,7 @@ static int cb_auth_pubkey(ssh_session session, const char *user, struct ssh_key_
     }
     if (signature_state == SSH_PUBLICKEY_STATE_VALID && auth_key_allowed(pubkey)) {
         s->authenticated = 1;
+        s->deadline = time(NULL) + IDLE_TIMEOUT;
         snprintf(s->user, sizeof s->user, "%s", user);
         log_msg("%s from %s: public key accepted", user, s->peer);
         return SSH_AUTH_SUCCESS;
@@ -288,11 +292,11 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
         return NULL;
     }
     s->chan = c;
+    s->deadline = 0;
 
     memset(&s->channel_cb, 0, sizeof s->channel_cb);
     s->channel_cb.userdata = c;
     s->channel_cb.channel_pty_request_function = cb_pty_request;
-    s->channel_cb.channel_pty_window_change_function = cb_pty_resize;
     s->channel_cb.channel_exec_request_function = cb_exec_request;
     s->channel_cb.channel_shell_request_function = cb_shell_request;
     s->channel_cb.channel_subsystem_request_function = cb_subsystem_request;
@@ -349,6 +353,7 @@ static void accept_connection(void)
     }
     s->session = session;
     s->state = SESS_KEX;
+    s->deadline = time(NULL) + AUTH_TIMEOUT;
     {
         struct sockaddr_in sa;
         socklen_t sl = sizeof sa;
@@ -373,8 +378,6 @@ static void accept_connection(void)
     ssh_handle_key_exchange(session);
 }
 
-static void listen_cb_noop(void) {}
-
 static int cb_listen_fd(socket_t fd, int revents, void *userdata)
 {
     (void)fd; (void)userdata;
@@ -387,7 +390,6 @@ int server_init(ssh_key hostkey)
 {
     int fd;
 
-    (void)listen_cb_noop;
     bind_handle = ssh_bind_new();
     event = ssh_event_new();
     if (!bind_handle || !event)
@@ -413,16 +415,27 @@ int server_init(ssh_key hostkey)
     return 0;
 }
 
+static int past_deadline(struct session_ctx *s, time_t now)
+{
+    if (s->deadline && now >= s->deadline) {
+        log_msg("%s: timed out %s", s->peer, s->authenticated ? "with no channel" : "before authenticating");
+        session_destroy(s);
+        return 1;
+    }
+    return 0;
+}
+
 int server_poll(int timeout_ms)
 {
     struct session_ctx *s, *next;
+    time_t now = time(NULL);
     int rc;
 
     /* Drive key exchange for new sessions outside the event: once it
      * completes they join the event and callbacks take over. */
     for (s = sessions; s; s = next) {
         next = s->next;
-        if (s->state != SESS_KEX)
+        if (s->state != SESS_KEX || past_deadline(s, now))
             continue;
         rc = ssh_handle_key_exchange(s->session);
         if (rc == SSH_OK) {
@@ -439,9 +452,10 @@ int server_poll(int timeout_ms)
     if (rc == SSH_ERROR)
         log_debug("event poll error");
 
+    now = time(NULL);
     for (s = sessions; s; s = next) {
         next = s->next;
-        if (s->state != SESS_RUNNING)
+        if (s->state != SESS_RUNNING || past_deadline(s, now))
             continue;
         if (!ssh_is_connected(s->session)) {
             log_msg("%s disconnected (%s)", s->peer, s->user[0] ? s->user : "not authenticated");
@@ -462,7 +476,7 @@ int server_poll(int timeout_ms)
                 log_msg("%s: session closed", s->user);
                 s->close_deadline = time(NULL) + 2;
             }
-        } else if (s->close_deadline && time(NULL) >= s->close_deadline) {
+        } else if (s->close_deadline && now >= s->close_deadline) {
             session_destroy(s);
         }
     }

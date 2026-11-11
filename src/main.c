@@ -4,7 +4,7 @@
  * server loop body, server_poll(), runs on null events.  With -t it is a
  * plain command-line program for a TaskWindow, handy for debugging.
  *
- * Usage: sshd [-p port] [-d <config dir>] [-t] [-v]
+ * Usage: sshd [-p port] [-d <config dir>] [-r <sftp dir>] [-t] [-v]
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,7 +50,7 @@ static char *join(const char *dir, const char *leaf)
 static void usage(void)
 {
     fprintf(stderr,
-            "Usage: sshd [-p port] [-d config-dir] [-t] [-v]\n"
+            "Usage: sshd [-p port] [-d config-dir] [-r sftp-dir] [-t] [-v]\n"
             "  -p port        TCP port to listen on (default 22)\n"
             "  -d dir         configuration directory (default <Choices$Write>.SSHd)\n"
             "  -r dir         directory SFTP clients start in (default <Boot$Dir>.^, the boot disc)\n"
@@ -111,7 +111,7 @@ int main(int argc, char **argv)
         ssh_set_log_level(SSH_LOG_PROTOCOL);
         ssh_set_log_callback(libssh_log);
     }
-    ro_init_signals(on_quit);
+    ro_init_signals(text_mode ? on_quit : NULL);   /* Escape quits in text mode only */
 
     cfg.config_dir = ro_gstrans(dir_arg);
     if (!cfg.config_dir || !*cfg.config_dir)
@@ -145,8 +145,11 @@ int main(int argc, char **argv)
     if (!hostkey)
         return fatal("Cannot load or generate the host key (is CryptRandom loaded?)%s", "");
 
-    if (server_init(hostkey) < 0)
-        return fatal("Cannot listen on port %s: is another SSH server running?", "22");
+    if (server_init(hostkey) < 0) {
+        char port[16];
+        snprintf(port, sizeof port, "%d", cfg.port);
+        return fatal("Cannot listen on port %s: is another SSH server running?", port);
+    }
 
     signal(SIGTERM, on_term);
     signal(SIGHUP, on_term);

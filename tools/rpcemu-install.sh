@@ -7,7 +7,7 @@ set -e
 cd "$(dirname "$0")/.."
 HOSTFS="${1:-$HOME/Documents/RPCEmu/Data/hostfs}"
 PUBKEY="${2:-$HOME/.ssh/id_ed25519.pub}"
-[ -d "build/!SSHd" ] || { echo "build/!SSHd missing: run tools/build.sh first" >&2; exit 1; }
+[ -d "build/!SSHd" ] || { echo "build/!SSHd missing: run make first" >&2; exit 1; }
 [ -d "$HOSTFS/Apps" ] || { echo "$HOSTFS/Apps not found" >&2; exit 1; }
 rm -rf "$HOSTFS/Apps/Network/!SSHd"
 mkdir -p "$HOSTFS/Apps/Network"

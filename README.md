@@ -1,16 +1,21 @@
 # riscosshd: an SSH server for RISC OS 5
 
-A minimal SSH server for RISC OS 5, built on [libssh](https://www.libssh.org/)
+An SSH server for RISC OS 5, built on [libssh](https://www.libssh.org/)
 (LGPL 2.1) and [mbedTLS](https://github.com/Mbed-TLS/mbedtls) (Apache 2.0),
-cross-compiled with GCCSDK.  Public-key authentication only.  The first
-milestone runs `*commands` for `ssh host '*Cat'` and offers a line-mode `*`
-prompt for `ssh host`.
+cross-compiled with GCCSDK.  It runs as a Wimp task with an icon-bar icon
+and accepts public-key logins only.  `ssh host '*Cat'` runs a command,
+`ssh host` gives an interactive `*` command line in a TaskWindow, and
+`sftp`/`scp` move files.  Keys are managed in a desktop window, including
+an import that logs in to another machine and fetches its public keys.
 
-Status: milestones 1 (exec) and 2 (desktop front end, interactive shell
-through TaskWindow) reached on 2026-11-11.  `ssh -p 2222 riscos@localhost '*Cat'`
-against RISC OS 5.30 in RPCEmu returns the directory listing, RISC OS
-errors come back with exit status 1, and the line-mode shell works over a
-pipe.  See "Roadmap" for what is next.
+Status: exec, interactive shell, SFTP/scp and the desktop front end all
+work against RISC OS 5.30 in RPCEmu (2026-11-11).  See "Roadmap".
+
+**Security model.**  Any key listed in `Choices:SSHd.authkeys` has full
+control of the machine: every `*command`, and over SFTP every filing
+system, `!Boot` included.  The user name in the login is ignored.  That is
+the natural fit for a single-user RISC OS box; treat the key list
+accordingly.
 
 ## Why it looks the way it does
 
@@ -30,19 +35,19 @@ server normally leans on:
   `exec` requests use the same mechanism with `-quit`, so output streams
   as the command produces it.  The TaskWindow module only reports that the
   child ended, not whether the command failed, so the SSH exit status is 0
-  in that path.  In text mode, or for commands a TaskWindow command line
-  cannot carry (double quotes, over 200 characters), `exec` runs through
-  `OS_CLI` inside the server's own task with VDU output redirected to a
-  file (`OS_ChangeRedirection`), which does report errors as status 1.
-  Known quirk of that path: `*Echo "text"` fails with "Unable to start
-  application" when issued from the Wimp task.
+  in that path.  In text mode `exec` runs through `OS_CLI` inside the
+  server's own task with VDU output redirected to a file
+  (`OS_ChangeRedirection`), which does report errors as status 1.
+  On the desktop such commands are refused instead, because a command
+  that hangs in the server's own task would take the server down.
 - **No Unix shell.**  `exec` requests are RISC OS `*commands`; an
   interactive session is the TaskWindow's own `*` command line.  In text
   mode (`-t`) a line editor feeding `OS_CLI` stands in for it.
 - **Sockets are system-wide handles**, not per-process descriptors, and
-  the machine is cooperatively multitasked.  The server runs in a
-  TaskWindow so the desktop keeps going, polls with short timeouts, and the
-  Internet module yields to the Wimp while waiting.
+  the machine is cooperatively multitasked.  The server is a Wimp task
+  that services libssh from null events, so the desktop keeps going; in
+  text mode (`-t`) it polls with short timeouts and yields with
+  `OS_UpCall 6`.
 - **Entropy** comes from the CryptRandom module, wired into mbedTLS through
   `mbedtls_hardware_poll()`.
 
@@ -52,24 +57,27 @@ in `src/riscos*.c` and the backends.
 ## Layout
 
 ```
-src/main.c            argument parsing, config dir, main loop
-src/server.c          ssh_bind, sessions, libssh callbacks, output pump
+src/main.c            argument parsing, config dir, text-mode loop
+src/server.c          ssh_bind, sessions, timeouts, libssh callbacks, output pump
 src/backend.h         session backend interface
-src/backend_exec.c    exec: one OS_CLI command, captured output
-src/backend_shell.c   shell fallback: line-mode * prompt on the same mechanism
-src/backend_taskwindow.c  shell: TaskWindow child task relayed over Wimp messages
-src/wimp.c            Wimp front end: icon bar, menu, log and keys windows
+src/backend_taskwindow.c  exec and shell: TaskWindow child relayed over Wimp messages
+src/backend_sftp.c    sftp subsystem: libssh's SFTP server on the channel
+src/backend_exec.c    text mode: one OS_CLI command, captured output
+src/backend_shell.c   text mode: line-mode * prompt on the same mechanism
+src/wimp.c            Wimp front end: icon bar, menu, info, log and keys windows
 src/keyfetch.c        import public keys from another machine as an SSH client
-src/auth.c            authorized_keys parsing and matching
+src/auth.c            authorized_keys parsing, matching, add and remove
 src/hostkey.c         ed25519 host key load/generate
-src/riscos.c          OS_File, OS_GSTrans, OS_CLI capture
+src/riscos.c          OS_File, OS_GSTrans, OS_CLI capture, signals
 src/riscos_entropy.c  mbedTLS hooks: CryptRandom entropy, ms clock
-riscos/!SSHd          !Run, !Boot, !Help (binary is added by the build)
-riscos/RiscPkg        Control file for a PackMan / riscpkg package
+src/riscos_compat.c   statvfs stub for libssh's SFTP server
+src/log.c             log lines to stderr or to the log window
+riscos/!SSHd          !Run, !Boot, !Help, sprites (binary is added by the build)
+riscos/RiscPkg        Control file for the PackMan package
 cmake/                GCCSDK toolchain file
-deps/                 dependency build config (sources and sysroot are git-ignored)
-docker/, tools/       GCCSDK container and build scripts
-docs/                 toolchain research and RPCEmu testing notes
+deps/                 mbedTLS config, libssh patch, compat header (sources/sysroot git-ignored)
+docker/, tools/       GCCSDK container, dependency build, engine and RPCEmu helpers
+docs/                 toolchain research, RPCEmu notes, audit
 ```
 
 ## Building
@@ -108,22 +116,30 @@ have `!Boot` look at it, so the server can come up with the desktop.
 
 ## Installing and running
 
-1. Copy `build/!SSHd` to the RISC OS machine (HostFS in RPCEmu, see
-   `docs/rpcemu.md`).
-2. Put your public key(s), one per line, in `!Boot.Choices.SSHd.authkeys`
-   (created empty on first run).
-3. Install the CryptRandom module with PackMan if it is not present
-   (`!Run` soft-loads `System:Modules.CryptRand`).
-4. Double-click `!SSHd`.  It opens a TaskWindow, generates
-   `Choices:SSHd.hostkey` on first start, and listens on port 22.
+1. Install `dist/SSHd_<version>.zip` with PackMan, or copy `build/!SSHd`
+   to the machine (`make install` does that for RPCEmu, see
+   `docs/rpcemu.md`).  The package depends on CryptRandom; without PackMan,
+   install that module yourself (`!Run` soft-loads
+   `System:Modules.CryptRand`).
+2. Double-click `!SSHd`.  An icon appears on the icon bar, the host key is
+   generated into `Choices:SSHd.hostkey` on first start, and the server
+   listens on port 22.
+3. With no key configured the Keys window opens by itself: paste a public
+   key, drop a `.pub` file on it, or use Import with the account and
+   password of your usual machine.  Keys live in `Choices:SSHd.authkeys`.
 
 ```bash
-ssh riscos-host '*Cat'          # run a command
-ssh riscos-host                 # line-mode * prompt, 'exit' to leave
+ssh riscos-host '*Cat'          # run a command, output streams back
+ssh riscos-host                 # interactive * command line; Ctrl-D ends it
+sftp riscos-host                # or scp; paths look like /HostFS::HostFS.$/Public
 ```
 
-Commands run synchronously inside the server task, so they must not be
-interactive and must not start Wimp applications.
+Commands run in a TaskWindow child, so they behave as in Edit's task
+windows: line input, no Wimp applications.  The exit status is always 0
+on that path, because the TaskWindow module does not report a command's
+error.  Connections that do not authenticate within 60 s, or sit logged
+in without a channel for 120 s, are dropped; at most 8 connections are
+held at once.
 
 ## Roadmap
 

@@ -22,9 +22,6 @@ const char *ro_save_file(const char *path, int filetype, const void *data, size_
 /* Create a directory; succeeds if it already exists. */
 const char *ro_mkdir(const char *path);
 
-/* Returns 1 if path is a file, 2 if a directory, 0 if absent. */
-int ro_object_type(const char *path);
-
 /* Run a *command through OS_CLI with VDU output redirected to capture_path,
  * then read the captured output back.  *out receives a malloc'd buffer
  * (NUL-terminated, may contain \n\r pairs as RISC OS writes them) and

@@ -11,8 +11,7 @@ import struct, os
 # Wimp palette: 0 white, 1-6 greys (light to dark), 7 black, 8 dark blue,
 # 9 yellow, 10 light green, 11 red, 12 cream, 13 dark green, 14 orange,
 # 15 light blue.
-PAL = {'.': None, 'K': 7, 'W': 0, 'g': 2, 'G': 4, 'B': 8, 'L': 15, 'Y': 9,
-       'O': 14, 'D': 5}
+PAL = {'.': None, 'K': 7, 'W': 0, 'g': 2, 'B': 8, 'L': 15, 'Y': 9, 'O': 14}
 
 # 34x34: a terminal window (dark blue screen, light blue title bar, white
 # "> _" prompt) with a yellow padlock over its bottom-right corner.  Drawn

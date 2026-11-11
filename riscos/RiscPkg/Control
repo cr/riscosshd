@@ -6,9 +6,11 @@ Standards-Version: 0.6.0
 Version: 0.1.0-1
 Licence: Free
 Description: SSH server for RISC OS 5
- A minimal SSH server built on libssh and mbedTLS.  Accepts public-key
- logins and runs *commands through OS_CLI, returning their output over the
- SSH channel.  Configuration lives in Choices:SSHd.
+ An SSH server built on libssh and mbedTLS, running as a desktop task.
+ Accepts public-key logins only; runs *commands and interactive sessions
+ in a TaskWindow, and serves sftp/scp.  Authorized keys are managed in a
+ window, with an import from another machine.  Configuration lives in
+ Choices:SSHd.
 Homepage: https://github.com/cr/riscosshd
-Depends:
+Depends: CryptRandom
 Components: Apps.Network.!SSHd (Movable LookAt Run)

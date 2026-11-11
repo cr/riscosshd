@@ -53,6 +53,8 @@ static int parse_line(const char *src, char *err, size_t errlen)
     type = strtok_r(line, " \t\r\n", &save);
     b64 = type ? strtok_r(NULL, " \t\r\n", &save) : NULL;
     comment = b64 ? strtok_r(NULL, "\r\n", &save) : NULL;
+    while (comment && isspace((unsigned char)*comment))
+        comment++;
     if (!type || !b64) {
         snprintf(err, errlen, "expected 'type base64 [comment]'");
         free(line);
@@ -66,6 +68,12 @@ static int parse_line(const char *src, char *err, size_t errlen)
     }
     if (ssh_pki_import_pubkey_base64(b64, kt, &k) != SSH_OK) {
         snprintf(err, errlen, "cannot decode %s key", type);
+        free(line);
+        return -1;
+    }
+    if (auth_key_allowed(k)) {
+        snprintf(err, errlen, "that key is already authorized");
+        ssh_key_free(k);
         free(line);
         return -1;
     }
@@ -197,23 +205,6 @@ int auth_remove_key(int i, char *err, size_t errlen)
         return -1;
     }
     return 0;
-}
-
-void auth_describe(char *buf, size_t len)
-{
-    size_t used = 0;
-    if (nkeys == 0) {
-        snprintf(buf, len, "none - nobody can log in");
-        return;
-    }
-    buf[0] = '\0';
-    for (int i = 0; i < nkeys && used < len; i++) {
-        int n = snprintf(buf + used, len - used, "%s%s%s%s", i ? ", " : "",
-                         keys[i].type, keys[i].comment[0] ? " " : "", keys[i].comment);
-        if (n < 0)
-            break;
-        used += (size_t)n;
-    }
 }
 
 int auth_key_allowed(ssh_key pubkey)

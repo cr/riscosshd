@@ -16,6 +16,8 @@ extern const struct backend_ops backend_taskwindow;
 
 /* Called by the Wimp front end once registered; 0 = not a Wimp task. */
 void tw_set_task_handle(int handle);
+/* 1 when running as a Wimp task, i.e. TaskWindow children can be started. */
+int tw_available(void);
 /* Offer a Wimp message (reason 17/18, block) to the backend.  Returns 1
  * if it was a TaskWindow message and has been handled. */
 int tw_message(int reason, int *block);

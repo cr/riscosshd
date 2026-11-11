@@ -50,6 +50,8 @@ image: docker/Dockerfile
 	. tools/docker-env.sh; $(ENGINE) build --platform linux/amd64 -t $(IMAGE) docker
 	@touch .image-built
 
+# .image-built records that the image was built; if the image is removed
+# with the engine, run 'make image' by hand.
 .image-built: docker/Dockerfile
 	@$(MAKE) image
 

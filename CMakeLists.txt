@@ -1,7 +1,7 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.13)
 project(riscosshd C)
 
-# Cross-build only: use cmake/toolchain-riscos.cmake (see tools/build.sh).
+# Cross-build only: use cmake/toolchain-riscos.cmake (the Makefile does).
 if(NOT CMAKE_C_COMPILER MATCHES "arm-unknown-riscos")
   message(FATAL_ERROR "Configure with -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscos.cmake")
 endif()
@@ -9,11 +9,17 @@ endif()
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -O2")
 
-find_path(LIBSSH_INCLUDE_DIR libssh/libssh.h REQUIRED)
-find_library(LIBSSH_LIBRARY ssh REQUIRED)
-find_library(MBEDTLS_LIBRARY mbedtls REQUIRED)
-find_library(MBEDX509_LIBRARY mbedx509 REQUIRED)
-find_library(MBEDCRYPTO_LIBRARY mbedcrypto REQUIRED)
+# (find_* REQUIRED needs CMake 3.18; the container has 3.16, so check by hand.)
+find_path(LIBSSH_INCLUDE_DIR libssh/libssh.h)
+find_library(LIBSSH_LIBRARY ssh)
+find_library(MBEDTLS_LIBRARY mbedtls)
+find_library(MBEDX509_LIBRARY mbedx509)
+find_library(MBEDCRYPTO_LIBRARY mbedcrypto)
+foreach(v LIBSSH_INCLUDE_DIR LIBSSH_LIBRARY MBEDTLS_LIBRARY MBEDX509_LIBRARY MBEDCRYPTO_LIBRARY)
+  if(NOT ${v})
+    message(FATAL_ERROR "${v} not found in ${RISCOS_SYSROOT}: run 'make deps' first")
+  endif()
+endforeach()
 
 add_executable(sshd
   src/main.c
@@ -37,6 +43,8 @@ string(REGEX REPLACE "^Version: *" "" SSHD_VERSION "${CONTROL_VERSION}")
 target_compile_definitions(sshd PRIVATE LIBSSH_STATIC=1 WITH_SERVER=1 SSHD_VERSION="${SSHD_VERSION}")
 target_link_libraries(sshd PRIVATE
   ${LIBSSH_LIBRARY} ${MBEDTLS_LIBRARY} ${MBEDX509_LIBRARY} ${MBEDCRYPTO_LIBRARY})
+# Strip: UnixLib backtraces use embedded function names, not ELF symbols.
+target_link_options(sshd PRIVATE -s)
 set_target_properties(sshd PROPERTIES OUTPUT_NAME "sshd" SUFFIX ",e1f")
 
 # Convert the static ELF to an AIF absolute (filetype FF8) that runs without

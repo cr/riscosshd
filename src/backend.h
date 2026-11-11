@@ -6,16 +6,14 @@
  * backend only produces bytes (chan_output()) and consumes input (data()).
  *
  * Backends today:
- *   backend_exec   runs one *command through OS_CLI, output captured to a
- *                  file and returned, then the channel closes.
- *   backend_shell  a line-mode "*" prompt built on the same capture
- *                  mechanism, one OS_CLI call per line.
- *   backend_sftp   libssh's built-in SFTP server on the channel.
- *   backend_taskwindow  a real interactive session: a TaskWindow child
+ *   backend_taskwindow  exec and shell on the desktop: a TaskWindow child
  *                  task with Message_TaskWindow_Input/Output relayed over
- *                  Wimp messages.  Used for shell requests when the server
- *                  runs as a Wimp task; backend_shell is the text-mode
- *                  fallback.
+ *                  Wimp messages.
+ *   backend_sftp   libssh's built-in SFTP server on the channel.
+ *   backend_exec   text mode (-t) only: one *command through OS_CLI with
+ *                  output captured to a file, then the channel closes.
+ *   backend_shell  text mode only: a line-mode "*" prompt on the same
+ *                  capture mechanism, one OS_CLI call per line.
  */
 #ifndef BACKEND_H
 #define BACKEND_H
@@ -47,8 +45,6 @@ struct chan_ctx {
     const char *owner_name;  /* user name, for log lines */
 
     int pty;                 /* client requested a pty: raw mode, CRLF output */
-    int cols, rows;
-    char term[32];
 
     const struct backend_ops *backend;
     void *backend_data;
