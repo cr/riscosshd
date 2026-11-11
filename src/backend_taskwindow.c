@@ -39,7 +39,7 @@
  * reads) or after a short wait. */
 #define INPUT_PACE_CHUNK 128
 #define INPUT_PACE_WAIT_CS 20
-#define PENDING_MAX 4096
+#define PENDING_MAX (1024 * 1024)   /* input queued for a child; beyond this it is dropped */
 #define OUT_HIGH_WATER (256 * 1024)   /* suspend the child above this much unsent output */
 #define OUT_LOW_WATER  (32 * 1024)    /* resume it below this */
 #define EOF_QUIET_CS   100            /* non-pty shell: finish 1 s after the last output */
@@ -56,8 +56,8 @@ struct tw_state {
     int last_activity;         /* centiseconds, OS_ReadMonotonicTime */
     int last_sent;             /* when the last input chunk went out */
     int awaiting_output;       /* a chunk is out and nothing came back yet */
-    char pending[PENDING_MAX]; /* input typed before the child was ready */
-    size_t npending;
+    char *pending;             /* input waiting for the child (paced, or not yet ready) */
+    size_t npending, pcap;
     struct tw_state *next;
 };
 
@@ -106,6 +106,7 @@ static void unlink_state(struct tw_state *s)
             break;
         }
     }
+    free(s->pending);
     free(s);
 }
 
@@ -158,6 +159,17 @@ static void queue_input(struct tw_state *s, const char *data, size_t len)
         len = PENDING_MAX - s->npending;   /* drop the excess: the child is not reading */
         if (!s->dropped++)
             log_msg("task window %08x: input dropped, child not reading", (unsigned)s->txt);
+    }
+    if (s->npending + len > s->pcap) {
+        size_t ncap = s->pcap ? s->pcap * 2 : 4096;
+        char *n;
+        while (ncap < s->npending + len)
+            ncap *= 2;
+        n = realloc(s->pending, ncap);
+        if (!n)
+            return;
+        s->pending = n;
+        s->pcap = ncap;
     }
     memcpy(s->pending + s->npending, data, len);
     s->npending += len;
