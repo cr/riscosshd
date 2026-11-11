@@ -33,6 +33,11 @@ static void on_term(int sig)
     running = 0;
 }
 
+static void on_quit(void)
+{
+    running = 0;
+}
+
 static char *join(const char *dir, const char *leaf)
 {
     size_t n = strlen(dir) + strlen(leaf) + 2;
@@ -108,7 +113,7 @@ int main(int argc, char **argv)
         log_msg("ssh_init failed");
         return 1;
     }
-    ro_init_signals();
+    ro_init_signals(on_quit);
     hostkey = hostkey_load_or_create(cfg.hostkey_path);
     if (!hostkey)
         return 1;
@@ -119,8 +124,11 @@ int main(int argc, char **argv)
     signal(SIGTERM, on_term);
     signal(SIGHUP, on_term);
 
-    while (running)
+    log_msg("press Escape in this window to stop the server");
+    while (running) {
         server_poll(100);
+        ro_yield();
+    }
 
     log_msg("shutting down");
     server_shutdown();

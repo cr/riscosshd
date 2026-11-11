@@ -66,11 +66,23 @@ const char *ro_mkdir(const char *path)
 }
 
 static volatile int escape_seen;
+static volatile int in_command;
+static void (*quit_handler)(void);
+
 static void on_sigint(int sig)
 {
     (void)sig;
-    escape_seen = 1;
     signal(SIGINT, on_sigint);
+    if (in_command)
+        escape_seen = 1;
+    else if (quit_handler)
+        quit_handler();
+}
+
+void ro_yield(void)
+{
+    static int pollword = 1;
+    _swix(OS_UpCall, _INR(0, 1), 6, &pollword);
 }
 
 /* A RISC OS error that UnixLib cannot map (SIGOSERROR), or a hardware
@@ -88,8 +100,9 @@ static void on_oserror(int sig)
     raise(sig);
 }
 
-void ro_init_signals(void)
+void ro_init_signals(void (*quit_fn)(void))
 {
+    quit_handler = quit_fn;
     signal(SIGINT, on_sigint);
     signal(SIGEMT, on_oserror);
     signal(SIGOSERROR, on_oserror);
@@ -123,7 +136,9 @@ int ro_run_command(const char *command, const char *capture_path,
     }
     fflush(stdout);
     escape_seen = 0;
+    in_command = 1;
     cmd_err = _swix(OS_CLI, _IN(0), command);
+    in_command = 0;
     fflush(stdout);
     _swix(OS_ChangeRedirection, _INR(0, 1), old_in, old_out);
     _swix(OS_Find, _INR(0, 1), 0, fh);

@@ -34,8 +34,13 @@ int ro_object_type(const char *path);
 int ro_run_command(const char *command, const char *capture_path,
                    char **out, size_t *out_len, char **err);
 
-/* Set up Escape (SIGINT) handling so that a pending Escape raised while a
- * command runs does not kill the server. */
-void ro_init_signals(void);
+/* Set up Escape (SIGINT) handling: while a command runs an Escape only
+ * aborts that command; otherwise it calls quit_fn so the server stops. */
+void ro_init_signals(void (*quit_fn)(void));
+
+/* Give the desktop a turn.  In a TaskWindow this is OS_UpCall 6, which the
+ * TaskWindow module uses to pre-empt the child and to kill it when its
+ * window is closed; outside a TaskWindow it returns at once. */
+void ro_yield(void);
 
 #endif
