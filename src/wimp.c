@@ -445,6 +445,31 @@ static void keys_add_from_file(const char *path)
 
 /* --- fetch keys from another machine ------------------------------------- */
 
+/* Handle pending desktop events (redraws after a dialogue box went away)
+ * before blocking again in the SSH client.  Returns at the first null
+ * event or after ~half a second. */
+static void wimp_pump(void)
+{
+    int start = 0, now = 0;
+    _swix(OS_ReadMonotonicTime, _OUT(0), &start);
+    for (;;) {
+        int reason = 0;
+        if (_swix(Wimp_Poll, _INR(0, 1) | _OUT(0), (1 << 4) | (1 << 5) | (1 << 11) | (1 << 12), poll_block, &reason))
+            return;
+        if (reason == 0)
+            return;
+        switch (reason) {
+        case 1:  if (poll_block[0] == log_win) redraw_log(poll_block); else redraw_empty(poll_block); break;
+        case 2:  _swix(Wimp_OpenWindow, _IN(1), poll_block); break;
+        case 3:  _swix(Wimp_CloseWindow, _IN(1), poll_block); break;
+        case 17: case 18: if (poll_block[4] == 0) running = 0; break;
+        }
+        _swix(OS_ReadMonotonicTime, _OUT(0), &now);
+        if (now - start > 50)
+            return;
+    }
+}
+
 static int fetch_confirm(const char *fingerprint)
 {
     struct { int num; char text[252]; } box;
@@ -453,8 +478,11 @@ static int fetch_confirm(const char *fingerprint)
     snprintf(box.text, sizeof box.text,
              "The machine's host key fingerprint is %s. Continue only if that matches what it reports (ssh-keygen -lf).",
              fingerprint);
+    _swix(Hourglass_Off, 0);
     if (_swix(Wimp_ReportError, _INR(0, 2) | _OUT(1), &box, 3, "SSHd", &answer))
-        return 0;
+        answer = 0;
+    wimp_pump();
+    _swix(Hourglass_On, 0);
     return answer == 1;
 }
 

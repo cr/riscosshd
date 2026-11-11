@@ -17,12 +17,21 @@ static int fail(char *msg, size_t len, const char *what, ssh_session s)
     return -1;
 }
 
-/* Keyboard-interactive fallback: answer every prompt with the password. */
+/* Keyboard-interactive: answer the first round of prompts with the
+ * password.  A second round means the server rejected it and is asking
+ * again; give up rather than burn through its retry delays. */
 static int auth_kbdint(ssh_session s, const char *password)
 {
+    int rounds = 0;
     int rc = ssh_userauth_kbdint(s, NULL, NULL);
     while (rc == SSH_AUTH_INFO) {
         int n = ssh_userauth_kbdint_getnprompts(s);
+        if (n == 0) {                 /* informational round, no prompts */
+            rc = ssh_userauth_kbdint(s, NULL, NULL);
+            continue;
+        }
+        if (rounds++ > 0)
+            return SSH_AUTH_DENIED;
         for (int i = 0; i < n; i++)
             if (ssh_userauth_kbdint_setanswer(s, (unsigned)i, password) < 0)
                 return SSH_AUTH_ERROR;
@@ -102,9 +111,18 @@ int keyfetch_run(const char *userhost, const char *password,
         return -1;
     }
 
-    rc = ssh_userauth_password(s, NULL, password);
-    if (rc != SSH_AUTH_SUCCESS)
-        rc = auth_kbdint(s, password);
+    /* Ask which methods the server offers and use exactly one, so a wrong
+     * password costs one server-side delay rather than several. */
+    ssh_userauth_none(s, NULL);
+    {
+        int methods = ssh_userauth_list(s, NULL);
+        if (methods & SSH_AUTH_METHOD_PASSWORD)
+            rc = ssh_userauth_password(s, NULL, password);
+        else if (methods & SSH_AUTH_METHOD_INTERACTIVE)
+            rc = auth_kbdint(s, password);
+        else
+            rc = SSH_AUTH_DENIED;
+    }
     if (rc != SSH_AUTH_SUCCESS) {
         snprintf(msg, msglen, "Login as %s@%s failed: wrong password, or the machine does not allow password logins", user, host);
         log_msg("key fetch: %s", msg);
