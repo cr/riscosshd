@@ -49,6 +49,11 @@ sftp and scp work (scp in its modern SFTP mode; the old scp -O protocol
 does not).  Clients start in the directory given with -r, by default the
 boot disc, and see RISC OS paths the UnixLib way: HostFS::HostFS.$.Public
 is /HostFS::HostFS.$/Public, and dir.file/txt is /dir/file.txt.
+Filetypes follow the HostFS convention: a name ending in ,xxx names the
+file without the suffix and sets type xxx on upload or rename (put prog
+prog,ffb stores a BASIC file "prog"); otherwise the extension is looked up
+with MimeMap (notes.txt becomes Text).  Listings show ,xxx on files whose
+type the extension does not imply, and get prog,ffb fetches prog.
 
 Licences
 --------

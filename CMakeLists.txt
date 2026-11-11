@@ -35,7 +35,8 @@ add_executable(sshd
   src/keyfetch.c
   src/backend_taskwindow.c
   src/backend_sftp.c
-  src/riscos_compat.c)
+  src/riscos_compat.c
+  src/riscos_sftp.c)
 target_include_directories(sshd PRIVATE ${LIBSSH_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/deps/riscos-compat)
 # Package version from the RiscPkg Control file, shown in the Info window.
 file(STRINGS ${CMAKE_SOURCE_DIR}/riscos/RiscPkg/Control CONTROL_VERSION REGEX "^Version:")

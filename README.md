@@ -115,6 +115,39 @@ the `Version:` field in `riscos/RiscPkg/Control`.  The component flags
 `(Movable LookAt Run)` let PackMan offer to run `!SSHd` at boot and to
 have `!Boot` look at it, so the server can come up with the desktop.
 
+## SFTP and scp
+
+The `sftp` subsystem is libssh's built-in SFTP server running on the
+channel (`src/backend_sftp.c`), so `sftp` and modern `scp` (OpenSSH 9 and
+later, which transfers over SFTP) both work.  Paths are what UnixLib makes
+of RISC OS names: the boot disc root is `/HostFS::HostFS.$/` on RPCEmu,
+`dir.file/ext` appears as `/dir/file.ext`, and clients start in the
+directory given with `-r` (default `<Boot$Dir>.^`).  Permissions, owners
+and timestamps in `setstat`/`fsetstat` are accepted and ignored, since
+RISC OS has nothing to map them to.  The legacy `scp -O` protocol is not
+supported.
+
+**Filetypes** follow the HostFS/LanManFS convention.  A name ending in
+`,xxx` (three hex digits) refers to the file without that suffix and, on
+upload or rename, gives it filetype `xxx`: `put prog prog,ffb` stores a
+BASIC file called `prog`.  Otherwise the extension is looked up through
+MimeMap, so `notes.txt` becomes Text and `pic.png` a PNG.  Listings show
+`,xxx` on files whose type the extension does not already imply, and a
+client may use either spelling: `get prog,ffb` and `get prog` are the
+same file.
+
+## Desktop front end
+
+`!SSHd` is a Wimp task.  The icon-bar menu offers **Info...**, a
+tail-style **Log Window**, a **Keys...** window and **Quit**.  The Keys
+window shows the server's host key, lists the authorized keys with a
+Delete button each, and adds keys three ways: a writable field, a text
+file dropped from the Filer or an application, or **Import**, which logs
+in to another machine as an SSH client (libssh's client side, password or
+keyboard-interactive auth, host key fingerprint confirmed in a dialogue)
+and imports that machine's `~/.ssh/id_*.pub`.  It opens by itself when no
+key is configured.  `-t` runs the text mode in a TaskWindow instead.
+
 ## Installing and running
 
 1. Install `dist/SSHd_<version>.zip` with PackMan, or copy `build/!SSHd`
@@ -148,11 +181,9 @@ held at once.
 
 ## Roadmap
 
-1. Filetypes for files written over SFTP (MimeMap by extension, and the
-   `,xxx` suffix convention).
-2. Publish the package in a PackMan index (`riscos/RiscPkg/Control` is ready; the zip layout is
+1. Publish the package in a PackMan index (`riscos/RiscPkg/Control` is ready; the zip layout is
    what `package-zip` produces).
-3. Window-size and colour handling for the TaskWindow session.
+2. Window-size and colour handling for the TaskWindow session.
 
 ## Licence
 
