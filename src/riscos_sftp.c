@@ -50,11 +50,12 @@ int riscos_sftp_type_from_extension(const char *name)
     return type;
 }
 
-/* UnixLib path -> native RISC OS path, or NULL. */
+/* UnixLib path -> native RISC OS path in buf, or NULL.  (__riscosify
+ * returns a pointer to the terminating NUL, hence the buf.) */
 static const char *native(const char *unixpath, char *buf, size_t buflen)
 {
     int ft;
-    return __riscosify_std(unixpath, 0, buf, buflen, &ft);
+    return __riscosify_std(unixpath, 0, buf, buflen, &ft) ? buf : NULL;
 }
 
 int riscos_sftp_type_of(const char *unixpath)

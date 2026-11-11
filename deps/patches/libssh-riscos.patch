@@ -1,5 +1,5 @@
 --- a/cmake/Modules/DefineCMakeDefaults.cmake	2026-06-12 13:53:41
-+++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-11 19:02:14
++++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-11 19:04:47
 @@ -17,5 +17,8 @@
  # Create the compile command database for clang by default
  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -12,7 +12,7 @@
 +  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 +endif()
 --- a/include/libssh/sftp.h	2026-07-16 10:57:23
-+++ b/include/libssh/sftp.h	2026-11-11 19:02:14
++++ b/include/libssh/sftp.h	2026-11-11 19:04:47
 @@ -145,6 +145,9 @@
      ssh_buffer complete_message; /* complete message in case of retransmission*/
      char *str_data; /* cstring version of data */
@@ -24,7 +24,7 @@
  
  struct sftp_request_queue_struct {
 --- a/src/misc.c	2026-07-16 10:57:23
-+++ b/src/misc.c	2026-11-11 19:02:14
++++ b/src/misc.c	2026-11-11 19:04:47
 @@ -71,6 +71,16 @@
  
  #include "libssh/priv.h"
@@ -43,7 +43,7 @@
  
  #ifdef HAVE_LIBGCRYPT
 --- a/src/sftpserver.c	2026-07-16 10:57:23
-+++ b/src/sftpserver.c	2026-11-11 19:04:39
++++ b/src/sftpserver.c	2026-11-11 19:11:48
 @@ -56,6 +56,9 @@
  #include "libssh/misc.h"
  
@@ -272,7 +272,7 @@
      }
      sftp_reply_name(client_msg, path, NULL);
      free(path);
-@@ -1497,7 +1611,87 @@
+@@ -1497,7 +1611,93 @@
      return SSH_OK;
  }
  
@@ -294,6 +294,12 @@
 +    }
 +    snprintf(newpath, sizeof newpath, "%s", newpath_in);
 +    newtype = riscos_sftp_strip_suffix(newpath);      /* "name,ffb" also retypes */
++    if (strcmp(oldpath, newpath) == 0) {              /* same name: only the type changes */
++        if (newtype >= 0)
++            riscos_sftp_set_type(newpath, newtype);
++        sftp_reply_status(client_msg, SSH_FX_OK, NULL);
++        return SSH_OK;
++    }
 +    if (lstat(newpath, &st) == 0) {
 +        if (!replace) {
 +            sftp_reply_status(client_msg, SSH_FX_FAILURE, "Target exists");
@@ -360,7 +366,7 @@
  process_setstat(sftp_client_message client_msg)
  {
      int rv;
-@@ -1526,6 +1720,11 @@
+@@ -1526,6 +1726,11 @@
          }
      }
  
@@ -373,7 +379,7 @@
          rv = chmod(filename, client_msg->attr->permissions);
          if (rv < 0) {
 --- a/src/ttyopts.c	2026-07-16 10:56:26
-+++ b/src/ttyopts.c	2026-11-11 19:02:14
++++ b/src/ttyopts.c	2026-11-11 19:04:47
 @@ -176,8 +176,10 @@
          return 57600;
      case B115200:
