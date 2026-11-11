@@ -130,5 +130,15 @@ Later additions to `deps/patches/libssh-riscos.patch` for the SFTP server:
 TRUNC and EXCL, read requests clamped to 32 KB, reads at or past
 end-of-file answered from the file size, `setstat` ignoring modes, owner
 and times, a failed `realpath` being a client error rather than a fatal
-one, and `sftp_server_close_handles()` so a dropped client's files are
-closed.
+one, `sftp_server_close_handles()` so a dropped client's files are
+closed, and a retype after `rename` to a `,xxx` name.
+
+Filetypes need no server code of their own: UnixLib implements the
+HostFS convention when the application-defined `__riscosify_control`
+(in `src/main.c`) has `__RISCOSIFY_FILETYPE_EXT`: `riscosify` strips
+`,xxx` and looks extensions up in MimeMap, `open` types new files from
+that, and `unixify` adds `,xxx` in listings where the extension does
+not imply the type.  Two UnixLib details that cost time: `__riscosify`
+returns a pointer to the end of its output buffer, and
+`MimeMap_Translate`'s output code for a RISC OS type number is 0 (1 means
+a type name string written to a buffer in R3).
