@@ -347,10 +347,6 @@ int server_init(ssh_key hostkey)
     int fd;
 
     (void)listen_cb_noop;
-    if (ssh_init() < 0) {
-        log_msg("ssh_init failed");
-        return -1;
-    }
     bind_handle = ssh_bind_new();
     event = ssh_event_new();
     if (!bind_handle || !event)
@@ -436,5 +432,4 @@ void server_shutdown(void)
         ssh_event_free(event);
     if (bind_handle)
         ssh_bind_free(bind_handle);
-    ssh_finalize();
 }

@@ -13,6 +13,9 @@
 #include <signal.h>
 #include <unistd.h>
 
+#include <libssh/libssh.h>
+#include <libssh/callbacks.h>
+
 #include "config.h"
 #include "server.h"
 #include "auth.h"
@@ -95,6 +98,17 @@ int main(int argc, char **argv)
         log_msg("%d authorized key%s", n, n == 1 ? "" : "s");
     }
 
+    /* libssh is built without its constructor (see tools/build-deps.sh), so
+     * initialise it by hand before any key or crypto call.  The server is
+     * single-threaded and mbedTLS is built without MBEDTLS_THREADING_C, so
+     * tell libssh not to install pthread locking callbacks (ssh_init would
+     * fail with them). */
+    ssh_threads_set_callbacks(ssh_threads_get_noop());
+    if (ssh_init() < 0) {
+        log_msg("ssh_init failed");
+        return 1;
+    }
+    ro_init_signals();
     hostkey = hostkey_load_or_create(cfg.hostkey_path);
     if (!hostkey)
         return 1;
@@ -102,7 +116,6 @@ int main(int argc, char **argv)
     if (server_init(hostkey) < 0)
         return 1;
 
-    ro_init_signals();
     signal(SIGTERM, on_term);
     signal(SIGHUP, on_term);
 
@@ -112,5 +125,6 @@ int main(int argc, char **argv)
     log_msg("shutting down");
     server_shutdown();
     auth_free();
+    ssh_finalize();
     return 0;
 }

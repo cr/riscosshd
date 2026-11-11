@@ -73,9 +73,26 @@ static void on_sigint(int sig)
     signal(SIGINT, on_sigint);
 }
 
+/* A RISC OS error that UnixLib cannot map (SIGOSERROR), or a hardware
+ * exception inside a SWI (SIGEMT), would otherwise die with just a signal
+ * name.  Print the OS error text so module faults can be diagnosed. */
+static void on_oserror(int sig)
+{
+    _kernel_oserror *e = _kernel_last_oserror();
+    fprintf(stderr, "sshd: fatal RISC OS error (signal %d)", sig);
+    if (e)
+        fprintf(stderr, ": &%x %s", (unsigned)e->errnum, e->errmess);
+    fputc('\n', stderr);
+    fflush(stderr);
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
 void ro_init_signals(void)
 {
     signal(SIGINT, on_sigint);
+    signal(SIGEMT, on_oserror);
+    signal(SIGOSERROR, on_oserror);
 }
 
 int ro_run_command(const char *command, const char *capture_path,
