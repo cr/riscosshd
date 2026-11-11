@@ -10,11 +10,9 @@ jobs:
         with:
           path: deps/sysroot
           key: deps-${{ hashFiles('tools/build-deps.sh', 'deps/mbedtls_riscos_config.h', 'deps/patches/**', 'cmake/toolchain-riscos.cmake') }}
-      - name: Build GCCSDK image
-        run: docker build --platform linux/amd64 -t riscosshd-gccsdk docker
-      - name: Build
-        run: docker run --rm --platform linux/amd64 -v "$PWD:/work" -w /work riscosshd-gccsdk sh tools/ci-build.sh
+      - name: Build (image, dependencies, server, package)
+        run: make ENGINE=docker
       - uses: actions/upload-artifact@v4
         with:
           name: SSHd
-          path: build/SSHd.zip
+          path: dist/SSHd_*.zip

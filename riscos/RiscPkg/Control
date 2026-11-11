@@ -11,4 +11,4 @@ Description: SSH server for RISC OS 5
  SSH channel.  Configuration lives in Choices:SSHd.
 Homepage: https://github.com/cr/riscosshd
 Depends:
-Components: Apps.Network.!SSHd (Movable)
+Components: Apps.Network.!SSHd (Movable LookAt Run)

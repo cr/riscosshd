@@ -74,43 +74,37 @@ docs/                 toolchain research and RPCEmu testing notes
 
 ## Building
 
-Needs Docker (Colima on macOS works; the GCCSDK image is amd64 and runs
-under emulation on Apple Silicon).
+Everything is driven by the `Makefile`, which builds inside the GCCSDK
+container.  It needs Docker, Podman, or Colima (`brew install colima
+docker` on a Mac); `tools/container-engine.sh` picks whichever works and
+`make engine` starts Colima if it is installed but stopped.  The GCCSDK
+image is amd64 only and runs under emulation on Apple Silicon.
 
 ```bash
-tools/build.sh
+make            # image (once), dependencies (once), sshd, !SSHd, dist/SSHd_<version>.zip
+make install    # copy !SSHd into a local RPCEmu HostFS and authorise ~/.ssh/id_ed25519.pub
+make test       # run *Time and an sftp listing against localhost:2222
 ```
 
-The first run downloads and cross-builds mbedTLS and libssh into
-`deps/sysroot` (slow under emulation), then builds `build/!SSHd/sshd,ff8`
-and `build/SSHd.zip`.  Later runs only rebuild the server.
-`tools/build.sh deps` forces a dependency rebuild.  The same scripts run in
-GitHub Actions (`.github/workflows/build.yml`).  `docs/toolchain.md`
-explains why build.riscos.online is not used.
+Other targets: `make image` rebuilds the toolchain container from
+`docker/Dockerfile`; `make deps` cross-builds mbedTLS and libssh into
+`deps/sysroot`; `make build` stops after the binary; `make package` makes
+the PackMan zip; `make sprites` regenerates the icon from
+`tools/mksprites.py`; `make clean` / `make distclean`.  Variables:
+`ENGINE`, `IMAGE`, `RPCEMU_HOSTFS`, `PUBKEY`, `SSH_PORT`, `SSH_HOST`,
+`SSH_USER`.  `make install` finds the RPCEmu data directory with the most
+recent `rpclog.txt` under `~/Documents/RPCEmu`; set `RPCEMU_HOSTFS` to
+override.  The same `make` runs in GitHub Actions
+(`.github/workflows/build.yml`).  `docs/toolchain.md` explains why
+build.riscos.online is not used.
 
-## SFTP and scp
+## Package
 
-The `sftp` subsystem is libssh's built-in SFTP server running on the
-channel (`src/backend_sftp.c`), so `sftp` and modern `scp` (OpenSSH 9 and
-later, which transfers over SFTP) both work.  Paths are what UnixLib makes
-of RISC OS names: the boot disc root is `/HostFS::HostFS.$/` on RPCEmu,
-`dir.file/ext` appears as `/dir/file.ext`, and clients start in the
-directory given with `-r` (default `<Boot$Dir>.^`).  Permissions, owners
-and timestamps in `setstat`/`fsetstat` are accepted and ignored, since
-RISC OS has nothing to map them to.  The legacy `scp -O` protocol is not
-supported.  Files written through UnixLib get its default filetype;
-typing by extension is a follow-up.
-
-## Desktop front end
-
-`!SSHd` is a Wimp task.  The icon-bar menu offers a tail-style **Log
-window**, a **Keys** window and **Quit**.  The Keys window lists the
-authorised keys with a Delete button each and adds keys three ways: a
-writable field, a dropped text file, or **Fetch**, which logs in to another
-machine as an SSH client (libssh's client side, password or
-keyboard-interactive auth, host key fingerprint confirmed in a dialogue)
-and imports that machine's `~/.ssh/id_*.pub`.  It opens by itself when no
-key is configured.  `-t` runs the old TaskWindow text mode instead.
+`dist/SSHd_<version>.zip` is a RiscPkg/PackMan package: `Apps/Network/!SSHd`
+plus `RiscPkg/Control` and `RiscPkg/Copyright`.  The version comes from
+the `Version:` field in `riscos/RiscPkg/Control`.  The component flags
+`(Movable LookAt Run)` let PackMan offer to run `!SSHd` at boot and to
+have `!Boot` look at it, so the server can come up with the desktop.
 
 ## Installing and running
 
@@ -135,7 +129,7 @@ interactive and must not start Wimp applications.
 
 1. Filetypes for files written over SFTP (MimeMap by extension, and the
    `,xxx` suffix convention).
-2. PackMan package (`riscos/RiscPkg/Control` is ready; the zip layout is
+2. Publish the package in a PackMan index (`riscos/RiscPkg/Control` is ready; the zip layout is
    what `package-zip` produces).
 3. Window-size and colour handling for the TaskWindow session.
 
