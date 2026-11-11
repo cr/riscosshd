@@ -28,8 +28,8 @@
 #define TASK_MAGIC 0x4B534154 /* "TASK" */
 
 /* Fixed icons of the Keys window; key rows are created dynamically below them. */
-enum { KI_PROMPT = 0, KI_INPUT, KI_ADD, KI_CLOSE, KI_HOSTLABEL, KI_HOST, KI_LISTLABEL, KI_COUNT };
-#define ROW_TOP   (-336)          /* work-area y of the first row's top edge */
+enum { KI_PROMPT = 0, KI_INPUT, KI_ADD, KI_CLOSE, KI_HOSTLABEL, KI_HOST, KI_HOST2, KI_LISTLABEL, KI_COUNT };
+#define ROW_TOP   (-380)          /* work-area y of the first row's top edge */
 #define ROW_H     44
 #define KEYS_W    1200
 
@@ -119,7 +119,7 @@ static int *row_text_icon, *row_del_icon;
 static char (*row_text)[160];
 static char list_label[96];
 static char key_input[1200];
-static char host_line[560];
+static char host_line[560], host_line2[560];   /* base64 split over two lines */
 static char host_label[80];
 static char log_title[40] = "SSHd log";
 static char keys_title[40] = "SSHd keys";
@@ -227,8 +227,8 @@ static void refresh_keys_list(void)
     set_icon_text(keys_win, KI_LISTLABEL, list_label, NULL, 0);
 
     ext[0] = 0; ext[1] = ROW_TOP - n * ROW_H - 16; ext[2] = KEYS_W; ext[3] = 0;
-    if (ext[1] > -560)
-        ext[1] = -560;
+    if (ext[1] > -600)
+        ext[1] = -600;
     _swix(Wimp_SetExtent, _INR(0, 1), keys_win, ext);
     _swix(Wimp_ForceRedraw, _INR(0, 4), keys_win, 0, -4000, KEYS_W, ROW_TOP + 4);
 }
@@ -377,10 +377,13 @@ void wimp_open_keys_window(void)
     {
         const char *pub = hostkey_public_line(), *sp = strchr(pub, ' ');
         snprintf(host_label, sizeof host_label, "This server's host key (%.*s):", sp ? (int)(sp - pub) : 0, pub);
-        snprintf(host_line, sizeof host_line, "%s", sp ? sp + 1 : pub);
+        /* the desktop font needs ~18 units per character; 40 fit comfortably */
+        snprintf(host_line, sizeof host_line, "%.40s", sp ? sp + 1 : pub);
+        snprintf(host_line2, sizeof host_line2, "%s", (sp && strlen(sp + 1) > 40) ? sp + 41 : "");
     }
     set_icon_text(keys_win, KI_HOSTLABEL, host_label, NULL, 0);
     set_icon_text(keys_win, KI_HOST, host_line, NULL, 0);
+    set_icon_text(keys_win, KI_HOST2, host_line2, NULL, 0);
     state[0] = keys_win;
     if (_swix(Wimp_GetWindowState, _IN(1), state))
         return;
@@ -494,7 +497,7 @@ static void create_windows(void)
                WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST;
     w->title_fg = 7; w->title_bg = 2; w->work_fg = 7; w->work_bg = 1;
     w->scroll_outer = 3; w->scroll_inner = 1; w->highlight = 12;
-    w->ex0 = 0; w->ey0 = -560; w->ex1 = KEYS_W; w->ey1 = 0;
+    w->ex0 = 0; w->ey0 = -600; w->ex1 = KEYS_W; w->ey1 = 0;
     w->title_flags = ICON_TEXT | ICON_HCENTRE | ICON_VCENTRE | ICON_INDIRECTED;
     w->work_flags = ICON_BUTTON(10);   /* click/drag so DataLoad hits the window */
     w->sprite_area = (void *)1;
@@ -507,7 +510,8 @@ static void create_windows(void)
     icon(&w->icon[KI_CLOSE], 216, -184, 396, -132, button_flags, close_text, sizeof close_text, "R5,3");
     icon(&w->icon[KI_HOSTLABEL], 16, -244, KEYS_W - 16, -200, text_flags, host_label, sizeof host_label, NULL);
     icon(&w->icon[KI_HOST], 16, -288, KEYS_W - 16, -248, text_flags, host_line, sizeof host_line, NULL);
-    icon(&w->icon[KI_LISTLABEL], 16, -332, KEYS_W - 16, -296, text_flags, list_label, sizeof list_label, NULL);
+    icon(&w->icon[KI_HOST2], 16, -332, KEYS_W - 16, -292, text_flags, host_line2, sizeof host_line2, NULL);
+    icon(&w->icon[KI_LISTLABEL], 16, -376, KEYS_W - 16, -340, text_flags, list_label, sizeof list_label, NULL);
     keys_win = create_window(w);
 }
 
