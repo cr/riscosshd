@@ -29,9 +29,13 @@
 #define TASK_MAGIC 0x4B534154 /* "TASK" */
 
 /* Fixed icons of the Keys window; key rows are created dynamically below them. */
-enum { KI_PROMPT = 0, KI_INPUT, KI_ADD, KI_CLOSE, KI_FETCHLABEL, KI_FHOST, KI_FPASS, KI_FETCH,
-       KI_HOSTLABEL, KI_HOST, KI_HOST2, KI_LISTLABEL, KI_COUNT };
-#define ROW_TOP   (-512)          /* work-area y of the first row's top edge */
+/* Group boxes come first so that the icons inside draw over them. */
+enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
+       KI_HOSTLABEL, KI_HOST, KI_HOST2,
+       KI_PROMPT, KI_INPUT, KI_ADD, KI_CLOSE,
+       KI_FETCHLABEL, KI_FHOST, KI_FPASS, KI_FETCH,
+       KI_LISTLABEL, KI_COUNT };
+#define ROW_TOP   (-592)          /* work-area y of the first row's top edge */
 #define ROW_H     44
 #define KEYS_W    1200
 
@@ -221,11 +225,11 @@ static void refresh_keys_list(void)
         struct wimp_icon ic;
         int top = ROW_TOP - i * ROW_H;
         auth_describe_one(i, row_text[i], sizeof row_text[i]);
-        icon(&ic, 16, top - 40, KEYS_W - 176, top,
+        icon(&ic, 16, top - 40, KEYS_W - 200, top,
              ICON_TEXT | ICON_BORDER | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(0),
              row_text[i], sizeof row_text[i], "R2");
         row_text_icon[i] = create_icon(keys_win, &ic);
-        icon(&ic, KEYS_W - 160, top - 40, KEYS_W - 16, top,
+        icon(&ic, KEYS_W - 184, top - 40, KEYS_W - 16, top,
              ICON_TEXT | ICON_BORDER | ICON_HCENTRE | ICON_VCENTRE | ICON_FILLED | ICON_BUTTON(3) |
              ICON_FG(7) | ICON_BG(1),
              delete_text, sizeof delete_text, "R5,3");
@@ -238,8 +242,8 @@ static void refresh_keys_list(void)
     set_icon_text(keys_win, KI_LISTLABEL, list_label, NULL, 0);
 
     ext[0] = 0; ext[1] = ROW_TOP - n * ROW_H - 16; ext[2] = KEYS_W; ext[3] = 0;
-    if (ext[1] > -720)
-        ext[1] = -720;
+    if (ext[1] > -800)
+        ext[1] = -800;
     _swix(Wimp_SetExtent, _INR(0, 1), keys_win, ext);
     _swix(Wimp_ForceRedraw, _INR(0, 4), keys_win, 0, -4000, KEYS_W, ROW_TOP + 4);
 }
@@ -334,8 +338,9 @@ static void redraw_log(int *block)
     _swix(Wimp_RedrawWindow, _IN(1) | _OUT(0), block, &more);
     _swix(Wimp_TextOp, _INR(0, 2), 0, 0x00000000, 0xFFFFFF00);
     while (more) {
-        /* block: 1..4 visible area, 5,6 scroll, 7..10 clip (screen coords) */
-        int scy = block[6], vis_y1 = block[4];
+        /* block: 1..4 visible area, 5,6 scroll, 7..10 clip (screen coords).
+         * Work-area (x, y) maps to screen (x - scx + vis_x0, y - scy + vis_y1). */
+        int scx = block[5], scy = block[6], vis_x0 = block[1], vis_y1 = block[4];
         int clip_y0 = block[8] + scy - vis_y1;   /* work-area coords */
         int clip_y1 = block[10] + scy - vis_y1;
         int first = (-clip_y1) / LOG_LINE_H - 1;
@@ -345,11 +350,12 @@ static void redraw_log(int *block)
         if (last > log_count - 1)
             last = log_count - 1;
         for (int i = first; i <= last; i++) {
-            /* reason 2 | bit 29: window-relative coords | bit 30: baseline at Y.
-             * Row i occupies work-area y in (-(i+1)*LH, -i*LH]; baseline 10 up
-             * from the bottom of the row. */
-            _swix(Wimp_TextOp, _INR(0, 5), 2 | (1u << 29) | (1u << 30), log_line(i), -1, -1,
-                  8, -((i + 1) * LOG_LINE_H) + 10);
+            /* reason 2 | bit 30: baseline at Y, screen coordinates.  Row i
+             * occupies work-area y in (-(i+1)*LH, -i*LH]; baseline 10 up from
+             * the bottom of the row. */
+            int wy = -((i + 1) * LOG_LINE_H) + 10;
+            _swix(Wimp_TextOp, _INR(0, 5), 2 | (1u << 30), log_line(i), -1, -1,
+                  8 - scx + vis_x0, wy - scy + vis_y1);
         }
         _swix(Wimp_GetRectangle, _IN(1) | _OUT(0), block, &more);
     }
@@ -538,6 +544,7 @@ static int create_window(struct wimp_window *w)
 
 static struct wimp_window log_wdef, keys_wdef;
 static char prompt_text[] = "Add a public key (type, paste, or drop file, then Add):";
+static char group_dummy[] = "";
 static char add_text[] = "Add", close_text[] = "Close", fetch_btn_text[] = "Import";
 static char fetch_text[] = "Import from ssh server (user@host, password):";
 
@@ -545,6 +552,7 @@ static void create_windows(void)
 {
     struct wimp_window *w;
     const unsigned text_flags = ICON_TEXT | ICON_VCENTRE | ICON_FG(7);
+    const unsigned title_flags = ICON_TEXT | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(1);
     const unsigned box_flags = ICON_TEXT | ICON_BORDER | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(0);
     const unsigned button_flags = ICON_TEXT | ICON_BORDER | ICON_HCENTRE | ICON_VCENTRE | ICON_FILLED |
                                   ICON_BUTTON(3) | ICON_FG(7) | ICON_BG(1);
@@ -566,32 +574,40 @@ static void create_windows(void)
     /* Keys window: add section at the top, dynamic key rows below. */
     w = &keys_wdef;
     memset(w, 0, sizeof *w);
-    w->x0 = 100; w->y0 = 120; w->x1 = 100 + KEYS_W; w->y1 = 900; w->behind = -1;
+    w->x0 = 100; w->y0 = 100; w->x1 = 100 + KEYS_W; w->y1 = 920; w->behind = -1;
     w->flags = WIN_NEWFORMAT | WIN_MOVEABLE | WIN_AUTOREDRAW | WIN_BACK | WIN_CLOSE | WIN_TITLE |
                WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST;
     w->title_fg = 7; w->title_bg = 2; w->work_fg = 7; w->work_bg = 1;
     w->scroll_outer = 3; w->scroll_inner = 1; w->highlight = 12;
-    w->ex0 = 0; w->ey0 = -720; w->ex1 = KEYS_W; w->ey1 = 0;
+    w->ex0 = 0; w->ey0 = -800; w->ex1 = KEYS_W; w->ey1 = 0;
     w->title_flags = ICON_TEXT | ICON_HCENTRE | ICON_VCENTRE | ICON_INDIRECTED;
     w->work_flags = ICON_BUTTON(10);   /* click/drag so DataLoad hits the window */
     w->sprite_area = (void *)1;
     w->title.ind.text = keys_title; w->title.ind.valid = (const char *)-1; w->title.ind.size = sizeof keys_title;
     w->nicons = KI_COUNT;
-    icon(&w->icon[KI_HOSTLABEL], 16, -56, KEYS_W - 16, -12, text_flags, host_label, sizeof host_label, NULL);
-    icon(&w->icon[KI_HOST], 16, -100, KEYS_W - 16, -60, text_flags, host_line, sizeof host_line, NULL);
-    icon(&w->icon[KI_HOST2], 16, -144, KEYS_W - 16, -104, text_flags, host_line2, sizeof host_line2, NULL);
-    icon(&w->icon[KI_PROMPT], 16, -204, KEYS_W - 16, -160, text_flags, prompt_text, sizeof prompt_text, NULL);
-    icon(&w->icon[KI_INPUT], 16, -264, KEYS_W - 16, -212, box_flags | ICON_BUTTON(15), key_input, sizeof key_input,
+    /* Section 1: server host key.  Group titles sit on the top border, with
+     * a filled background in the window colour to mask the channel line. */
+    icon(&w->icon[KI_BOX_HOST], 16, -168, KEYS_W - 16, -20, ICON_BORDER, group_dummy, sizeof group_dummy, "R4");
+    icon(&w->icon[KI_HOSTLABEL], 40, -40, 900, 0, title_flags, host_label, sizeof host_label, NULL);
+    icon(&w->icon[KI_HOST], 40, -104, KEYS_W - 40, -64, text_flags, host_line, sizeof host_line, NULL);
+    icon(&w->icon[KI_HOST2], 40, -148, KEYS_W - 40, -108, text_flags, host_line2, sizeof host_line2, NULL);
+    /* Section 2: add a key by hand. */
+    icon(&w->icon[KI_BOX_ADD], 16, -368, KEYS_W - 16, -212, ICON_BORDER, group_dummy, sizeof group_dummy, "R4");
+    icon(&w->icon[KI_PROMPT], 40, -232, KEYS_W - 40, -192, title_flags, prompt_text, sizeof prompt_text, NULL);
+    icon(&w->icon[KI_INPUT], 40, -308, KEYS_W - 40, -256, box_flags | ICON_BUTTON(15), key_input, sizeof key_input,
          "Ktar;Pptr_write");
-    icon(&w->icon[KI_ADD], 16, -332, 196, -280, button_flags, add_text, sizeof add_text, "R5,3");
-    icon(&w->icon[KI_CLOSE], 216, -332, 396, -280, button_flags, close_text, sizeof close_text, "R5,3");
-    icon(&w->icon[KI_FETCHLABEL], 16, -392, KEYS_W - 16, -348, text_flags, fetch_text, sizeof fetch_text, NULL);
-    icon(&w->icon[KI_FHOST], 16, -452, 620, -400, box_flags | ICON_BUTTON(15), fetch_host, sizeof fetch_host,
+    icon(&w->icon[KI_ADD], 40, -356, 220, -316, button_flags, add_text, sizeof add_text, "R5,3");
+    icon(&w->icon[KI_CLOSE], KEYS_W - 220, -356, KEYS_W - 40, -316, button_flags, close_text, sizeof close_text, "R5,3");
+    /* Section 3: import from another machine. */
+    icon(&w->icon[KI_BOX_IMPORT], 16, -512, KEYS_W - 16, -412, ICON_BORDER, group_dummy, sizeof group_dummy, "R4");
+    icon(&w->icon[KI_FETCHLABEL], 40, -432, KEYS_W - 40, -392, title_flags, fetch_text, sizeof fetch_text, NULL);
+    icon(&w->icon[KI_FHOST], 40, -500, 620, -448, box_flags | ICON_BUTTON(15), fetch_host, sizeof fetch_host,
          "Ktar;Pptr_write");
-    icon(&w->icon[KI_FPASS], 640, -452, 1000, -400, box_flags | ICON_BUTTON(15), fetch_pass, sizeof fetch_pass,
+    icon(&w->icon[KI_FPASS], 640, -500, 980, -448, box_flags | ICON_BUTTON(15), fetch_pass, sizeof fetch_pass,
          "Ktar;D*;Pptr_write");
-    icon(&w->icon[KI_FETCH], 1020, -452, KEYS_W - 16, -400, button_flags, fetch_btn_text, sizeof fetch_btn_text, "R5,3");
-    icon(&w->icon[KI_LISTLABEL], 16, -508, KEYS_W - 16, -468, text_flags, list_label, sizeof list_label, NULL);
+    icon(&w->icon[KI_FETCH], 1000, -500, KEYS_W - 40, -448, button_flags, fetch_btn_text, sizeof fetch_btn_text, "R5,3");
+    /* Section 4: the list, growing downwards. */
+    icon(&w->icon[KI_LISTLABEL], 16, -588, KEYS_W - 16, -548, text_flags, list_label, sizeof list_label, NULL);
     keys_win = create_window(w);
 }
 
