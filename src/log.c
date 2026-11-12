@@ -46,6 +46,11 @@ void log_set_stderr(int on)
     to_stderr = on;
 }
 
+int log_to_stderr(void)
+{
+    return to_stderr;
+}
+
 static int append_line(const char *line)
 {
     char buf[LOG_COLS + 1];

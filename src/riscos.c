@@ -225,14 +225,18 @@ static void on_oserror(int sig)
     _kernel_oserror *e = _kernel_last_oserror();
     signal(sig, SIG_DFL);               /* first: logging may fault again */
     ro_unset_var("SSHd$Running");
-    /* through log_msg so it also reaches the log file, then stderr */
+    /* Through log_msg so it also reaches the log file.  In text mode that
+     * already prints it to stderr; on the desktop it is printed here as
+     * well, because UnixLib shows stderr when the task dies. */
     log_msg("fatal RISC OS error (signal %d): &%x %s", sig,
             e ? (unsigned)e->errnum : 0u, e ? e->errmess : "");
-    fprintf(stderr, "sshd: fatal RISC OS error (signal %d)", sig);
-    if (e)
-        fprintf(stderr, ": &%x %s", (unsigned)e->errnum, e->errmess);
-    fputc('\n', stderr);
-    fflush(stderr);
+    if (!log_to_stderr()) {
+        fprintf(stderr, "sshd: fatal RISC OS error (signal %d)", sig);
+        if (e)
+            fprintf(stderr, ": &%x %s", (unsigned)e->errnum, e->errmess);
+        fputc('\n', stderr);
+        fflush(stderr);
+    }
     raise(sig);
 }
 
