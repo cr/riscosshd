@@ -43,5 +43,5 @@ static int exec_start(struct chan_ctx *c, const char *command)
 }
 
 const struct backend_ops backend_exec = {
-    "exec", exec_start, NULL, NULL, NULL, NULL
+    exec_start, NULL, NULL, NULL, NULL
 };

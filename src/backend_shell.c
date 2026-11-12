@@ -116,5 +116,5 @@ static void shell_stop(struct chan_ctx *c)
 }
 
 const struct backend_ops backend_shell = {
-    "shell", shell_start, shell_data, shell_eof, NULL, shell_stop
+    shell_start, shell_data, shell_eof, NULL, shell_stop
 };

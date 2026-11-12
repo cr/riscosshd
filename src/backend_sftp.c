@@ -124,5 +124,5 @@ static void sftp_stop(struct chan_ctx *c)
 }
 
 const struct backend_ops backend_sftp = {
-    "sftp", sftp_start, sftp_data, sftp_eof, sftp_poll, sftp_stop
+    sftp_start, sftp_data, sftp_eof, sftp_poll, sftp_stop
 };

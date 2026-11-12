@@ -32,7 +32,6 @@ struct chan_ctx;
 #define BACKEND_REFUSED     (-2)  /* refused; the reason is already on stderr */
 
 struct backend_ops {
-    const char *name;
     /* Begin the session.  command is NULL for a shell request.  Returns 0,
      * BACKEND_UNAVAILABLE or BACKEND_REFUSED. */
     int (*start)(struct chan_ctx *c, const char *command);

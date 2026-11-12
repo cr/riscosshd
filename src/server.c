@@ -53,7 +53,6 @@ struct session_ctx {
     int drop;                   /* close from the main loop, not from a callback */
     char refusal[160];          /* why the last login attempt was refused */
     unsigned long addr;         /* peer IPv4 address, 0 if unknown */
-    char user[64];
     char peer[48];              /* "10.10.10.2": the subject of log lines */
     char who[112];              /* "10.10.10.2 riscos" once logged in */
     struct chan_ctx *chan;      /* one channel per session for now */
@@ -462,8 +461,7 @@ static int cb_auth_pubkey(ssh_session session, const char *user, struct ssh_key_
         char fp[128];
         s->authenticated = 1;
         s->deadline = deadline_in(cfg.idle_timeout);
-        snprintf(s->user, sizeof s->user, "%s", user);
-        snprintf(s->who, sizeof s->who, "%s %s", s->peer, s->user);
+        snprintf(s->who, sizeof s->who, "%s %s", s->peer, user);
         key_fingerprint(pubkey, fp, sizeof fp);
         log_msg("%s: logged in with key %s", s->who, fp);
         return SSH_AUTH_SUCCESS;

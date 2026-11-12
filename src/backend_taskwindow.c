@@ -450,7 +450,7 @@ static void tw_stop(struct chan_ctx *c)
 }
 
 const struct backend_ops backend_taskwindow = {
-    "taskwindow", tw_start, tw_data, tw_eof, tw_poll, tw_stop
+    tw_start, tw_data, tw_eof, tw_poll, tw_stop
 };
 
 /* ---- Wimp messages ------------------------------------------------------- */
