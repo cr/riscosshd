@@ -5,7 +5,8 @@
 #   make image      build the GCCSDK cross-compiler container image
 #   make engine     show the container engine in use (starts Colima if needed)
 #   make install    copy !SSHd into a local RPCEmu HostFS and authorise your key
-#   make test       run a command and an sftp listing against the server
+#   make smoke      run a command and an sftp listing against the server
+#                   (make test is the same)
 #   make check      host-side unit test of the key parser (needs libssh on the host)
 #   make clean      remove the build tree;  make distclean  also the dependencies
 #
@@ -36,7 +37,16 @@ BINARY     := build/!SSHd/sshd,ff8
 # Run a command inside the toolchain container with the repository at /work.
 # docker-env.sh points the docker CLI at Colima's socket without the Docker
 # Desktop credential helper; it is harmless elsewhere.
-RUN = . tools/docker-env.sh; $(ENGINE) run --rm --platform linux/amd64 \
+# On Linux the container runs as the calling user, so build/ and deps/ are
+# not left owned by root; Docker Desktop and Colima map ownership already.
+ifeq ($(shell uname -s),Linux)
+AS_USER    := -u $(shell id -u):$(shell id -g) -e HOME=/tmp
+endif
+# CMake's configure output: hidden locally, shown in CI (QUIET= on the
+# command line) where it is the first thing to read when a build breaks.
+QUIET      ?= >/dev/null
+
+RUN = . tools/docker-env.sh; $(ENGINE) run --rm --platform linux/amd64 $(AS_USER) \
       -e SOURCE_DATE_EPOCH -v "$(CURDIR):/work" -w /work $(IMAGE)
 
 SRC := $(wildcard src/*.c src/*.h) CMakeLists.txt cmake/toolchain-riscos.cmake \
@@ -45,7 +55,7 @@ DEPS_INPUTS := tools/build-deps.sh deps/mbedtls_riscos_config.h \
        deps/patches/libssh-riscos.patch cmake/toolchain-riscos.cmake \
        $(wildcard deps/riscos-compat/sys/*.h) docker/Dockerfile
 
-.PHONY: all engine image deps build package sprites install test check clean distclean
+.PHONY: all engine image deps build package sprites install smoke test check clean distclean
 
 all: package
 
@@ -87,7 +97,7 @@ $(PROFILE_STAMP):
 
 $(BINARY): $(SYSROOT)/lib/libssh.a $(SRC) $(PROFILE_STAMP)
 	$(RUN) sh -c 'cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscos.cmake \
-	    -DCMAKE_BUILD_TYPE=Release -DSSHD_PROFILE=$(PROFILE) -DSSHD_WERROR=$(WERROR) -DSSHD_GIT=$(GIT_DESC) >/dev/null && cmake --build build -j$$(nproc) && \
+	    -DCMAKE_BUILD_TYPE=Release -DSSHD_PROFILE=$(PROFILE) -DSSHD_WERROR=$(WERROR) -DSSHD_GIT=$(GIT_DESC) $(QUIET) && cmake --build build -j$$(nproc) && \
 	    cp -R "riscos/!SSHd/." "build/!SSHd/" && touch "$(BINARY)"'
 	@# the app files are copied in the same container run: it owns build/ on CI
 
@@ -106,7 +116,8 @@ $(PACKAGE): $(BINARY) riscos/RiscPkg/Control LICENSE tools/mkcopyright.sh $(wild
 install: $(BINARY)
 	@h=$$(tools/find-rpcemu.sh) && sh tools/rpcemu-install.sh "$$h" "$(PUBKEY)"
 
-test:
+test: smoke
+smoke:
 	@echo "+ ssh -p $(SSH_PORT) $(SSH_USER)@$(SSH_HOST) '*Time'"
 	@ssh -p $(SSH_PORT) -o ConnectTimeout=15 -o StrictHostKeyChecking=no \
 	    -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $(SSH_USER)@$(SSH_HOST) '*Time'

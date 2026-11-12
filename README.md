@@ -187,7 +187,7 @@ image is amd64 only and runs under emulation on Apple Silicon.
 ```bash
 make            # image (once), dependencies (once), sshd, !SSHd, dist/SSHd_<version>.zip
 make install    # copy !SSHd into a local RPCEmu HostFS and authorise ~/.ssh/id_ed25519.pub
-make test       # run *Time and an sftp listing against localhost:2222
+make smoke      # run *Time and an sftp listing against localhost:2222
 make check      # host-side unit test of the key parser (needs libssh on the host)
 ```
 

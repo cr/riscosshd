@@ -14,7 +14,7 @@
 ```bash
 make            # dependencies (first time), the server, the package
 make install    # copy !SSHd into RPCEmu's HostFS
-make test       # *Time and an sftp listing against localhost:2222
+make smoke      # *Time and an sftp listing against localhost:2222
 make check      # host-side unit test of the key parser
 ```
 

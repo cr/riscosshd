@@ -51,5 +51,5 @@ in `Choices:SSHd.Options`); the public key must be listed in
 copies `build/!SSHd` into its `hostfs/Apps/Network/` (the
 `,ff8`/`,feb`/`,fff`/`,ff9` suffixes carry the filetypes) and appends
 `~/.ssh/id_ed25519.pub` to `hostfs/!Boot/Choices/SSHd/authkeys`.  Restart
-`!SSHd` in the emulator afterwards; `make test` then checks a command and
+`!SSHd` in the emulator afterwards; `make smoke` then checks a command and
 an sftp listing through the forwarded port.
