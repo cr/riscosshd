@@ -514,8 +514,7 @@ static void dispatch(int reason, int *block);
  * client.  Returns at the first null event or after ~half a second. */
 static void wimp_pump(void)
 {
-    int start = 0, now = 0;
-    _swix(OS_ReadMonotonicTime, _OUT(0), &start);
+    int start = ro_now_cs();
     for (;;) {
         int reason = 0;
         if (_swix(Wimp_Poll, _INR(0, 1) | _OUT(0), POLL_MASK, poll_block, &reason))
@@ -523,8 +522,7 @@ static void wimp_pump(void)
         if (reason == 0)
             return;
         dispatch(reason, poll_block);
-        _swix(OS_ReadMonotonicTime, _OUT(0), &now);
-        if (now - start > 50)
+        if (ro_cs_since(start, ro_now_cs()) > 50)
             return;
     }
 }

@@ -149,6 +149,13 @@ static void on_sigint(int sig)
         quit_handler();
 }
 
+int ro_now_cs(void)
+{
+    int t = 0;
+    _swix(OS_ReadMonotonicTime, _OUT(0), &t);
+    return t;
+}
+
 void ro_yield(void)
 {
     static int pollword = 1;

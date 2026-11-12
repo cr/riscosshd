@@ -52,6 +52,15 @@ int ro_run_command(const char *command, const char *capture_path,
  * aborts that command; otherwise it calls quit_fn so the server stops. */
 void ro_init_signals(void (*quit_fn)(void));
 
+/* Centiseconds since the machine started (OS_ReadMonotonicTime), and the
+ * time from one such reading to another.  The difference is taken in
+ * unsigned arithmetic, so it stays right when the counter wraps. */
+int ro_now_cs(void);
+static inline int ro_cs_since(int then, int now)
+{
+    return (int)((unsigned)now - (unsigned)then);
+}
+
 /* Give the desktop a turn.  In a TaskWindow this is OS_UpCall 6, which the
  * TaskWindow module uses to pre-empt the child and to kill it when its
  * window is closed; outside a TaskWindow it returns at once. */

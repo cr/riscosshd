@@ -25,6 +25,7 @@
 #include "keyfp.h"
 #include "log.h"
 #include "prof.h"
+#include "riscos.h"
 
 #define MAX_AUTH_TRIES 6
 #define PENDING_PER_ADDRESS 2   /* unauthenticated connections one address may hold */
@@ -66,13 +67,6 @@ static int nsessions;
 static time_t deadline_in(int seconds)
 {
     return seconds > 0 ? time(NULL) + seconds : 0;
-}
-
-static int now_cs(void)
-{
-    int t = 0;
-    _swix(OS_ReadMonotonicTime, _OUT(0), &t);
-    return t;
 }
 
 /* ---- channel output ----------------------------------------------------- */
@@ -680,10 +674,10 @@ int server_poll(int timeout_ms)
             log_debug("event poll error");
         service_sessions(time(NULL));
         if (rounds == 0)        /* the budget starts after a first poll that may wait */
-            until = now_cs() + POLL_BUDGET_CS;
+            until = ro_now_cs() + POLL_BUDGET_CS;
         /* 0 or more: sockets were serviced (libssh may return a leftover
          * count rather than SSH_OK); SSH_AGAIN is the timeout, SSH_ERROR < 0 */
-        if (rc < 0 || ++rounds >= POLL_ROUNDS_MAX || now_cs() - until >= 0)
+        if (rc < 0 || ++rounds >= POLL_ROUNDS_MAX || ro_cs_since(until, ro_now_cs()) >= 0)
             break;
         timeout_ms = 0;
     }

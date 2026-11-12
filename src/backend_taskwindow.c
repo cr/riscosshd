@@ -85,13 +85,6 @@ void tw_set_task_handle(int handle)
     our_task = handle;
 }
 
-static int now_cs(void)
-{
-    int t = 0;
-    _swix(OS_ReadMonotonicTime, _OUT(0), &t);
-    return t;
-}
-
 static struct tw_state *find_by_txt(int txt)
 {
     for (struct tw_state *s = states; s; s = s->next)
@@ -154,7 +147,7 @@ static void flush_pending(struct tw_state *s)
     size_t n;
     if (!s->child || s->dead || s->pending.len == 0)
         return;
-    if (s->awaiting_output && now_cs() - s->last_sent < INPUT_PACE_WAIT_CS)
+    if (s->awaiting_output && ro_cs_since(s->last_sent, ro_now_cs()) < INPUT_PACE_WAIT_CS)
         return;
     n = s->pending.len < INPUT_PACE_CHUNK ? s->pending.len : INPUT_PACE_CHUNK;
     for (size_t i = 0; i < n; i++) {     /* a line at a time for a line-reading child */
@@ -165,7 +158,7 @@ static void flush_pending(struct tw_state *s)
     }
     send_to_child(s, Message_TaskWindow_Input, d, n);
     buf_consume(&s->pending, n);
-    s->last_sent = now_cs();
+    s->last_sent = ro_now_cs();
     s->awaiting_output = 1;
 }
 
@@ -389,7 +382,7 @@ static void tw_eof(struct chan_ctx *c)
      * shell once the child has gone quiet. */
     if (!c->pty && !s->is_exec) {
         s->eof_pending = 1;
-        s->last_activity = now_cs();
+        s->last_activity = ro_now_cs();
     }
 }
 
@@ -408,7 +401,8 @@ static void tw_poll(struct chan_ctx *c)
             s->suspended = 0;
         }
     }
-    if (s->eof_pending && s->pending.len == 0 && now_cs() - s->last_activity > EOF_QUIET_CS)
+    if (s->eof_pending && s->pending.len == 0 &&
+        ro_cs_since(s->last_activity, ro_now_cs()) > EOF_QUIET_CS)
         chan_finish(c, 0);
 }
 
@@ -499,7 +493,7 @@ int tw_message(int reason, int *block)
                 }
             }
             chan_output_vdu(s->chan, d + start, n - start);
-            s->last_activity = now_cs();
+            s->last_activity = ro_now_cs();
         }
         if (s) {
             s->awaiting_output = 0;          /* the child consumed input: send more */
