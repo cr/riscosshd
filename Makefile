@@ -113,7 +113,7 @@ $(PACKAGE): $(BINARY) riscos/RiscPkg/Control LICENSE tools/mkcopyright.sh tools/
 
 # --- local RPCEmu ------------------------------------------------------------
 install: $(BINARY)
-	@h=$$(tools/find-rpcemu.sh) && sh tools/rpcemu-install.sh "$$h" "$(PUBKEY)"
+	@sh tools/rpcemu-install.sh "$(RPCEMU_HOSTFS)" "$(PUBKEY)"
 
 # The emulator's host key changes with every fresh install: don't record it.
 SSH_OPTS := -o ConnectTimeout=15 -o StrictHostKeyChecking=no \
