@@ -63,14 +63,10 @@ void connect_hint(char *buf, size_t len)
     snprintf(buf, len, "ssh%s %s@%s", port, cfg.user[0] ? cfg.user : "user", addr);
 }
 
-static void on_term(int sig)
+/* Escape, SIGTERM and SIGHUP all end the text-mode loop. */
+static void on_quit(int sig)
 {
     (void)sig;
-    running = 0;
-}
-
-static void on_quit(void)
-{
     running = 0;
 }
 
@@ -487,8 +483,8 @@ int main(int argc, char **argv)
     }
 
     if (text_mode) {
-        signal(SIGTERM, on_term);
-        signal(SIGHUP, on_term);
+        signal(SIGTERM, on_quit);
+        signal(SIGHUP, on_quit);
         log_msg("press Escape in this window to stop the server");
         while (running) {
             server_poll(100);

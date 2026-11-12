@@ -58,8 +58,9 @@ int ro_run_command(const char *command, const char *capture_path,
                    char **out, size_t *out_len, char **err);
 
 /* Set up Escape (SIGINT) handling: while a command runs an Escape only
- * aborts that command; otherwise it calls quit_fn so the server stops. */
-void ro_init_signals(void (*quit_fn)(void));
+ * aborts that command; otherwise it calls quit_fn, a signal handler that
+ * may also serve other signals, so the server stops. */
+void ro_init_signals(void (*quit_fn)(int));
 
 /* The machine's first IPv4 address other than loopback, as text, into
  * buf; returns 0, or -1 if there is none (no network yet). */

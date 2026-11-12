@@ -152,16 +152,15 @@ void ro_unset_var(const char *name)
 
 static volatile int escape_seen;
 static volatile int in_command;
-static void (*quit_handler)(void);
+static void (*quit_handler)(int);
 
 static void on_sigint(int sig)
 {
-    (void)sig;
     signal(SIGINT, on_sigint);
     if (in_command)
         escape_seen = 1;
     else if (quit_handler)
-        quit_handler();
+        quit_handler(sig);
 }
 
 int ro_local_address(char *buf, size_t len)
@@ -232,7 +231,7 @@ static void on_oserror(int sig)
     raise(sig);
 }
 
-void ro_init_signals(void (*quit_fn)(void))
+void ro_init_signals(void (*quit_fn)(int))
 {
     quit_handler = quit_fn;
     signal(SIGINT, on_sigint);
