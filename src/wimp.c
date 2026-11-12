@@ -359,12 +359,14 @@ static void log_redraw_rows(int from, int to)
  * changed.  With force the window scrolls to the end regardless. */
 static void log_update(int force)
 {
+    static int extent_rows;               /* rows the extent was last set for */
     int state[9], n = log_count(), rows = n < LOG_MIN_LINES ? LOG_MIN_LINES : n;
     if (log_win < 0)
         return;
-    if (n < LOG_LINES) {                   /* the extent only changes while filling */
+    if (rows != extent_rows) {             /* changes only while the ring fills */
         int ext[4] = { 0, -(rows * LOG_LINE_H), LOG_WIDTH, 0 };
         _swix(Wimp_SetExtent, _INR(0, 1), log_win, ext);
+        extent_rows = rows;
     }
     state[0] = log_win;
     if (_swix(Wimp_GetWindowState, _IN(1), state) || !(state[8] & (1 << 16)))
