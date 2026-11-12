@@ -14,8 +14,11 @@ when that section is missing.
 - Uploads are about 2.4 times faster.
 - Login refusals are logged with their reason; disconnects tell the client
   why; SHA-1 RSA signatures are no longer accepted.
-- The Keys window shows the command to connect with and fingerprints as
-  ssh prints them; Return adds a key; the import fields are labelled.
+- The Keys window is now SSH Keys, in four titled sections (Host Key
+  Fingerprint, Public Key Import, Remote Import, Authorised Keys) with
+  their instructions wrapped inside; it shows the command to connect with
+  and fingerprints as ssh prints them; Return adds a key; the import
+  fields are labelled.
 - Interactive sessions: cursor keys no longer type junk, `exit` and Ctrl-D
   end the session, RISC OS screen codes are translated for the terminal.
   A pasted block ending in `exit` runs in full before the session ends.

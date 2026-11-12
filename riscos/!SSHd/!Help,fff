@@ -13,44 +13,46 @@ Quick start
 -----------
 1. Double-click !SSHd.  An icon appears on the icon bar.  The first start
    creates the host key and the Options file.
-2. The Keys window opens by itself.  Add your public key: paste the line
-   from your id_ed25519.pub into the field and press Return, or drop the
-   .pub file on the window, or use Import (below).
+2. The SSH Keys window opens by itself.  Add your public key: paste the
+   line from your id_ed25519.pub into the field and press Return, or drop
+   the .pub file on the window, or use Remote Import (below).
 3. The log window (Select on the icon) shows the command to connect with,
    for example:  ssh riscos@192.168.1.20
 4. On the first connection ssh prints "ED25519 key fingerprint is
-   SHA256:...".  Answer yes only if it matches the fingerprint at the top
-   of the Keys window.
+   SHA256:...".  Answer yes only if it matches the Host Key Fingerprint
+   at the top of the SSH Keys window.
 5. Type *commands.  Ctrl-D, or exit, ends the session.
 
 Desktop
 -------
   Select  opens the log window (follows new lines, like tail -f); Menu
           over it opens the log file in your editor or clears the window
-  Adjust  opens the Keys window
+  Adjust  opens the SSH Keys window
   Menu    Info / Help... / Log window / Verbose (tick: more log detail) /
-          Keys... / Choices... (opens the settings file in your editor) /
-          Quit (asks first while sessions are open)
+          SSH Keys... / Choices... (opens the settings file in your
+          editor) / Quit (asks first while sessions are open)
   Interactive help (the Help application) describes each icon and menu
   item.
 
-The Keys window shows the command to connect with and this server's host
-key fingerprint, then three ways to add a key:
-  - paste it into the field (the line ssh-keygen writes to
-    id_ed25519.pub), then Add or Return;
-  - drop such a file onto the window;
-  - Import: enter the account (user@host, or user@host:port) and the
-    password of the machine whose keys you want to allow.  SSHd logs in
-    there over SSH, shows the machine's host key fingerprint for you to
-    confirm, reads ~/.ssh/id_ed25519.pub, id_ecdsa.pub and id_rsa.pub and
-    imports them.  The password is used once and not stored.  The desktop
-    pauses while this runs.  Import needs an SSH server on that machine
-    (macOS: Sharing > Remote Login; Linux: openssh-server); without one,
-    copy its ~/.ssh/id_ed25519.pub here some other way and drop it on the
-    window.  ssh-copy-id does not work: SSHd has no password logins.
-Below that is the list of authorised keys by fingerprint and comment,
-each with a Delete button.  A key that is already listed is not added
-twice.
+The SSH Keys window has four sections:
+  Host Key Fingerprint  the command to connect with and this server's
+      host key fingerprint, which ssh shows on the first connection.
+  Public Key Import  paste a public key into the field (the line
+      ssh-keygen writes to id_ed25519.pub), then Add or Return.  Dropping
+      such a file anywhere on the window adds it too.
+  Remote Import  enter the account (user@host, or user@host:port) and the
+      password of the machine whose keys you want to allow.  SSHd logs in
+      there over SSH, shows the machine's host key fingerprint for you to
+      confirm, reads ~/.ssh/id_ed25519.pub, id_ecdsa.pub and id_rsa.pub
+      and imports them.  The password is used once and not stored.  The
+      desktop pauses while this runs.  Import needs an SSH server on that
+      machine (macOS: Sharing > Remote Login; Linux: openssh-server);
+      without one, copy its ~/.ssh/id_ed25519.pub here some other way and
+      drop it on the window.  ssh-copy-id does not work: SSHd has no
+      password logins.
+  Authorised Keys  the keys that may log in, by fingerprint and comment,
+      each with a Delete button.  A key that is already listed is not
+      added twice.
 
 Any authorised key has full control of the machine: every *command, and
 over SFTP every filing system.  Only the user name "riscos" is accepted

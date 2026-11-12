@@ -444,7 +444,7 @@ int main(int argc, char **argv)
 
     n = auth_load_keys(cfg.authorized_keys_path);
     if (n < 0) {
-        log_msg("no %s yet: add your public key in the Keys window", cfg.authorized_keys_path);
+        log_msg("no %s yet: add your public key in the SSH Keys window", cfg.authorized_keys_path);
         ro_save_file(cfg.authorized_keys_path, FILETYPE_TEXT, "", 0);
         n = 0;
     } else {
@@ -476,7 +476,7 @@ int main(int argc, char **argv)
         if (hint[0])
             log_msg("connect with: %s", hint);
         else
-            log_msg("no network address yet; the Keys window shows one once there is");
+            log_msg("no network address yet; the SSH Keys window shows one once there is");
     }
 
     if (text_mode) {

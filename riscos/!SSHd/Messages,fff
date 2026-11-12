@@ -7,7 +7,7 @@ MInfo:Info
 MHelp:Help...
 MLog:Log window
 MVerbose:Verbose
-MKeys:Keys...
+MKeys:SSH Keys...
 MChoices:Choices...
 MQuit:Quit
 
@@ -18,22 +18,25 @@ LMClear:Clear
 
 # Window titles
 TLogStatus:SSHd log: port %0, %1 logged in
-TKeys:SSHd Authorised Keys
+TKeys:SSH Keys
 TInfo:About this program
 
-# Keys window
-LHost:This server's host key fingerprint:
-LConnect:Connect with %0; host key fingerprint:
-LHost2:ssh shows this the first time you connect; it should match exactly.
-LPrompt:Add a public key: paste the line from your id_ed25519.pub, or drop the .pub file on this window
+# SSH Keys window: section titles, then the texts inside the sections
+GHost:Host Key Fingerprint
+GAdd:Public Key Import
+GFetch:Remote Import
+GList:Authorised Keys
+LHost:ssh shows this fingerprint on the first connection. Answer yes only if it matches exactly.
+LConnect:Connect with %0. ssh then shows this fingerprint; answer yes only if it matches exactly.
+LPrompt:Paste the line from your id_ed25519.pub and click Add, or drop the .pub file anywhere on this window.
 LAdd:Add
-LFetch:Import the public keys of an account on another machine:
+LFetch:Log in to another machine to import an account's public keys. The password is used once and not stored.
 LAccount:Account (user@host)
 LPassword:Password
 LImport:Import
 LDelete:Delete
-LNone:Authorised keys: none. Nobody can log in until you add one.
-LCount:Authorised keys (%0):
+LNone:None yet. Nobody can log in until you add a key.
+LCount:Keys that may log in: %0
 
 # Info window
 IName:Name
@@ -63,7 +66,7 @@ HMInfo:Move right to see information about this version of SSHd.
 HMHelp:Click SELECT to read the help for SSHd.
 HMLog:Click SELECT to open the log window, which follows the server's activity.
 HMVerbose:Click SELECT to turn detailed logging on or off. This lasts until SSHd quits; set 'verbose' in Choices to keep it.
-HMKeys:Click SELECT to open the window of keys that may log in.
+HMKeys:Click SELECT to open the SSH Keys window: the host key fingerprint and the keys that may log in.
 HMChoices:Click SELECT to edit the settings in your text editor; they apply when SSHd is next started.
 HMQuit:Click SELECT to stop the SSH server and remove it from the icon bar.
 HLMOpen:Click SELECT to open the log file in your text editor, to read, search or copy it.

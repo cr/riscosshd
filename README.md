@@ -71,10 +71,10 @@ inside the emulator with PackMan.
 1. Double-click `!SSHd`.  An icon appears on the icon bar; the first start
    generates the host key into `Choices:SSHd.hostkey` and writes
    `Choices:SSHd.Options` with every setting commented out at its default.
-2. With no key configured the Keys window opens by itself.  Add your
+2. With no key configured the SSH Keys window opens by itself.  Add your
    public key in one of three ways: paste the content of your `id_*.pub`
    file into the field and click **Add**; drop the `.pub` file on the
-   window; or use **Import** with `user@host` (or `user@host:port`) and
+   window; or use **Remote Import** with `user@host` (or `user@host:port`) and
    the password of a machine that already holds your keys.  Import logs in
    there as an SSH client, shows that machine's host key fingerprint for
    confirmation, and imports `~/.ssh/id_ed25519.pub`, `id_ecdsa.pub` and
@@ -83,9 +83,10 @@ inside the emulator with PackMan.
    Import needs an SSH server on the other machine (macOS: System
    Settings > General > Sharing > Remote Login; Linux: the openssh-server
    package).  Without one, copy `~/.ssh/id_ed25519.pub` to a disc, a
-   network share or RPCEmu's HostFS folder and drop it on the Keys
+   network share or RPCEmu's HostFS folder and drop it on the SSH Keys
    window.  `ssh-copy-id` does not work, as SSHd has no password logins.
-3. The window's top line shows this server's own host key.  Compare it
+3. The window's Host Key Fingerprint section shows this server's own
+   host key.  Compare it
    with what your client prints on its first connection.
 
 ```bash
@@ -95,8 +96,8 @@ sftp riscos@riscos-host         # or scp; paths look like /HostFS::HostFS.$/Publ
 ```
 
 **Which address.**  The log window shows the command to connect with,
-for example `connect with: ssh riscos@192.168.1.20`, and the Keys window
-repeats it; `*Ifconfig -a` or your router's list of devices also tell you
+for example `connect with: ssh riscos@192.168.1.20`, and the SSH Keys
+window repeats it; `*Ifconfig -a` or your router's list of devices also tell you
 the machine's address.
 
 **Quoting `*`.**  The leading `*` of a command is optional.  If you type
@@ -130,7 +131,7 @@ until you delete it.
 ## Using it
 
 `!Help` inside the application is the user's guide: the desktop, the
-Keys window, every setting and the command line options.  In short:
+SSH Keys window, every setting and the command line options.  In short:
 
 **Commands and sessions** run in a TaskWindow child, so they behave as in
 Edit's task windows: line input, no Wimp applications.  A command is one

@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: MIT */
 /* Wimp front end for sshd: icon-bar icon with a menu (Info, Help..., Log
- * window, Verbose, Keys..., Choices..., Quit), an Info window, a tail-style log
- * window drawn with the desktop font with a menu of its own (Open log file,
- * Clear), and a Keys window where public keys can be typed, pasted, dropped
- * as a file, imported from another machine, and deleted.  Windows and menus
+ * window, Verbose, SSH Keys..., Choices..., Quit), an Info window, a
+ * tail-style log window drawn with the desktop font with a menu of its own
+ * (Open log file, Clear), and an SSH Keys window where public keys can be
+ * typed, pasted, dropped as a file, imported from another machine, and
+ * deleted.  Windows and menus
  * are built in code, so there is no Templates file.  All Wimp access goes
  * through _swix; no OSLib.
  */
@@ -37,6 +38,9 @@
 #ifndef Wimp_GetMenuState
 #define Wimp_GetMenuState 0x400F4
 #endif
+#ifndef Wimp_ResizeIcon
+#define Wimp_ResizeIcon 0x400FC
+#endif
 
 #define TASK_MAGIC 0x4B534154 /* "TASK" */
 
@@ -52,17 +56,23 @@
  * (11, 12), message acknowledgements (19). */
 #define POLL_MASK ((1 << 4) | (1 << 5) | (1 << 11) | (1 << 12) | (1 << 19))
 
-/* Fixed icons of the Keys window; key rows are created dynamically below them. */
-/* Group boxes come first so that the icons inside draw over them. */
-enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
-       KI_HOSTLABEL, KI_HOST, KI_HOST2,
-       KI_PROMPT, KI_INPUT, KI_ADD,
-       KI_FETCHLABEL, KI_ACCLABEL, KI_PASSLABEL, KI_FHOST, KI_FPASS, KI_FETCH,
-       KI_LISTLABEL, KI_COUNT };
-#define ROW_TOP   (-640)          /* work-area y of the first row's top edge */
+/* Fixed icons of the SSH Keys window: four sections, each a group box
+ * with a short title on its border and its instructions inside.  Key rows
+ * are created dynamically in the last section, whose box grows with them.
+ * Group boxes come first so that the icons inside draw over them. */
+enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT, KI_BOX_LIST,
+       KI_HOSTTITLE, KI_HOSTTEXT, KI_HOST,
+       KI_ADDTITLE, KI_PROMPT, KI_INPUT, KI_ADD,
+       KI_FETCHTITLE, KI_FETCHTEXT, KI_ACCLABEL, KI_PASSLABEL, KI_FHOST, KI_FPASS, KI_FETCH,
+       KI_LISTTITLE, KI_LISTLABEL, KI_COUNT };
+enum { GROUP_HOST = 0, GROUP_ADD, GROUP_FETCH, GROUP_LIST, GROUPS };
+#define LIST_TOP  (-744)          /* work-area y of the list section's box */
+#define ROW_TOP   (-820)          /* work-area y of the first row's top edge */
 #define ROW_H     44
 #define KEYS_W    1200
-#define KEYS_MIN_EXTENT (-800)    /* keys window height with few rows */
+#define KEYS_MIN_EXTENT (-860)    /* keys window height with few rows */
+/* bottom of the list section's box, and of the work area, with n rows */
+#define LIST_BOTTOM(n) (ROW_TOP - (n) * ROW_H - 12)
 
 enum { MENU_INFO = 0, MENU_HELP, MENU_LOG, MENU_VERBOSE, MENU_KEYS, MENU_CHOICES, MENU_QUIT, MENU_ITEMS };
 #define MENU_TICK   1             /* item flags: ticked, */
@@ -166,8 +176,7 @@ static char list_label[96];
 static char key_input[1200];
 static char fetch_host[256], fetch_pass[128];
 static char host_line[128];
-static char host_line2[96];
-static char host_label[120];
+static char host_text[200];
 static char log_title[40], keys_title[40];
 
 /* Menu entries are indirected, so they may be longer than 12 characters;
@@ -337,18 +346,20 @@ static void refresh_keys_list(void)
         struct wimp_icon ic;
         int top = ROW_TOP - i * ROW_H;
         auth_describe_one(i, key_rows[i].text, sizeof key_rows[i].text);
-        icon(&ic, 16, top - 40, KEYS_W - 200, top,
+        icon(&ic, 40, top - 40, KEYS_W - 220, top,
              ICON_TEXT | ICON_BORDER | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(0),
              key_rows[i].text, sizeof key_rows[i].text, "R2");
         create_icon(keys_win, &ic, &key_rows[i].text_icon);
-        icon(&ic, KEYS_W - 184, top - 40, KEYS_W - 16, top,
+        icon(&ic, KEYS_W - 200, top - 40, KEYS_W - 40, top,
              ICON_TEXT | ICON_BORDER | ICON_HCENTRE | ICON_VCENTRE | ICON_FILLED | ICON_BUTTON(3) |
              ICON_FG(7) | ICON_BG(1),
              delete_text, sizeof delete_text, "R5,3");
         create_icon(keys_win, &ic, &key_rows[i].del_icon);
     }
-    /* the area to redraw covers the old rows as well as the new ones */
-    redraw_bottom = ROW_TOP - (n > nrows ? n : nrows) * ROW_H - 16;
+    /* the list's box fits the rows; the area to redraw covers the old
+     * rows and box as well as the new ones */
+    _swix(Wimp_ResizeIcon, _INR(0, 5), keys_win, KI_BOX_LIST, 16, LIST_BOTTOM(n), KEYS_W - 16, LIST_TOP);
+    redraw_bottom = LIST_BOTTOM(n > nrows ? n : nrows) - 4;
     nrows = n;
     if (n == 0)
         msgs_get("LNone", list_label, sizeof list_label, NULL);
@@ -360,7 +371,7 @@ static void refresh_keys_list(void)
     redraw_icon(keys_win, KI_LISTLABEL);
     _swix(Wimp_ForceRedraw, _INR(0, 4), keys_win, 0, redraw_bottom, KEYS_W, ROW_TOP + 4);
 
-    ext[0] = 0; ext[1] = ROW_TOP - n * ROW_H - 16; ext[2] = KEYS_W; ext[3] = 0;
+    ext[0] = 0; ext[1] = LIST_BOTTOM(n) - 20; ext[2] = KEYS_W; ext[3] = 0;
     if (ext[1] > KEYS_MIN_EXTENT)
         ext[1] = KEYS_MIN_EXTENT;
     _swix(Wimp_SetExtent, _INR(0, 1), keys_win, ext);
@@ -495,13 +506,13 @@ void wimp_open_keys_window(void)
         char hint[96];
         connect_hint(hint, sizeof hint);      /* now: the network may have come up late */
         if (hint[0])
-            msgs_get("LConnect", host_label, sizeof host_label, hint);
+            msgs_get("LConnect", host_text, sizeof host_text, hint);
         else
-            msgs_get("LHost", host_label, sizeof host_label, NULL);
+            msgs_get("LHost", host_text, sizeof host_text, NULL);
     }
     snprintf(host_line, sizeof host_line, "%s",
              hostkey_fingerprint()[0] ? hostkey_fingerprint() : "(not loaded: the server did not start)");
-    redraw_icon(keys_win, KI_HOSTLABEL);
+    redraw_icon(keys_win, KI_HOSTTEXT);
     redraw_icon(keys_win, KI_HOST);
     open_on_top(keys_win);
     set_caret(keys_win, KI_INPUT, key_input);
@@ -666,10 +677,12 @@ static void info_versions(void)
              SSHD_VERSION, SSHD_BUILD_DATE, release ? "" : ", ", release ? "" : SSHD_GIT);
     snprintf(info_values[II_LIBSSH], sizeof info_values[II_LIBSSH], "%s", ssh_version(0));
 }
-static char prompt_text[128];
+static char prompt_text[160];
 static char group_dummy[] = "";
 static char add_text[16], fetch_btn_text[16];
-static char fetch_text[96];
+static char fetch_text[160];
+static char group_titles[GROUPS][40];
+static const char *const group_tokens[GROUPS] = { "GHost", "GAdd", "GFetch", "GList" };
 static char acc_text[48], pass_text[48];
 
 /* A menu width that fits the longest of n entries in the desktop font,
@@ -693,7 +706,6 @@ static void load_texts(void)
         { "LMTitle",   log_menu.title,           sizeof log_menu.title },
         { "TKeys",     keys_title,               sizeof keys_title },
         { "TInfo",     info_title,               sizeof info_title },
-        { "LHost2",    host_line2,               sizeof host_line2 },
         { "LPrompt",   prompt_text,              sizeof prompt_text },
         { "LAdd",      add_text,                 sizeof add_text },
         { "LFetch",    fetch_text,               sizeof fetch_text },
@@ -713,14 +725,33 @@ static void load_texts(void)
     log_menu.width = fit_menu_width(log_menu.width, log_menu_texts, LMENU_ITEMS);
     for (int i = 0; i < II_COUNT; i++)
         msgs_get(info_tokens[i], info_labels[i], sizeof info_labels[i], NULL);
+    for (int i = 0; i < GROUPS; i++)
+        msgs_get(group_tokens[i], group_titles[i], sizeof group_titles[i], NULL);
     info_versions();
+}
+
+/* A group box from top to bottom across the SSH Keys window, with its
+ * title on the top border: the title icon is as wide as its text in the
+ * desktop font and filled in the window colour, so that it breaks the
+ * border line there and the rest of the line shows. */
+static void group(struct wimp_window *w, int box, int title, int g, int top, int bottom)
+{
+    int width;
+    if (_swix(Wimp_TextOp, _INR(0, 2) | _OUT(0), 1, group_titles[g], 0, &width))
+        width = (int)strlen(group_titles[g]) * 16;
+    icon(&w->icon[box], 16, bottom, KEYS_W - 16, top, ICON_BORDER, group_dummy, sizeof group_dummy, "R4");
+    icon(&w->icon[title], 32, top - 20, 32 + width + 24, top + 20,
+         ICON_TEXT | ICON_HCENTRE | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(1),
+         group_titles[g], sizeof group_titles[g], NULL);
 }
 
 static void create_windows(void)
 {
     struct wimp_window w;              /* Wimp_CreateWindow copies it */
     const unsigned text_flags = ICON_TEXT | ICON_VCENTRE | ICON_FG(7);
-    const unsigned title_flags = ICON_TEXT | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(1);
+    /* Instructions: validation L formats the text over as many lines as
+     * it needs, which the Wimp only does for centred, read-only icons. */
+    const unsigned wrap_flags = ICON_TEXT | ICON_HCENTRE | ICON_VCENTRE | ICON_FG(7);
     const unsigned box_flags = ICON_TEXT | ICON_BORDER | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(0);
     const unsigned button_flags = ICON_TEXT | ICON_BORDER | ICON_HCENTRE | ICON_VCENTRE | ICON_FILLED |
                                   ICON_BUTTON(3) | ICON_FG(7) | ICON_BG(1);
@@ -731,39 +762,39 @@ static void create_windows(void)
     w.work_flags = ICON_BUTTON(3);     /* clicks reported: Menu opens the log menu */
     log_win = create_window(&w);
 
-    /* Keys window: host key, add and import sections, then the key rows. */
-    window_def(&w, KEYS_W, 820, WIN_AUTOREDRAW | WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST,
+    /* SSH Keys window: host key, add, import and list sections. */
+    window_def(&w, KEYS_W, -KEYS_MIN_EXTENT, WIN_AUTOREDRAW | WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST,
                1, KEYS_MIN_EXTENT, KEYS_W, keys_title, sizeof keys_title);
     w.work_flags = ICON_BUTTON(10);    /* click/drag so DataLoad hits the window */
     w.nicons = KI_COUNT;
-    /* Section 1: server host key.  Group titles sit on the top border, with
-     * a filled background in the window colour to mask the channel line. */
-    icon(&w.icon[KI_BOX_HOST], 16, -168, KEYS_W - 16, -20, ICON_BORDER, group_dummy, sizeof group_dummy, "R4");
-    icon(&w.icon[KI_HOSTLABEL], 40, -40, KEYS_W - 40, 0, title_flags, host_label, sizeof host_label, NULL);
-    icon(&w.icon[KI_HOST], 40, -104, KEYS_W - 40, -64, text_flags, host_line, sizeof host_line, NULL);
-    icon(&w.icon[KI_HOST2], 40, -148, KEYS_W - 40, -108, text_flags, host_line2, sizeof host_line2, NULL);
+    /* Section 1: this server's host key. */
+    group(&w, KI_BOX_HOST, KI_HOSTTITLE, GROUP_HOST, -20, -200);
+    icon(&w.icon[KI_HOSTTEXT], 40, -136, KEYS_W - 40, -48, wrap_flags, host_text, sizeof host_text, "L");
+    icon(&w.icon[KI_HOST], 40, -180, KEYS_W - 40, -140, text_flags | ICON_HCENTRE, host_line, sizeof host_line, NULL);
     /* Section 2: add a key by hand. */
-    icon(&w.icon[KI_BOX_ADD], 16, -368, KEYS_W - 16, -212, ICON_BORDER, group_dummy, sizeof group_dummy, "R4");
-    icon(&w.icon[KI_PROMPT], 40, -232, KEYS_W - 40, -192, title_flags, prompt_text, sizeof prompt_text, NULL);
+    group(&w, KI_BOX_ADD, KI_ADDTITLE, GROUP_ADD, -240, -432);
+    icon(&w.icon[KI_PROMPT], 40, -356, KEYS_W - 40, -268, wrap_flags, prompt_text, sizeof prompt_text, "L");
     /* Validation K: t Tab and a arrows move between fields; r (account
      * field only) makes Return move on too, so Return in the key and
      * password fields reaches key_pressed and acts. */
-    icon(&w.icon[KI_INPUT], 40, -308, KEYS_W - 40, -256, box_flags | ICON_BUTTON(15), key_input, sizeof key_input,
+    icon(&w.icon[KI_INPUT], 40, -416, KEYS_W - 220, -364, box_flags | ICON_BUTTON(15), key_input, sizeof key_input,
          "Kta;Pptr_write");
     /* R6: the default action button, as Return in the field does Add */
-    icon(&w.icon[KI_ADD], 40, -360, 220, -312, button_flags, add_text, sizeof add_text, "R6,3");
+    icon(&w.icon[KI_ADD], KEYS_W - 200, -416, KEYS_W - 40, -364, button_flags, add_text, sizeof add_text, "R6,3");
     /* Section 3: import from another machine. */
-    icon(&w.icon[KI_BOX_IMPORT], 16, -560, KEYS_W - 16, -412, ICON_BORDER, group_dummy, sizeof group_dummy, "R4");
-    icon(&w.icon[KI_FETCHLABEL], 40, -432, KEYS_W - 40, -392, title_flags, fetch_text, sizeof fetch_text, NULL);
-    icon(&w.icon[KI_ACCLABEL], 40, -488, 620, -448, text_flags, acc_text, sizeof acc_text, NULL);
-    icon(&w.icon[KI_PASSLABEL], 640, -488, 980, -448, text_flags, pass_text, sizeof pass_text, NULL);
-    icon(&w.icon[KI_FHOST], 40, -544, 620, -492, box_flags | ICON_BUTTON(15), fetch_host, sizeof fetch_host,
+    group(&w, KI_BOX_IMPORT, KI_FETCHTITLE, GROUP_FETCH, -472, -704);
+    icon(&w.icon[KI_FETCHTEXT], 40, -588, KEYS_W - 40, -500, wrap_flags, fetch_text, sizeof fetch_text, "L");
+    icon(&w.icon[KI_ACCLABEL], 40, -632, 620, -592, text_flags, acc_text, sizeof acc_text, NULL);
+    icon(&w.icon[KI_PASSLABEL], 640, -632, 980, -592, text_flags, pass_text, sizeof pass_text, NULL);
+    icon(&w.icon[KI_FHOST], 40, -688, 620, -636, box_flags | ICON_BUTTON(15), fetch_host, sizeof fetch_host,
          "Ktar;Pptr_write");
-    icon(&w.icon[KI_FPASS], 640, -544, 980, -492, box_flags | ICON_BUTTON(15), fetch_pass, sizeof fetch_pass,
+    icon(&w.icon[KI_FPASS], 640, -688, 980, -636, box_flags | ICON_BUTTON(15), fetch_pass, sizeof fetch_pass,
          "Kta;D*;Pptr_write");
-    icon(&w.icon[KI_FETCH], 1000, -544, KEYS_W - 40, -492, button_flags, fetch_btn_text, sizeof fetch_btn_text, "R5,3");
-    /* Section 4: the list, growing downwards. */
-    icon(&w.icon[KI_LISTLABEL], 16, -636, KEYS_W - 16, -596, text_flags, list_label, sizeof list_label, NULL);
+    icon(&w.icon[KI_FETCH], 1000, -688, KEYS_W - 40, -636, button_flags, fetch_btn_text, sizeof fetch_btn_text, "R5,3");
+    /* Section 4: the authorised keys, growing downwards (refresh_keys_list). */
+    group(&w, KI_BOX_LIST, KI_LISTTITLE, GROUP_LIST, LIST_TOP, LIST_BOTTOM(0));
+    icon(&w.icon[KI_LISTLABEL], 40, ROW_TOP + 8, KEYS_W - 40, ROW_TOP + 48, text_flags | ICON_HCENTRE,
+         list_label, sizeof list_label, NULL);
     keys_win = create_window(&w);
 
     /* Info window: the usual label/value box, icons only; it is the Info
@@ -979,10 +1010,10 @@ static void key_pressed(int *b)
     _swix(Wimp_ProcessKey, _IN(0), key);
 }
 
-/* Help tokens for the Keys window's fixed icons; the rest of the window,
+/* Help tokens for the SSH Keys window's fixed icons; the rest of the window,
  * key rows and Delete buttons fall back to keys_help's defaults. */
 static const char *const keys_help_tokens[KI_COUNT] = {
-    [KI_HOSTLABEL] = "HHost", [KI_HOST] = "HHost", [KI_HOST2] = "HHost",
+    [KI_HOSTTITLE] = "HHost", [KI_HOSTTEXT] = "HHost", [KI_HOST] = "HHost",
     [KI_INPUT] = "HInput", [KI_ADD] = "HAdd",
     [KI_FHOST] = "HAccount", [KI_FPASS] = "HPassword", [KI_FETCH] = "HImport",
 };

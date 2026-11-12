@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT */
-/* Wimp front end: icon-bar icon, menu, Info, log and Keys windows.
+/* Wimp front end: icon-bar icon, menu, Info, log and SSH Keys windows.
  * The server itself is driven from null events via server_poll(0). */
 #ifndef SSHD_WIMP_H
 #define SSHD_WIMP_H
