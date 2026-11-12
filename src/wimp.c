@@ -149,7 +149,7 @@ static char key_input[1200];
 static char fetch_host[256], fetch_pass[128];
 static char host_line[128];
 static char host_line2[] = "ssh shows this the first time you connect; it should match exactly.";
-static char host_label[] = "This server's host key fingerprint:";
+static char host_label[120];
 static char log_title[40] = "SSHd Server Log";
 static char keys_title[40] = "SSHd Authorized Keys";
 
@@ -459,8 +459,17 @@ void wimp_open_keys_window(void)
     if (keys_win < 0)
         return;
     refresh_keys_list();
+    {
+        char hint[96];
+        connect_hint(hint, sizeof hint);      /* now: the network may have come up late */
+        if (hint[0])
+            snprintf(host_label, sizeof host_label, "Connect with %s; host key fingerprint:", hint);
+        else
+            snprintf(host_label, sizeof host_label, "This server's host key fingerprint:");
+    }
     snprintf(host_line, sizeof host_line, "%s",
              hostkey_fingerprint()[0] ? hostkey_fingerprint() : "(not loaded: the server did not start)");
+    redraw_icon(keys_win, KI_HOSTLABEL);
     redraw_icon(keys_win, KI_HOST);
     open_on_top(keys_win);
     set_caret(keys_win, KI_INPUT, key_input);
@@ -623,7 +632,7 @@ static void create_windows(void)
     /* Section 1: server host key.  Group titles sit on the top border, with
      * a filled background in the window colour to mask the channel line. */
     icon(&w.icon[KI_BOX_HOST], 16, -168, KEYS_W - 16, -20, ICON_BORDER, group_dummy, sizeof group_dummy, "R4");
-    icon(&w.icon[KI_HOSTLABEL], 40, -40, 900, 0, title_flags, host_label, sizeof host_label, NULL);
+    icon(&w.icon[KI_HOSTLABEL], 40, -40, KEYS_W - 40, 0, title_flags, host_label, sizeof host_label, NULL);
     icon(&w.icon[KI_HOST], 40, -104, KEYS_W - 40, -64, text_flags, host_line, sizeof host_line, NULL);
     icon(&w.icon[KI_HOST2], 40, -148, KEYS_W - 40, -108, text_flags, host_line2, sizeof host_line2, NULL);
     /* Section 2: add a key by hand. */

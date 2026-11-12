@@ -2,6 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <kernel.h>
 #include <swis.h>
 
@@ -162,6 +169,38 @@ static void on_sigint(int sig)
         escape_seen = 1;
     else if (quit_handler)
         quit_handler();
+}
+
+int ro_local_address(char *buf, size_t len)
+{
+    /* SIOCGIFCONF fills entries of a 16-byte name and a sockaddr whose own
+     * sa_len gives its size (the Internet module is BSD 4.4); UnixLib's
+     * struct ifreq is padded differently, so the list is walked by hand. */
+    char list[1024];
+    struct ifconf ifc;
+    size_t off = 0;
+    int s = socket(AF_INET, SOCK_DGRAM, 0), rc = -1;
+    if (s < 0)
+        return -1;
+    ifc.ifc_len = sizeof list;
+    ifc.ifc_buf = list;
+    if (ioctl(s, SIOCGIFCONF, &ifc) == 0) {
+        while (off + IFNAMSIZ + sizeof(struct sockaddr) <= (size_t)ifc.ifc_len) {
+            struct sockaddr *sa = (struct sockaddr *)(list + off + IFNAMSIZ);
+            size_t salen = sa->sa_len > sizeof *sa ? sa->sa_len : sizeof *sa;
+            if (sa->sa_family == AF_INET) {
+                struct in_addr a = ((struct sockaddr_in *)sa)->sin_addr;
+                if ((ntohl(a.s_addr) >> 24) != 127) {
+                    snprintf(buf, len, "%s", inet_ntoa(a));
+                    rc = 0;
+                    break;
+                }
+            }
+            off += IFNAMSIZ + salen;
+        }
+    }
+    close(s);
+    return rc;
 }
 
 int ro_now_cs(void)

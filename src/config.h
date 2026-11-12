@@ -35,4 +35,7 @@ extern int crypto_ready;
  * file is missing (main.c) */
 const char *options_path(void);
 void options_ensure_file(void);
+/* "ssh riscos@192.168.1.20" (with -p for another port), the command a
+ * client would use, into buf; "" without a network address yet. */
+void connect_hint(char *buf, size_t len);
 #endif

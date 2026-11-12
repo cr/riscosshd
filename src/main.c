@@ -51,6 +51,18 @@ int __riscosify_control = __RISCOSIFY_NO_SUFFIX | __RISCOSIFY_FILETYPE_EXT;
 static volatile int running = 1;      /* text mode loop */
 static int text_mode;
 
+void connect_hint(char *buf, size_t len)
+{
+    char addr[48], port[16] = "";
+    if (ro_local_address(addr, sizeof addr) < 0) {
+        buf[0] = '\0';
+        return;
+    }
+    if (cfg.port != 22)
+        snprintf(port, sizeof port, " -p %d", cfg.port);
+    snprintf(buf, len, "ssh%s %s@%s", port, cfg.user[0] ? cfg.user : "user", addr);
+}
+
 static void on_term(int sig)
 {
     (void)sig;
@@ -457,6 +469,14 @@ int main(int argc, char **argv)
         return fatal("Cannot listen on port %d: is another SSH server running?", cfg.port);
     }
     _swix(OS_SetVarVal, _INR(0, 4), "SSHd$Running", SSHD_VERSION, (int)strlen(SSHD_VERSION), 0, 0);
+    {
+        char hint[96];
+        connect_hint(hint, sizeof hint);
+        if (hint[0])
+            log_msg("connect with: %s", hint);
+        else
+            log_msg("no network address yet; the Keys window shows one once there is");
+    }
 
     if (text_mode) {
         signal(SIGTERM, on_term);

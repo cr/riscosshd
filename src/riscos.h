@@ -53,6 +53,10 @@ int ro_run_command(const char *command, const char *capture_path,
  * aborts that command; otherwise it calls quit_fn so the server stops. */
 void ro_init_signals(void (*quit_fn)(void));
 
+/* The machine's first IPv4 address other than loopback, as text, into
+ * buf; returns 0, or -1 if there is none (no network yet). */
+int ro_local_address(char *buf, size_t len);
+
 /* Centiseconds since the machine started (OS_ReadMonotonicTime), and the
  * time from one such reading to another.  The difference is taken in
  * unsigned arithmetic, so it stays right when the counter wraps. */
