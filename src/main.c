@@ -288,7 +288,7 @@ static void read_options(const char *dir)
 static int check_settings(void)
 {
     if (cfg.port <= 0 || cfg.port > 65535)
-        return fatal("Invalid port number %d", cfg.port);
+        return fatal("invalid port number %d", cfg.port);
     if (cfg.max_sessions < 1 || cfg.max_sessions > 64) {
         log_msg("Options: max-sessions %d out of range, using %d", cfg.max_sessions, DEFAULT_MAX_SESSIONS);
         cfg.max_sessions = DEFAULT_MAX_SESSIONS;
@@ -397,10 +397,10 @@ int main(int argc, char **argv)
 
     cfg.config_dir = ro_gstrans(dir_arg);
     if (!cfg.config_dir || !*cfg.config_dir)
-        return fatal("Cannot resolve configuration directory '%s'", dir_arg);
+        return fatal("cannot resolve the configuration directory '%s'", dir_arg);
     err = ro_mkdir(cfg.config_dir);
     if (err)
-        return fatal("Cannot create configuration directory: %s", err);
+        return fatal("cannot create the configuration directory: %s", err);
     cfg.hostkey_path = join(cfg.config_dir, "hostkey");
     cfg.authorized_keys_path = join(cfg.config_dir, "authkeys");
     if (text_mode)
@@ -455,7 +455,7 @@ int main(int argc, char **argv)
 
     hostkey = hostkey_load_or_create(cfg.hostkey_path);
     if (!hostkey)
-        return fatal("Cannot load or generate the host key %s", cfg.hostkey_path);
+        return fatal("cannot load or generate the host key %s", cfg.hostkey_path);
 
     if (server_init(hostkey) < 0) {
         char running_ver[32];
