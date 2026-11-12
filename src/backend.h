@@ -22,6 +22,7 @@
 
 #include <stddef.h>
 #include <libssh/libssh.h>
+#include <libssh/callbacks.h>
 #include "buf.h"
 
 struct chan_ctx;
@@ -62,6 +63,9 @@ struct chan_ctx {
     int finished;            /* backend done; close once output drained */
     int exit_status;
     struct chan_ctx *retired_next;   /* server.c: list of replaced channels */
+    /* libssh keeps a pointer to this in the channel until ssh_channel_free,
+     * so each channel has its own, freed only after the channel. */
+    struct ssh_channel_callbacks_struct cb;
 };
 
 /* Queue bytes for the client.  Returns 0 or -1 on allocation failure. */

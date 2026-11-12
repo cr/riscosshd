@@ -61,7 +61,6 @@ struct session_ctx {
     time_t deadline;            /* drop the session if not authenticated, or
                                    with no channel, by this time; 0 = none */
     struct ssh_server_callbacks_struct server_cb;
-    struct ssh_channel_callbacks_struct channel_cb;
     struct session_ctx *next;
 };
 
@@ -181,7 +180,9 @@ static void chan_pump(struct chan_ctx *c)
 
 /* Free a channel.  The caller must have unlinked it first: closing it in
  * libssh flushes, and a flush can run a nested poll whose callbacks must
- * not find it again.  Those callbacks see a channel with no backend. */
+ * not find it again.  Those callbacks see a channel with no backend.  The
+ * chan_ctx goes last, as libssh points at its callback struct until
+ * ssh_channel_free. */
 static void chan_free(struct chan_ctx *c)
 {
     if (!c)
@@ -325,6 +326,16 @@ static void cb_close(ssh_session session, ssh_channel channel, void *userdata)
     c->finished = 1;            /* the channel is closed: freed on the next pass */
 }
 
+static const struct ssh_channel_callbacks_struct channel_cb_template = {
+    .channel_pty_request_function = cb_pty_request,
+    .channel_exec_request_function = cb_exec_request,
+    .channel_shell_request_function = cb_shell_request,
+    .channel_subsystem_request_function = cb_subsystem_request,
+    .channel_data_function = cb_data,
+    .channel_eof_function = cb_eof,
+    .channel_close_function = cb_close,
+};
+
 /* ---- server callbacks --------------------------------------------------- */
 
 /* SSH_MSG_USERAUTH_BANNER, sent once from the first authentication
@@ -421,17 +432,13 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
     s->chan = c;
     s->deadline = 0;
 
-    memset(&s->channel_cb, 0, sizeof s->channel_cb);
-    s->channel_cb.userdata = c;
-    s->channel_cb.channel_pty_request_function = cb_pty_request;
-    s->channel_cb.channel_exec_request_function = cb_exec_request;
-    s->channel_cb.channel_shell_request_function = cb_shell_request;
-    s->channel_cb.channel_subsystem_request_function = cb_subsystem_request;
-    s->channel_cb.channel_data_function = cb_data;
-    s->channel_cb.channel_eof_function = cb_eof;
-    s->channel_cb.channel_close_function = cb_close;
-    ssh_callbacks_init(&s->channel_cb);
-    ssh_set_channel_callbacks(c->channel, &s->channel_cb);
+    /* Each channel gets its own copy: a retired channel can still receive
+     * the client's late data and CHANNEL_CLOSE, which must reach it and
+     * not its replacement. */
+    c->cb = channel_cb_template;
+    c->cb.userdata = c;
+    ssh_callbacks_init(&c->cb);
+    ssh_set_channel_callbacks(c->channel, &c->cb);
     return c->channel;
 }
 
