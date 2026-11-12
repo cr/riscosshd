@@ -12,4 +12,6 @@ void wimp_shutdown(void);
 void wimp_report_error(const char *msg);
 void wimp_open_keys_window(void);
 void wimp_open_log_window(void);
+/* Show the greyed icon-bar sprite: the server did not start. */
+void wimp_show_failed(void);
 #endif

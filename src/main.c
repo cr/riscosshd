@@ -113,6 +113,7 @@ static int fatal(const char *fmt, ...)
     log_msg("startup failed: %s", msg);
     if (!text_mode && wimp_init() == 0) {
         log_msg("fix the cause, then Quit from the icon bar menu and run !SSHd again");
+        wimp_show_failed();
         wimp_open_log_window();
         wimp_run();
         wimp_shutdown();

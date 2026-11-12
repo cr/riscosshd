@@ -771,15 +771,25 @@ static void create_windows(void)
     info_win = create_window(&w);
 }
 
-static char sprite_name[] = "!sshd";
+static char sprite_name[12] = "!sshd";
+static int iconbar_icon = -1;
+
+void wimp_show_failed(void)
+{
+    /* the greyed sprite, so that a failed start shows without opening the log */
+    snprintf(sprite_name, sizeof sprite_name, "sshdfail");
+    if (iconbar_icon >= 0)
+        redraw_icon(-2, iconbar_icon);
+}
 
 static int create_iconbar_icon(void)
 {
     struct wimp_icon ic;
     icon(&ic, 0, 0, 68, 68, ICON_SPRITE | ICON_HCENTRE | ICON_VCENTRE | ICON_BUTTON(3),
-         sprite_name, sizeof sprite_name - 1, NULL);
+         sprite_name, sizeof sprite_name, NULL);
     ic.d.ind.valid = (const char *)1;      /* sprite area: Wimp pool */
-    return create_icon(-1, &ic, "Cannot create icon bar icon") < 0 ? -1 : 0;
+    iconbar_icon = create_icon(-1, &ic, "Cannot create icon bar icon");
+    return iconbar_icon < 0 ? -1 : 0;
 }
 
 int wimp_init(void)
