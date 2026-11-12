@@ -856,6 +856,10 @@ static void help_request(int *b)
     _swix(Wimp_SendMessage, _INR(0, 2), 17, b, b[1]);
 }
 
+/* my_ref of our last DataSaveAck: a DataLoad answering it is our scrap
+ * transfer, and only that file is ours to delete. */
+static int scrap_ack_ref;
+
 static void user_message(int reason, int *b)
 {
     int action = b[4];
@@ -872,18 +876,25 @@ static void user_message(int reason, int *b)
         b[9] = -1;                         /* "not a safe destination" */
         memcpy(&b[11], scrap, sizeof scrap);
         b[0] = (int)((44 + sizeof scrap + 3) & ~3u);
-        _swix(Wimp_SendMessage, _INR(0, 2), 17, b, b[1]);
+        if (_swix(Wimp_SendMessage, _INR(0, 2), 17, b, b[1]) == NULL)
+            scrap_ack_ref = b[2];          /* the Wimp filled in my_ref */
     } else if (action == 3 && b[5] == keys_win) {   /* Message_DataLoad */
         char path[212];
         const char *name = (const char *)&b[11];
         size_t n = 0;
-        while (n < sizeof path - 1 && (unsigned char)name[n] >= 0x20)   /* any control char ends it */
+        while (n < sizeof path && (unsigned char)name[n] >= 0x20)   /* any control char ends it */
             n++;
+        if (n == sizeof path) {            /* too long to hold: never use a shortened name */
+            reportf("The file name is too long");
+            return;
+        }
         memcpy(path, name, n);
         path[n] = '\0';
         keys_add_from_file(path);
-        if (b[3] != 0)                     /* our scrap transfer: the file is ours to delete */
-            ro_delete(path);
+        if (b[3] != 0 && b[3] == scrap_ack_ref) {
+            ro_delete(path);               /* our scrap transfer */
+            scrap_ack_ref = 0;
+        }
         b[3] = b[2];
         b[4] = 4;                          /* Message_DataLoadAck */
         _swix(Wimp_SendMessage, _INR(0, 2), 17, b, b[1]);
