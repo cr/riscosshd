@@ -18,6 +18,122 @@ system, `!Boot` included.  Only the user name `riscos` is accepted (the
 key decides.  That is the natural fit for a single-user RISC OS box; treat
 the key list accordingly.
 
+## Installation
+
+SSHd needs RISC OS 5 (developed and tested against 5.30 in RPCEmu; the
+package declares 5.00 or later), a configured network connection, and
+the CryptRandom module, which the package pulls in.  The
+server listens on TCP port 22; if the machine sits behind a router or an
+emulator's NAT, forward that port to reach it from outside.
+
+### With PackMan (recommended)
+
+1. Open PackMan, choose **Sources...** from its menu, add this line and
+   click **Update lists**:
+
+       https://cr.github.io/riscosshd/pkg/index
+
+2. Find **SSHd** in the Network section (or search for it), click
+   **Install**, and accept CryptRandom as a dependency.
+3. PackMan offers to run SSHd at startup, because the package carries the
+   `Run` component flag.  Accept it for a server that is there after every
+   boot; it can be changed later in PackMan's component settings or in
+   Configure > Boot > Run.
+4. Upgrades arrive through **Update lists** like any other package.  Quit
+   the running SSHd from its icon bar menu before installing an upgrade,
+   then start the new one.  Settings and keys live in `Choices:SSHd` and
+   survive upgrades and removal.
+
+### By hand
+
+1. Download `SSHd_<version>.zip` from the
+   [releases page](https://github.com/cr/riscosshd/releases).
+2. Unpack it on RISC OS with something that turns the `,xxx` suffixes in
+   the names into filetypes, such as !SparkFS; PackMan does this itself.
+   Inside are `Apps/Network/!SSHd` and `RiscPkg/Control` and
+   `Copyright`.
+3. Copy `!SSHd` to where you keep network applications, for example
+   `$.Apps.Network`.
+4. Install the CryptRandom module (PackMan, package "CryptRandom"); `!Run`
+   soft-loads `System:Modules.CryptRand` and SSHd refuses to start
+   without it, since every key and nonce comes from it.
+5. To run it at startup, drag `!SSHd` into Configure > Boot > Run.
+
+### From source
+
+`make` builds the package in a GCCSDK container (see "Building"), and
+`make install` copies `build/!SSHd` into a local RPCEmu's HostFS
+(`docs/rpcemu.md` has the port-forwarding setup).  Install CryptRandom
+inside the emulator with PackMan.
+
+### First start
+
+1. Double-click `!SSHd`.  An icon appears on the icon bar; the first start
+   generates the host key into `Choices:SSHd.hostkey` and writes
+   `Choices:SSHd.Options` with every setting commented out at its default.
+2. With no key configured the Keys window opens by itself.  Add your
+   public key in one of three ways: paste the content of your `id_*.pub`
+   file into the field and click **Add**; drop the `.pub` file on the
+   window; or use **Import** with `user@host` and the password of a
+   machine that already holds your keys, which logs in there as an SSH
+   client, shows that machine's host key fingerprint for confirmation, and
+   imports its `~/.ssh/id_*.pub`.  Keys live in `Choices:SSHd.authkeys`.
+3. The window's top line shows this server's own host key.  Compare it
+   with what your client prints on its first connection.
+4. Only the user name `riscos` is accepted until the `user` setting says
+   otherwise; the key decides who gets in.
+
+```bash
+ssh riscos@riscos-host '*Cat'   # run a command, output streams back
+ssh riscos@riscos-host          # interactive * command line; Ctrl-D ends it
+sftp riscos@riscos-host         # or scp; paths look like /HostFS::HostFS.$/Public
+```
+
+### If it does not start
+
+The log window (SELECT on the icon) says why; the same lines go to
+`Choices:SSHd.log`.  The usual causes: CryptRandom not installed, port 22
+already taken by another server (or a second copy of SSHd, which reports
+itself in a box and exits), or a network stack that is not up yet.  A
+failed start keeps the icon on the bar with the log window open rather
+than showing an error box, so a boot sequence that runs `!SSHd` never
+stalls on it.
+
+### Removing
+
+Remove the package in PackMan, or delete `!SSHd` and its Boot > Run
+entry.  `Choices:SSHd` (host key, authorized keys, settings, log) stays
+until you delete it.
+
+## Running
+
+Commands run in a TaskWindow child, so they behave as in Edit's task
+windows: line input, no Wimp applications.  A command is one line of an
+Obey file: control characters and more than 1000 characters are refused,
+and Obey substitutes `%0`..`%9` (with nothing) and `%%` (with `%`) before
+the command runs.  The exit status is 0 when
+the command completed and 1 when it raised a RISC OS error or was
+interrupted.  A child that prints faster than the client reads is
+suspended and resumed with the TaskWindow module's own messages.  If the
+server itself dies with a fatal error, any children keep running and show
+in the Task Manager as "SSH session"; quit them there.  Connections that
+do not authenticate within 60 s, or sit logged in without a channel for
+120 s, are dropped; at most 8 connections are held at once.  All three
+are settings.
+
+Settings live in `Choices:SSHd.Options` (Options... on the menu opens
+it), written on first run with every setting commented out at its
+default in the `name value  # comment` form, and survive package
+upgrades:
+`port`, `bind`, `root`, `user` (one accepted user name, default
+`riscos`, empty for any), `shell`/`exec`/`sftp` on or off,
+`auth-timeout`, `idle-timeout`, `max-sessions`, `banner` and `motd`
+(text files `Choices:SSHd.Banner`, sent before login, and
+`Choices:SSHd.Motd`, printed when a shell starts), `filetype` (for
+uploads with no `,xxx` suffix and no MimeMap match, default `ffd`),
+`verbose`, `log` and `log-size`.  The log is also written to
+`Choices:SSHd.log`.
+
 ## Why it looks the way it does
 
 RISC OS has BSD sockets (the Internet module, reachable through UnixLib)
@@ -151,65 +267,11 @@ keyboard-interactive auth, host key fingerprint confirmed in a dialogue)
 and imports that machine's `~/.ssh/id_*.pub`.  It opens by itself when no
 key is configured.  `-t` runs the text mode in a TaskWindow instead.
 
-## Installing and running
+## Publishing
 
-1. Install `dist/SSHd_<version>.zip` with PackMan, or copy `build/!SSHd`
-   to the machine (`make install` does that for RPCEmu, see
-   `docs/rpcemu.md`).  The package depends on CryptRandom; without PackMan,
-   install that module yourself (`!Run` soft-loads
-   `System:Modules.CryptRand`).
-2. Double-click `!SSHd`.  An icon appears on the icon bar, the host key is
-   generated into `Choices:SSHd.hostkey` on first start, and the server
-   listens on port 22.
-3. With no key configured the Keys window opens by itself: paste a public
-   key, drop a `.pub` file on it, or use Import with the account and
-   password of your usual machine.  Keys live in `Choices:SSHd.authkeys`.
-
-```bash
-ssh riscos@riscos-host '*Cat'   # run a command, output streams back
-ssh riscos@riscos-host          # interactive * command line; Ctrl-D ends it
-sftp riscos@riscos-host         # or scp; paths look like /HostFS::HostFS.$/Public
-```
-
-Commands run in a TaskWindow child, so they behave as in Edit's task
-windows: line input, no Wimp applications.  A command is one line of an
-Obey file: control characters and more than 1000 characters are refused,
-and Obey substitutes `%0`..`%9` (with nothing) and `%%` (with `%`) before
-the command runs.  The exit status is 0 when
-the command completed and 1 when it raised a RISC OS error or was
-interrupted.  A child that prints faster than the client reads is
-suspended and resumed with the TaskWindow module's own messages.  If the
-server itself dies with a fatal error, any children keep running and show
-in the Task Manager as "SSH session"; quit them there.  Connections that
-do not authenticate within 60 s, or sit logged in without a channel for
-120 s, are dropped; at most 8 connections are held at once.  All three
-are settings.
-
-Settings live in `Choices:SSHd.Options` (Options... on the menu opens
-it), written on first run with every setting commented out at its
-default in the `name value  # comment` form, and survive package
-upgrades:
-`port`, `bind`, `root`, `user` (one accepted user name, default
-`riscos`, empty for any), `shell`/`exec`/`sftp` on or off,
-`auth-timeout`, `idle-timeout`, `max-sessions`, `banner` and `motd`
-(text files `Choices:SSHd.Banner`, sent before login, and
-`Choices:SSHd.Motd`, printed when a shell starts), `filetype` (for
-uploads with no `,xxx` suffix and no MimeMap match, default `ffd`),
-`verbose`, `log` and `log-size`.  The log is also written to
-`Choices:SSHd.log`.  A failed start keeps the icon on the bar
-with the log window open rather than showing a modal box, so a boot
-sequence that runs `!SSHd` is never stalled.  After an upgrade, Quit the
-running instance and start the new one.
-
-## Installing with PackMan
-
-Add this source in PackMan (Sources..., then Update lists) and install
-SSHd from the Network section; CryptRandom comes in as a dependency:
-
-    https://cr.github.io/riscosshd/pkg/index
-
-Each tagged release (`v<version>`) rebuilds the package, attaches the zip
-to a GitHub release and republishes the index on GitHub Pages
+Each tagged release (`v<version>`, matching `Version:` in
+`riscos/RiscPkg/Control`) rebuilds the package in CI, attaches the zip to
+a GitHub release and republishes the PackMan index on GitHub Pages
 (`.github/workflows/release.yml`, `tools/mkindex.sh`).
 
 ## Roadmap
