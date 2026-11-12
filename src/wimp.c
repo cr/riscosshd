@@ -664,13 +664,16 @@ static char info_values[II_COUNT][96] = {
     "mbedTLS " MBEDTLS_VERSION_STRING ", CryptRandom entropy", "MIT, LGPL 2.1, Apache 2.0: see !Help"
 };
 
-/* "0.1.0-3 (12 Nov 2026)": the Style Guide's version line, the build date
- * from __DATE__ ("Nov 12 2026") put in day-month-year order. */
+/* "0.1.0-3 (12 Nov 2026)": the Style Guide's version line.  The date is
+ * the build's SOURCE_DATE_EPOCH (CMakeLists.txt), not the time of
+ * compiling, so that builds are reproducible. */
+#ifndef SSHD_BUILD_DATE
+#define SSHD_BUILD_DATE "unknown date"
+#endif
 static void info_version(void)
 {
-    static const char d[] = __DATE__;
-    snprintf(info_values[II_VERSION], sizeof info_values[II_VERSION], "%s (%.2s %.3s %.4s)",
-             SSHD_VERSION, d[4] == ' ' ? d + 5 : d + 4, d, d + 7);
+    snprintf(info_values[II_VERSION], sizeof info_values[II_VERSION], "%s (%s)",
+             SSHD_VERSION, SSHD_BUILD_DATE);
 }
 static char prompt_text[128];
 static char group_dummy[] = "";

@@ -41,7 +41,11 @@ target_include_directories(sshd SYSTEM PRIVATE ${LIBSSH_INCLUDE_DIR})   # their 
 # Package version from the RiscPkg Control file, shown in the Info window.
 file(STRINGS ${CMAKE_SOURCE_DIR}/riscos/RiscPkg/Control CONTROL_VERSION REGEX "^Version:")
 string(REGEX REPLACE "^Version: *" "" SSHD_VERSION "${CONTROL_VERSION}")
-target_compile_definitions(sshd PRIVATE WITH_SERVER=1 SSHD_VERSION="${SSHD_VERSION}")
+# Build date for the Info window: SOURCE_DATE_EPOCH when set (the Makefile
+# sets the last commit's time), so the same commit builds the same binary.
+string(TIMESTAMP SSHD_BUILD_DATE "%d %b %Y" UTC)
+target_compile_definitions(sshd PRIVATE WITH_SERVER=1 SSHD_VERSION="${SSHD_VERSION}"
+                           SSHD_BUILD_DATE="${SSHD_BUILD_DATE}")
 # make WERROR=1 (CI): warnings in our own code fail the build
 option(SSHD_WERROR "Treat warnings in src/ as errors" OFF)
 if(SSHD_WERROR)
@@ -75,6 +79,6 @@ add_custom_target(package-zip
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pkg/RiscPkg
   COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/riscos/RiscPkg/Control ${CMAKE_BINARY_DIR}/pkg/RiscPkg/Control
   COMMAND sh ${CMAKE_SOURCE_DIR}/tools/mkcopyright.sh ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}/pkg/RiscPkg/Copyright
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}/pkg zip -q -r -9 -X ${CMAKE_BINARY_DIR}/SSHd.zip .
+  COMMAND sh ${CMAKE_SOURCE_DIR}/tools/mkzip.sh ${CMAKE_BINARY_DIR}/pkg ${CMAKE_BINARY_DIR}/SSHd.zip
   DEPENDS sshd
   COMMENT "Creating SSHd.zip")

@@ -23,6 +23,9 @@ SSH_USER   ?= riscos
 VERSION    := $(shell sed -n 's/^Version: *//p' riscos/RiscPkg/Control)
 PACKAGE    := dist/SSHd_$(VERSION).zip
 PROFILE    ?= 0
+# The build date in the binary and the times in the zip: the last commit's.
+SOURCE_DATE_EPOCH ?= $(shell git log -1 --format=%ct 2>/dev/null || date +%s)
+export SOURCE_DATE_EPOCH
 WERROR     ?= 0
 SYSROOT    := deps/sysroot
 BINARY     := build/!SSHd/sshd,ff8
@@ -31,7 +34,7 @@ BINARY     := build/!SSHd/sshd,ff8
 # docker-env.sh points the docker CLI at Colima's socket without the Docker
 # Desktop credential helper; it is harmless elsewhere.
 RUN = . tools/docker-env.sh; $(ENGINE) run --rm --platform linux/amd64 \
-      -v "$(CURDIR):/work" -w /work $(IMAGE)
+      -e SOURCE_DATE_EPOCH -v "$(CURDIR):/work" -w /work $(IMAGE)
 
 SRC := $(wildcard src/*.c src/*.h) CMakeLists.txt cmake/toolchain-riscos.cmake \
        $(wildcard riscos/!SSHd/*) riscos/RiscPkg/Control
