@@ -11,8 +11,7 @@ server normally leans on:
   therefore handles all connections in a single cooperative poll loop, each
   connection being a `session_ctx` driven by one libssh `ssh_event`.  As
   libssh reads at most 4 KB per socket per poll, each pass polls again
-  while there is work, within a few centiseconds, so uploads are not
-  limited by the desktop's null-event rate.
+  while data keeps arriving, within a few centiseconds.
 - **No pty.**  The RISC OS equivalent is the **TaskWindow** module: a child
   task whose keyboard input and VDU output are relayed as Wimp messages
   (`Message_TaskWindow_Input` / `_Output`).  A `shell` request starts such
