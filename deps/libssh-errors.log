@@ -1,2 +1,0 @@
-/work/deps/src/libssh-0.11.5/src/ttyopts.c:179:10: error: 'B230400' undeclared (first use in this function)
-done

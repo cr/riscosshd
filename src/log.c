@@ -17,6 +17,7 @@ static int log_stderr;
 static char early[EARLY_LINES][160];
 static int early_count;
 
+
 void log_set_sink(void (*sink)(const char *line))
 {
     int i;
@@ -34,7 +35,15 @@ void log_set_stderr(int on)
 
 void log_set_file(const char *path)
 {
+    int i;
     log_file = path;
+    /* the start-up lines logged before the file was known */
+    for (i = 0; path && i < early_count; i++) {
+        char line[200];
+        int n = snprintf(line, sizeof line, "%s\n", early[i]);
+        if (n > 0)
+            ro_append_file(path, line, (size_t)n);
+    }
 }
 
 void log_sanitise(char *s)
