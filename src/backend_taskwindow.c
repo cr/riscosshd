@@ -225,7 +225,7 @@ static int refuse(struct chan_ctx *c, struct tw_state *s, const char *msg)
 static int tw_start(struct chan_ctx *c, const char *command)
 {
     struct tw_state *s;
-    char cmd[1200];
+    char cmd[1200], name[64];
     int n;
     _kernel_oserror *e;
 
@@ -239,6 +239,18 @@ static int tw_start(struct chan_ctx *c, const char *command)
         if (strlen(command) > 1000)
             return refuse(c, NULL, "Command refused: over 1000 characters");
     }
+    /* The Task Manager name: "SSH 10.0.0.5 riscos".  The user name comes
+     * from the client and goes into a command line, so only plain
+     * characters are kept. */
+    {
+        size_t j = 4;
+        memcpy(name, "SSH ", 4);
+        for (const char *p = c->owner_name; *p && j < sizeof name - 1; p++)
+            if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') ||
+                *p == '.' || *p == '-' || *p == '_' || *p == ' ' || *p == ':')
+                name[j++] = *p;
+        name[j] = '\0';
+    }
     s = calloc(1, sizeof *s);
     if (!s)
         return refuse(c, NULL, "Command refused: out of memory");
@@ -250,11 +262,11 @@ static int tw_start(struct chan_ctx *c, const char *command)
         s->scrap = write_wrapper(s, command);
         if (!s->scrap)
             return refuse(c, s, "Command refused: cannot write the scrap file");
-        n = snprintf(cmd, sizeof cmd, "TaskWindow \"Obey %s\" -task &%08X -txt &%08X -name \"SSH session\" -quit",
-                     s->scrap, (unsigned)our_task, (unsigned)s->txt);
+        n = snprintf(cmd, sizeof cmd, "TaskWindow \"Obey %s\" -task &%08X -txt &%08X -name \"%s\" -quit",
+                     s->scrap, (unsigned)our_task, (unsigned)s->txt, name);
     } else {
-        n = snprintf(cmd, sizeof cmd, "TaskWindow -task &%08X -txt &%08X -name \"SSH session\"",
-                     (unsigned)our_task, (unsigned)s->txt);
+        n = snprintf(cmd, sizeof cmd, "TaskWindow -task &%08X -txt &%08X -name \"%s\"",
+                     (unsigned)our_task, (unsigned)s->txt, name);
     }
     if (n < 0 || (size_t)n >= sizeof cmd)
         return refuse(c, s, "Command refused: the scrap directory path is too long");

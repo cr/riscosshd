@@ -121,7 +121,8 @@ nothing) and `%%` (with `%`) before the command runs.  The exit status is
 interrupted; refusals and errors go to stderr.  A child that prints
 faster than the client reads is suspended until it catches up.  If the
 server itself dies with a fatal error, any children keep running and
-show in the Task Manager as "SSH session"; quit them there.
+show in the Task Manager as "SSH" followed by the client's address and
+user name; quit them there.
 
 **Connections** that do not log in within 60 s, or sit logged in without
 a session for 120 s, are dropped; at most 8 are held at once, and one
