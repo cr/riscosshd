@@ -348,13 +348,14 @@ int main(int argc, char **argv)
     const char *err;
     char *sftp_root;
     int n, opt;
-    int opt_port = -1, opt_verbose = 0;
+    int opt_port = 0, port_given = 0, opt_verbose = 0;
     const char *opt_root = NULL, *opt_bind = NULL;
 
     while ((opt = getopt(argc, argv, "p:d:r:b:tv")) != -1) {
         switch (opt) {
         case 'p': {
             char *end;
+            port_given = 1;
             opt_port = (int)strtol(optarg, &end, 10);
             if (!*optarg || *end)
                 opt_port = 0;                  /* rejected by check_settings */
@@ -393,7 +394,7 @@ int main(int argc, char **argv)
         cfg.capture_path = join(cfg.config_dir, "capture");
 
     read_options(cfg.config_dir);
-    if (opt_port >= 0) cfg.port = opt_port;
+    if (port_given) cfg.port = opt_port;   /* check_settings refuses a bad one */
     if (opt_root) root_arg = opt_root;
     if (opt_bind) cfg.bind_addr = opt_bind;
     if (opt_verbose) log_verbose = opt_verbose;
