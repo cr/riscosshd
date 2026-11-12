@@ -11,8 +11,9 @@
  *                         sets SSHd$Rc<id> to 1 before it and 0 after it, run
  *                         with "TaskWindow \"Obey <file>\" ... -quit": an
  *                         error aborts the Obey file and leaves 1, which
- *                         becomes the SSH exit status.  Quotes and length
- *                         are no longer a problem.
+ *                         becomes the SSH exit status.  Quotes are fine;
+ *                         control characters and over 1000 characters are
+ *                         refused.
  *   Message_TaskWindow_Ego     child announces itself: learn its task handle
  *   Message_TaskWindow_Output  child's VDU output -> channel
  *   channel data               -> Message_TaskWindow_Input, paced
@@ -32,6 +33,7 @@
 #include <swis.h>
 
 #include "backend_taskwindow.h"
+#include "buf.h"
 #include "riscos.h"
 #include "log.h"
 
@@ -39,7 +41,7 @@
 #define Wimp_StartTask 0x400DE
 #endif
 
-#define MAX_INPUT_CHUNK 232    /* 256-byte message minus the 24-byte header */
+#define MSG_DATA_MAX 232       /* 256-byte message minus the 24-byte header */
 /* The TaskWindow module keeps a 256-byte key buffer and silently drops what
  * does not fit, so input is paced: one chunk at a time, cut at a line end,
  * and the next only once the child has produced output (it echoes what it
@@ -57,7 +59,6 @@ struct tw_state {
     int txt;                   /* our id, echoed back in Message_TaskWindow_Ego */
     int child;                 /* child's Wimp task handle, 0 until Ego */
     int dead;                  /* Morio/TaskCloseDown received or kill sent */
-    int orphaned;              /* channel gone before Ego: kill on arrival */
     int suspended;             /* Message_TaskWindow_Suspend sent */
     int dropped;               /* input dropped because the child was not reading */
     int is_exec;               /* started with a command (Obey wrapper, -quit) */
@@ -67,8 +68,7 @@ struct tw_state {
     int awaiting_output;       /* a chunk is out and nothing came back yet */
     char *scrap;               /* exec: the Obey file, deleted at the end */
     char rcvar[24];            /* exec: "SSHd$Rc<id>" */
-    char *pending;             /* input waiting for the child (paced, or not yet ready) */
-    size_t npending, pcap;
+    struct buf pending;        /* input waiting for the child (paced, or not yet ready) */
     struct tw_state *next;
 };
 
@@ -79,11 +79,6 @@ static struct tw_state *states;
 void tw_set_task_handle(int handle)
 {
     our_task = handle;
-}
-
-int tw_available(void)
-{
-    return our_task != 0;
 }
 
 static int now_cs(void)
@@ -123,7 +118,7 @@ static void unlink_state(struct tw_state *s)
     }
     if (s->rcvar[0])
         ro_unset_var(s->rcvar);
-    free(s->pending);
+    buf_free(&s->pending);
     free(s);
 }
 
@@ -151,45 +146,33 @@ static void kill_child(struct tw_state *s)
 /* Send the next input chunk if the child is ready for one. */
 static void flush_pending(struct tw_state *s)
 {
+    const char *d = buf_data(&s->pending);
     size_t n;
-    if (!s->child || s->dead || s->npending == 0)
+    if (!s->child || s->dead || s->pending.len == 0)
         return;
     if (s->awaiting_output && now_cs() - s->last_sent < INPUT_PACE_WAIT_CS)
         return;
-    n = s->npending < INPUT_PACE_CHUNK ? s->npending : INPUT_PACE_CHUNK;
+    n = s->pending.len < INPUT_PACE_CHUNK ? s->pending.len : INPUT_PACE_CHUNK;
     for (size_t i = 0; i < n; i++) {     /* a line at a time for a line-reading child */
-        if (s->pending[i] == '\r') {
+        if (d[i] == '\r') {
             n = i + 1;
             break;
         }
     }
-    send_to_child(s, Message_TaskWindow_Input, s->pending, n);
-    memmove(s->pending, s->pending + n, s->npending - n);
-    s->npending -= n;
+    send_to_child(s, Message_TaskWindow_Input, d, n);
+    buf_consume(&s->pending, n);
     s->last_sent = now_cs();
     s->awaiting_output = 1;
 }
 
 static void queue_input(struct tw_state *s, const char *data, size_t len)
 {
-    if (s->npending + len > PENDING_MAX) {
-        len = PENDING_MAX - s->npending;   /* drop the excess: the child is not reading */
+    if (s->pending.len + len > PENDING_MAX) {
+        len = PENDING_MAX - s->pending.len;   /* drop the excess: the child is not reading */
         if (!s->dropped++)
             log_msg("task window %08x: input dropped, child not reading", (unsigned)s->txt);
     }
-    if (s->npending + len > s->pcap) {
-        size_t ncap = s->pcap ? s->pcap * 2 : 4096;
-        char *n;
-        while (ncap < s->npending + len)
-            ncap *= 2;
-        n = realloc(s->pending, ncap);
-        if (!n)
-            return;
-        s->pending = n;
-        s->pcap = ncap;
-    }
-    memcpy(s->pending + s->npending, data, len);
-    s->npending += len;
+    buf_append(&s->pending, data, len);
     flush_pending(s);
 }
 
@@ -230,69 +213,62 @@ static char *write_wrapper(struct tw_state *s, const char *command)
     return path;
 }
 
-static char last_refusal[160] = "Command refused";
-
-const char *tw_last_refusal(void)
+/* Release a state that was never linked, and refuse the request. */
+static int refuse(struct chan_ctx *c, struct tw_state *s, const char *msg)
 {
-    return last_refusal;
+    if (s)
+        unlink_state(s);
+    chan_refuse(c, msg);
+    return BACKEND_REFUSED;
 }
 
 static int tw_start(struct chan_ctx *c, const char *command)
 {
     struct tw_state *s;
-    char cmd[320];
+    char cmd[1200];
+    int n;
     _kernel_oserror *e;
 
     if (!our_task)
-        return -1;           /* text mode: let the line shell / capture take over */
+        return BACKEND_UNAVAILABLE;   /* text mode: the OS_CLI backends serve */
     if (command) {
         /* The command becomes one line of an Obey file. */
         for (const char *p = command; *p; p++)
-            if (((unsigned char)*p < 0x20 && *p != '\t') || *p == 0x7f) {
-                snprintf(last_refusal, sizeof last_refusal, "Command refused: control characters");
-                return -1;
-            }
-        if (strlen(command) > 1000) {
-            snprintf(last_refusal, sizeof last_refusal, "Command refused: over 1000 characters");
-            return -1;
-        }
+            if (((unsigned char)*p < 0x20 && *p != '\t') || *p == 0x7f)
+                return refuse(c, NULL, "Command refused: control characters");
+        if (strlen(command) > 1000)
+            return refuse(c, NULL, "Command refused: over 1000 characters");
     }
     s = calloc(1, sizeof *s);
-    if (!s) {
-        snprintf(last_refusal, sizeof last_refusal, "Command refused: out of memory");
-        return -1;
-    }
+    if (!s)
+        return refuse(c, NULL, "Command refused: out of memory");
     s->chan = c;
     s->txt = next_txt++;
-    s->last_activity = now_cs();
-    s->next = states;
-    states = s;
-    c->backend_data = s;
-
     if (command) {
         s->is_exec = 1;
         snprintf(s->rcvar, sizeof s->rcvar, "SSHd$Rc%08X", (unsigned)s->txt);
         s->scrap = write_wrapper(s, command);
-        if (!s->scrap) {
-            snprintf(last_refusal, sizeof last_refusal, "Command refused: cannot write the scrap file");
-            unlink_state(s);
-            c->backend_data = NULL;
-            return -1;
-        }
-        snprintf(cmd, sizeof cmd, "TaskWindow \"Obey %s\" -task &%08X -txt &%08X -name \"SSH session\" -quit",
-                 s->scrap, (unsigned)our_task, (unsigned)s->txt);
+        if (!s->scrap)
+            return refuse(c, s, "Command refused: cannot write the scrap file");
+        n = snprintf(cmd, sizeof cmd, "TaskWindow \"Obey %s\" -task &%08X -txt &%08X -name \"SSH session\" -quit",
+                     s->scrap, (unsigned)our_task, (unsigned)s->txt);
     } else {
-        snprintf(cmd, sizeof cmd, "TaskWindow -task &%08X -txt &%08X -name \"SSH session\"",
-                 (unsigned)our_task, (unsigned)s->txt);
+        n = snprintf(cmd, sizeof cmd, "TaskWindow -task &%08X -txt &%08X -name \"SSH session\"",
+                     (unsigned)our_task, (unsigned)s->txt);
     }
+    if (n < 0 || (size_t)n >= sizeof cmd)
+        return refuse(c, s, "Command refused: the scrap directory path is too long");
     e = _swix(Wimp_StartTask, _IN(0), cmd);
     if (e) {
+        char msg[300];
         log_msg("cannot start TaskWindow: %s", e->errmess);
-        snprintf(last_refusal, sizeof last_refusal, "Cannot start a TaskWindow: %s", e->errmess);
-        unlink_state(s);
-        c->backend_data = NULL;
-        return -1;                       /* caller falls back or refuses */
+        snprintf(msg, sizeof msg, "Cannot start a TaskWindow: %s", e->errmess);
+        return refuse(c, s, msg);
     }
+    /* Linked only now: the child's Ego cannot arrive before our next poll. */
+    s->next = states;
+    states = s;
+    c->backend_data = s;
     log_debug("task window %08x started", (unsigned)s->txt);
     return 0;
 }
@@ -300,7 +276,7 @@ static int tw_start(struct chan_ctx *c, const char *command)
 static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
 {
     struct tw_state *s = c->backend_data;
-    char out[MAX_INPUT_CHUNK];
+    char out[MSG_DATA_MAX];
     size_t n = 0;
 
     for (size_t i = 0; i < len; i++) {
@@ -319,7 +295,7 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
             out[n++] = 0x7f;                 /* delete; ReadLine understands 127 */
         } else if (ch == 0x03) {
             out[n++] = 0x1b;                 /* Ctrl-C -> Escape */
-            if (c->out_len < OUT_HIGH_WATER) /* the echo is not worth unbounded memory */
+            if (c->out.len < OUT_HIGH_WATER) /* the echo is not worth unbounded memory */
                 chan_output_str(c, "^C\r\n");
         } else if (ch == 0x04) {
             chan_output_str(c, "\r\n");
@@ -353,16 +329,15 @@ static void tw_poll(struct chan_ctx *c)
     /* Flow control: a child printing faster than the client reads would
      * otherwise grow the channel's output queue without bound. */
     if (s->child && !s->dead) {
-        if (!s->suspended && c->out_len > OUT_HIGH_WATER) {
+        if (!s->suspended && c->out.len > OUT_HIGH_WATER) {
             send_to_child(s, Message_TaskWindow_Suspend, NULL, 0);
             s->suspended = 1;
-        } else if (s->suspended && c->out_len < OUT_LOW_WATER) {
+        } else if (s->suspended && c->out.len < OUT_LOW_WATER) {
             send_to_child(s, Message_TaskWindow_Resume, NULL, 0);
             s->suspended = 0;
         }
     }
-    if (s->eof_pending && s->npending == 0 && !c->finished &&
-        now_cs() - s->last_activity > EOF_QUIET_CS)
+    if (s->eof_pending && s->pending.len == 0 && now_cs() - s->last_activity > EOF_QUIET_CS)
         chan_finish(c, 0);
 }
 
@@ -372,14 +347,14 @@ static void tw_stop(struct chan_ctx *c)
     if (!s)
         return;
     c->backend_data = NULL;
-    if (s->child || s->dead) {
+    if (s->child) {
         kill_child(s);
         unlink_state(s);
     } else {
-        /* The child has not said Ego yet; keep the record so that it can
-         * be killed when it does instead of living on unattended. */
+        /* The child has not said Ego yet; keep the record, with no channel,
+         * so that it can be killed when it does instead of living on
+         * unattended. */
         s->chan = NULL;
-        s->orphaned = 1;
     }
 }
 
@@ -399,14 +374,14 @@ static int exec_status(struct tw_state *s)
     return atoi(val) == 0 ? 0 : 1;
 }
 
+/* Only states with a child reach here, and those always have a channel:
+ * a state whose channel went first is killed and dropped when its Ego
+ * arrives. */
 static void child_gone(struct tw_state *s, const char *how)
 {
     s->dead = 1;
     log_debug("task window %08x %s", (unsigned)s->txt, how);
-    if (s->chan)
-        chan_finish(s->chan, exec_status(s));
-    else
-        unlink_state(s);          /* orphan: nothing else refers to it */
+    chan_finish(s->chan, exec_status(s));
 }
 
 int tw_message(int reason, int *block)
@@ -419,7 +394,7 @@ int tw_message(int reason, int *block)
         s = find_by_txt(block[5]);
         if (s) {
             s->child = sender;
-            if (s->orphaned) {
+            if (!s->chan) {                  /* its channel went before it started */
                 kill_child(s);
                 unlink_state(s);
             } else {
@@ -430,12 +405,13 @@ int tw_message(int reason, int *block)
         return 1;
     case Message_TaskWindow_Output:
         s = find_by_child(sender);
-        if (s && s->chan && !s->chan->finished) {
+        if (s && !s->chan->finished) {
             const char *d = (const char *)&block[6];
             size_t n = (size_t)block[5], start = 0;
             /* the length comes from another task: keep it inside the message */
-            if (block[0] < 24 || n > (size_t)(block[0] - 24) || n > MAX_INPUT_CHUNK)
-                n = block[0] > 24 ? (size_t)(block[0] - 24) : 0;
+            size_t max = block[0] > 24 ? (size_t)(block[0] - 24) : 0;
+            if (n > max)
+                n = max;
             if (s->chan->pty) {
                 /* ReadLine echoes DEL for a deleted character; terminals
                  * need backspace, space, backspace to show that. */
@@ -469,8 +445,6 @@ int tw_message(int reason, int *block)
         if (s)
             child_gone(s, "closed down");
         return 1;
-    case Message_TaskWindow_NewTask:
-        return 1;                            /* nested task windows: ignored */
     default:
         return 0;
     }

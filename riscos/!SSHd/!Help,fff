@@ -8,10 +8,11 @@ Icon bar
 --------
   Select  opens the log window (follows new lines, like tail -f)
   Adjust  opens the Keys window
-  Menu    Info... / Log Window / Verbose (tick: more log detail) /
+  Menu    Info / Log Window / Verbose (tick: more log detail) /
           Keys... / Options... (opens the settings file in your editor) /
           Quit
-  Interactive help (the Help application) describes each icon.
+  Interactive help (the Help application) describes each icon and
+  menu item.
 
 Keys window
 -----------
@@ -21,11 +22,12 @@ to add an authorized key:
   - type or paste it into the field (the format ssh-keygen writes to
     id_ed25519.pub or id_rsa.pub), then Add or Return;
   - drop such a file onto the window;
-  - Import: enter the account (user@host) and password of the machine
-    whose keys you want to allow.  SSHd logs in there over SSH, shows the
-    machine's host key fingerprint for you to confirm, reads
-    ~/.ssh/id_*.pub and imports them.  The password is used once and not
-    stored.  The desktop pauses while this runs.
+  - Import: enter the account (user@host, or user@host:port) and the
+    password of the machine whose keys you want to allow.  SSHd logs in
+    there over SSH, shows the machine's host key fingerprint for you to
+    confirm, reads ~/.ssh/id_ed25519.pub, id_ecdsa.pub and id_rsa.pub and
+    imports them.  The password is used once and not stored.  The desktop
+    pauses while this runs.
 Below that is the list of authorized keys, each with a Delete button.
 Keys are stored in <Choices$Write>.SSHd.authkeys, one per line, and a key
 that is already listed is not added twice.  The window opens by itself
@@ -41,34 +43,36 @@ Use
   ssh riscos@riscos-host           interactive * command line in a
                                    TaskWindow; Ctrl-D ends the session
 
-Both single commands and
-interactive sessions run in a TaskWindow child task (as used by Edit), so
-they behave like a task window: line input, Escape via Ctrl-C, output as
-it is produced, and the same limits for Wimp applications.  A command is
-run from a small Obey file, so it may contain quotes and be up to 1000
-characters (control characters are refused), and Obey replaces %0..%9
-with nothing and %% with % before it runs; its exit status is 0 if it
+Both single commands and interactive sessions run in a TaskWindow child
+task (as used by Edit), so they behave like a task window: line input,
+output as it is produced, Escape via Ctrl-C in an interactive session,
+and the same limits for Wimp applications.  A command is run from a small
+Obey file, so it may contain quotes and be up to 1000 characters (control
+characters other than tab are refused), and Obey replaces %0..%9 with
+nothing and %% with % before it runs; its exit status is 0 if it
 completed and 1 if it raised a RISC OS error (printed in the output) or
 was interrupted.
 
 File transfer
 -------------
 sftp and scp work (scp in its modern SFTP mode; the old scp -O protocol
-does not).  Clients start in the directory given with -r, by default the
-boot disc, and see RISC OS paths the UnixLib way: HostFS::HostFS.$.Public
-is /HostFS::HostFS.$/Public, and dir.file/txt is /dir/file.txt.
+does not).  Clients start in the directory of the root setting, by
+default the boot disc, and see RISC OS paths the UnixLib way:
+HostFS::HostFS.$.Public is /HostFS::HostFS.$/Public, and dir.file/txt is
+/dir/file.txt.  Files cannot be read or written beyond 2 GB.
 Filetypes follow the HostFS convention: a name ending in ,xxx names the
 file without the suffix and sets type xxx on upload or rename (put prog
 prog,ffb stores a BASIC file "prog"); otherwise the extension is looked up
-with MimeMap (notes.txt becomes Text).  Listings show ,xxx on files whose
-type the extension does not imply, and get prog,ffb fetches prog.
+with MimeMap (notes.txt becomes Text), and a name MimeMap does not know
+gets the filetype setting.  Listings show ,xxx on files whose type the
+extension does not imply, and get prog,ffb fetches prog.
 
 Licences
 --------
 SSHd is MIT licensed.  The binary statically links libssh (LGPL 2.1),
 mbedTLS (Apache 2.0) and GCCSDK's UnixLib; their licence texts are in the
 package's RiscPkg.Copyright, and the build scripts at the website let
-anyone relink against a modified libssh as the LGPL requires.
+anyone relink against a modified libssh or UnixLib as the LGPL requires.
 
 Settings
 --------
@@ -88,7 +92,8 @@ when SSHd is next started.
   auth-timeout 60    seconds a connection has to log in; 0 unlimited
   idle-timeout 120   seconds a logged-in connection may sit with no
                      session open; 0 unlimited
-  max-sessions 8     connections held at once
+  max-sessions 8     connections held at once (one address may hold at
+                     most two that have not logged in yet)
   banner on          send <Choices$Write>.SSHd.Banner (a text file you
                      create) to clients before they log in
   motd on            print <Choices$Write>.SSHd.Motd when a shell starts

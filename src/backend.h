@@ -1,9 +1,10 @@
 /* Session backends.
  *
  * A backend owns what happens on one SSH channel once the client has asked
- * for "exec" or "shell".  The server core (server.c) handles transport,
- * authentication, channel bookkeeping and pumping output to the client; a
- * backend only produces bytes (chan_output()) and consumes input (data()).
+ * for "exec", "shell" or the "sftp" subsystem.  The server core (server.c)
+ * handles transport, authentication, channel bookkeeping and pumping
+ * output to the client; a backend only produces bytes (chan_output()) and
+ * consumes input (data()).
  *
  * Backends today:
  *   backend_taskwindow  exec and shell on the desktop: a TaskWindow child
@@ -20,28 +21,33 @@
 
 #include <stddef.h>
 #include <libssh/libssh.h>
+#include "buf.h"
 
 struct chan_ctx;
 
+/* start() results besides 0 (accepted). */
+#define BACKEND_UNAVAILABLE (-1)  /* cannot serve this here: try another backend */
+#define BACKEND_REFUSED     (-2)  /* refused; the reason is already on stderr */
+
 struct backend_ops {
     const char *name;
-    /* Begin the session.  command is NULL for a shell request.  Return 0
-     * to accept, -1 to refuse the request. */
+    /* Begin the session.  command is NULL for a shell request.  Returns 0,
+     * BACKEND_UNAVAILABLE or BACKEND_REFUSED. */
     int (*start)(struct chan_ctx *c, const char *command);
     /* Input from the client.  Return the number of bytes consumed. */
     int (*data)(struct chan_ctx *c, const char *buf, size_t len);
-    /* Client sent EOF on the channel. */
+    /* Optional: the client sent EOF on the channel. */
     void (*eof)(struct chan_ctx *c);
-    /* Called once per main loop iteration while the channel is open. */
+    /* Optional: called on each pass of the main loop until the session
+     * is finished. */
     void (*poll)(struct chan_ctx *c);
-    /* Channel is going away; release backend state. */
+    /* Optional: the channel is going away; release backend state. */
     void (*stop)(struct chan_ctx *c);
 };
 
 struct chan_ctx {
     ssh_session session;
     ssh_channel channel;
-    struct session_ctx *owner;
     const char *owner_name;  /* user name, for log lines */
 
     int pty;                 /* client requested a pty: raw mode, CRLF output */
@@ -49,13 +55,10 @@ struct chan_ctx {
     const struct backend_ops *backend;
     void *backend_data;
 
-    /* Output waiting to be sent to the client; err goes to its stderr. */
-    char *out, *err;
-    size_t out_len, out_cap, err_len, err_cap;
+    struct buf out, err;     /* waiting to be sent: stdout and stderr */
 
     int finished;            /* backend done; close once output drained */
     int exit_status;
-    int closed;              /* exit status / EOF / close already sent */
 };
 
 /* Queue bytes for the client.  Returns 0 or -1 on allocation failure. */
@@ -68,6 +71,8 @@ int chan_output_err(struct chan_ctx *c, const char *s);
 int chan_output_vdu(struct chan_ctx *c, const char *data, size_t len);
 /* Mark the session finished with the given exit status. */
 void chan_finish(struct chan_ctx *c, int status);
+/* Answer a request with msg on stderr and exit status 1. */
+void chan_refuse(struct chan_ctx *c, const char *msg);
 
 /* Run a *command and queue its output on the channel.  Shared by the exec
  * and shell backends.  Returns the exit status. */

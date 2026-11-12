@@ -3,8 +3,9 @@
  * (set in main.c): "name,xxx" names the file without the suffix and types a
  * newly created file xxx; otherwise the extension is looked up in MimeMap;
  * directory listings add ",xxx" where the extension does not imply the type.
- * The one gap is rename(): UnixLib strips the suffix but does not retype,
- * which the helper below does for the libssh patch.
+ * Two gaps are filled here for the libssh patch: rename() strips the suffix
+ * but does not retype, and a new file MimeMap knows nothing about gets the
+ * configured default type.
  */
 #ifndef RISCOS_SFTP_H
 #define RISCOS_SFTP_H

@@ -1,4 +1,4 @@
-/* Wimp front end: icon-bar icon, menu, log window, keys window.
+/* Wimp front end: icon-bar icon, menu, Info, log and Keys windows.
  * The server itself is driven from null events via server_poll(0). */
 #ifndef WIMP_H
 #define WIMP_H
@@ -8,9 +8,8 @@ int wimp_init(void);
 /* Run the desktop event loop until Quit.  Calls server_poll() on idle. */
 void wimp_run(void);
 void wimp_shutdown(void);
-/* Show a fatal error box (works before wimp_init too). */
+/* Show an error box with OK (works before wimp_init too). */
 void wimp_report_error(const char *msg);
 void wimp_open_keys_window(void);
 void wimp_open_log_window(void);
-void wimp_open_info_window(void);
 #endif

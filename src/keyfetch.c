@@ -44,19 +44,18 @@ int keyfetch_run(const char *userhost, const char *password,
                  int (*confirm)(const char *fingerprint, const char *host, unsigned port),
                  char *msg, size_t msglen)
 {
-    char user[64] = "", host[256] = "";
+    char user[64] = "", host[256] = "", err[160];
     const char *at = strchr(userhost, '@'), *colon;
     unsigned port = 22;
     long timeout = 15;
+    int no = 0;
     ssh_session s;
+    ssh_channel ch = NULL;
     ssh_key key = NULL;
     unsigned char *hash = NULL;
-    size_t hlen = 0;
-    char *fp;
-    int rc, ok, added = 0, bad = 0;
-    char *out, *p, *nl;
-    size_t olen = 0;
-    ssh_channel ch;
+    size_t hlen = 0, olen = 0;
+    char *fp, *out = NULL;
+    int rc, ok, added = 0, dup = 0, bad = 0, result = -1;
 
     if (!at || at == userhost) {
         snprintf(msg, msglen, "Enter the account as user@host");
@@ -83,17 +82,13 @@ int keyfetch_run(const char *userhost, const char *password,
     ssh_options_set(s, SSH_OPTIONS_USER, user);
     ssh_options_set(s, SSH_OPTIONS_PORT, &port);
     ssh_options_set(s, SSH_OPTIONS_TIMEOUT, &timeout);
-    {
-        /* No ssh_config: libssh would read one from the disc, which any
-         * SFTP client could have written to redirect this connection. */
-        int no = 0;
-        ssh_options_set(s, SSH_OPTIONS_PROCESS_CONFIG, &no);
-    }
+    /* No ssh_config: libssh would read one from the disc, which any SFTP
+     * client could have written to redirect this connection. */
+    ssh_options_set(s, SSH_OPTIONS_PROCESS_CONFIG, &no);
     log_msg("key fetch: connecting to %s@%s:%u", user, host, port);
     if (ssh_connect(s) != SSH_OK) {
         fail(msg, msglen, "Cannot connect", s);
-        ssh_free(s);
-        return -1;
+        goto out;
     }
 
     /* Trust-on-first-use with an explicit prompt: the keys we are about to
@@ -101,21 +96,14 @@ int keyfetch_run(const char *userhost, const char *password,
     if (ssh_get_server_publickey(s, &key) != SSH_OK ||
         ssh_get_publickey_hash(key, SSH_PUBLICKEY_HASH_SHA256, &hash, &hlen) != 0) {
         fail(msg, msglen, "Cannot read the remote host key", s);
-        ssh_key_free(key);
-        ssh_disconnect(s);
-        ssh_free(s);
-        return -1;
+        goto out;
     }
     fp = ssh_get_fingerprint_hash(SSH_PUBLICKEY_HASH_SHA256, hash, hlen);
     ok = confirm(fp ? fp : "(unknown)", host, port);
     ssh_string_free_char(fp);
-    ssh_clean_pubkey_hash(&hash);
-    ssh_key_free(key);
     if (!ok) {
         snprintf(msg, msglen, "Cancelled: host key not accepted");
-        ssh_disconnect(s);
-        ssh_free(s);
-        return -1;
+        goto out;
     }
 
     /* Ask which methods the server offers and use exactly one, so a wrong
@@ -133,28 +121,19 @@ int keyfetch_run(const char *userhost, const char *password,
     if (rc != SSH_AUTH_SUCCESS) {
         snprintf(msg, msglen, "Login as %s@%s failed: wrong password, or the machine does not allow password logins", user, host);
         log_msg("key fetch: %s", msg);
-        ssh_disconnect(s);
-        ssh_free(s);
-        return -1;
+        goto out;
     }
 
     ch = ssh_channel_new(s);
     if (!ch || ssh_channel_open_session(ch) != SSH_OK ||
         ssh_channel_request_exec(ch, REMOTE_CMD) != SSH_OK) {
         fail(msg, msglen, "Cannot run the remote command", s);
-        if (ch)
-            ssh_channel_free(ch);
-        ssh_disconnect(s);
-        ssh_free(s);
-        return -1;
+        goto out;
     }
     out = malloc(MAX_OUTPUT + 1);
     if (!out) {
-        ssh_channel_free(ch);
-        ssh_disconnect(s);
-        ssh_free(s);
         snprintf(msg, msglen, "Out of memory");
-        return -1;
+        goto out;
     }
     for (;;) {
         int n = ssh_channel_read(ch, out + olen, (uint32_t)(MAX_OUTPUT - olen), 0);
@@ -165,28 +144,25 @@ int keyfetch_run(const char *userhost, const char *password,
     out[olen] = '\0';
     ssh_channel_send_eof(ch);
     ssh_channel_close(ch);
-    ssh_channel_free(ch);
+
+    if (auth_add_keys(out, &added, &dup, &bad, err, sizeof err) < 0)
+        snprintf(msg, msglen, "%d key%s imported, but %s", added, added == 1 ? "" : "s", err);
+    else if (added == 0 && dup > 0)
+        snprintf(msg, msglen, "The keys of %s@%s are already authorized", user, host);
+    else if (added == 0)
+        snprintf(msg, msglen, "No keys found on %s (looked for ~/.ssh/id_ed25519.pub, id_ecdsa.pub, id_rsa.pub)", host);
+    else
+        snprintf(msg, msglen, "%d key%s imported from %s@%s%s%s", added, added == 1 ? "" : "s", user, host,
+                 dup ? ", others already authorized" : "", bad ? " (some lines were not keys)" : "");
+    log_msg("key fetch: %s", msg);
+    result = added;
+out:
+    free(out);
+    ssh_clean_pubkey_hash(&hash);
+    ssh_key_free(key);
+    if (ch)
+        ssh_channel_free(ch);
     ssh_disconnect(s);
     ssh_free(s);
-
-    for (p = out; p && *p; p = nl) {
-        char err[128];
-        nl = strchr(p, '\n');
-        if (nl)
-            *nl++ = '\0';
-        if (*p == '\0' || *p == '#')
-            continue;
-        if (auth_add_key_line(p, err, sizeof err) == 0)
-            added++;
-        else
-            bad++;
-    }
-    free(out);
-    if (added == 0)
-        snprintf(msg, msglen, "No keys found in ~/.ssh on %s (looked for id_ed25519.pub, id_ecdsa.pub, id_rsa.pub)", host);
-    else
-        snprintf(msg, msglen, "%d key%s imported from %s@%s%s", added, added == 1 ? "" : "s", user, host,
-                 bad ? " (some lines were not keys)" : "");
-    log_msg("key fetch: %s", msg);
-    return added;
+    return result;
 }

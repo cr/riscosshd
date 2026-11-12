@@ -22,10 +22,11 @@ const char *ro_save_file(const char *path, int filetype, const void *data, size_
 /* Create a directory; succeeds if it already exists. */
 const char *ro_mkdir(const char *path);
 
-/* Append bytes to a file (created if missing).  Returns 0 or -1. */
-int ro_append_file(const char *path, const void *data, size_t len);
-extern const char *ro_append_error;   /* why the last ro_append_file failed */
-extern size_t ro_append_limit;        /* ro_append_file restarts the file past this size; 0 = never */
+/* Append bytes to a file, created as Text if missing.  A file already
+ * longer than limit bytes (0: no limit) is emptied first.  Returns 0, or
+ * -1 with the reason in ro_append_error. */
+int ro_append_file(const char *path, const void *data, size_t len, size_t limit);
+extern const char *ro_append_error;
 /* Length of a file, or -1 if it is not a file. */
 long ro_file_size(const char *path);
 
@@ -38,12 +39,12 @@ int ro_read_var(const char *name, char *buf, size_t len);
 /* Remove a system variable; errors ignored. */
 void ro_unset_var(const char *name);
 
-/* Run a *command through OS_CLI with VDU output redirected to capture_path,
- * then read the captured output back.  *out receives a malloc'd buffer
- * (NUL-terminated, may contain \n\r pairs as RISC OS writes them) and
- * *out_len its length.  Returns the exit status to report over SSH:
- * 0 on success, 1 if the command raised a RISC OS error (the error text is
- * appended to *err as a malloc'd string). */
+/* Text mode only: run a *command through OS_CLI with VDU output redirected
+ * to capture_path, then read the captured output back.  *out receives a
+ * malloc'd buffer (NUL-terminated, may contain \n\r pairs as RISC OS
+ * writes them) and *out_len its length.  Returns the exit status to report
+ * over SSH: 0 on success, 1 if the command raised a RISC OS error, 130 if
+ * Escape interrupted it; *err is then set to a malloc'd message. */
 int ro_run_command(const char *command, const char *capture_path,
                    char **out, size_t *out_len, char **err);
 

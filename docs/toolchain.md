@@ -49,7 +49,8 @@ for a future Norcroft-only component (for example a small helper module).
   arm64 build.  On Apple Silicon it runs under emulation; Colima with
   `binfmt: true` (the default) handles `--platform linux/amd64`.  The image
   is Ubuntu 20.04 with git, svn, wget and make but **no cmake**;
-  `docker/Dockerfile` adds cmake 3.16 and zip on top.
+  `docker/Dockerfile` pins it by digest (`latest` as of 2026-11-11) and
+  adds cmake 3.16, curl and zip on top.
 - Paths inside the image: compiler in `/home/riscos/cross/bin`, UnixLib
   headers in `/home/riscos/cross/arm-unknown-riscos/include`, porting
   wrappers (`ro-make`, `ro-config`, `toolchain-riscos.cmake`) in
@@ -83,8 +84,11 @@ file after two small platform hooks that live in this repository:
 `MBEDTLS_PLATFORM_MS_TIME_ALT` (gettimeofday), both configured in
 `deps/mbedtls_riscos_config.h` and implemented in `src/riscos_entropy.c`.
 `MBEDTLS_NET_C` and `MBEDTLS_TIMING_C` are disabled because their sources
-refuse to build off Unix/Windows and libssh does not use them.  OpenSSL
-was not needed.
+refuse to build off Unix/Windows and libssh does not use them.  To keep
+the binary small the same file also leaves out TLS and every algorithm
+libssh does not negotiate, and everything is built with function and
+data sections so the link drops unused code; libssh is built without
+group exchange.  OpenSSL was not needed.
 
 ## How dependencies are built
 
@@ -101,9 +105,11 @@ GCC/UnixLib ABI would be frozen in the repository.
   `cmake/toolchain-riscos.cmake`, and `make package` produces
   `dist/SSHd_<version>.zip`.  `tools/container-engine.sh` picks Docker,
   Podman or Colima.
-- `.github/workflows/build.yml` runs `make ENGINE=docker` on an amd64
-  GitHub runner, where the image needs no emulation, caches
-  `deps/sysroot`, and uploads the package as an artifact.
+- `.github/workflows/build.yml` runs `make check` and `make ENGINE=docker`
+  on an amd64 GitHub runner, where the image needs no emulation, caches
+  the image and `deps/sysroot`, and uploads the package as an artifact;
+  on a `v<version>` tag it also publishes the release and the PackMan
+  index.
 
 Pinned versions: mbedTLS 3.6.7, libssh 0.11.5.
 
@@ -115,30 +121,33 @@ Pinned versions: mbedTLS 3.6.7, libssh 0.11.5.
 | libssh: `strndup` implicit | UnixLib hides it without `_GNU_SOURCE` | `-D_GNU_SOURCE` in `tools/build-deps.sh` |
 | libssh: `if_nametoindex` implicit | UnixLib declares it under `#if 0` | stub in `deps/patches/libssh-riscos.patch` |
 | libssh: `B230400` undeclared | UnixLib's termios stops at 115200 | `#ifdef` guard in the patch |
-| segfault in `libssh_constructor()` at start | libssh forces `-fPIC`; GCCSDK PIC globals go through a table only the shared-object manager fills in, absent in a static AIF | patch `DefineCMakeDefaults.cmake` to skip PIC when the toolchain file name contains `riscos`; constructor/destructor attributes and `__thread` disabled with `-DHAVE_CONSTRUCTOR_ATTRIBUTE=0` etc. |
+| segfault in `libssh_constructor()` at start | libssh forces `-fPIC`; GCCSDK PIC globals go through a table only the shared-object manager fills in, absent in a static AIF | patch `DefineCMakeDefaults.cmake` to drop PIC; constructor/destructor attributes and `__thread` disabled with `-DHAVE_CONSTRUCTOR_ATTRIBUTE=0` etc. |
 | "branch through zero" in `mbedtls_ctr_drbg_reseed_internal` | with the constructor gone, `ssh_init()` must run before any key operation | `main()` calls `ssh_init()` first |
 | `ssh_init failed` | libssh picked pthread locking (UnixLib has `pthread.h`) but mbedTLS has no `MBEDTLS_THREADING_C` | `ssh_threads_set_callbacks(ssh_threads_get_noop())` before `ssh_init()` |
-| `SSHd needs the CryptRandom module` | not in the 5.30 ROM; PackMan puts it in `System:Modules.CryptRand` and nothing loads it | `!Run` does `RMLoad System:Modules.CryptRand` |
+| `CryptRandom module missing or failing` | not in the 5.30 ROM; PackMan puts it in `System:Modules.CryptRand` and nothing loads it | the package depends on CryptRandom, `!Run` loads it if present, and `main()` probes it and refuses to start without it; the patch also makes `ssh_crypto_init()` fail when the DRBG cannot be seeded |
 | "EMT trap" with no message | UnixLib maps hardware exceptions inside SWIs and RISC OS 5's branch-through-zero trap to SIGEMT | `src/riscos.c` installs a SIGEMT/SIGOSERROR handler that prints `_kernel_last_oserror()` |
 
 `CryptRandom_Block` (R0 = buffer, R1 = length) works as documented; an
 earlier suspicion that it faulted was the unseeded DRBG above.
 
-Later additions to `deps/patches/libssh-riscos.patch` for the SFTP server:
-`fstat`, `rename` (fails on an existing target), `posix-rename@openssh.com`
-(replaces it) and `fsetstat` handlers (libssh ships none), `open` honouring
-TRUNC and EXCL, read requests clamped to 32 KB, reads at or past
-end-of-file answered from the file size, `setstat` ignoring modes, owner
-and times, a failed `realpath` being a client error rather than a fatal
-one, `sftp_server_close_handles()` so a dropped client's files are
-closed, and a retype after `rename` to a `,xxx` name.
+The patch's SFTP server changes are commented where they are made; in
+short: handlers for `fstat`, `fsetstat` (a size truncates), `rename`
+(fails on an existing target) and `posix-rename@openssh.com` (replaces
+it), which libssh does not implement; `open` honouring TRUNC and EXCL;
+reads clamped to 32 KB and answered from the file size at or past the
+end; writes beyond 2 GB refused, as `off_t` is 32-bit; `setstat`
+ignoring modes, owner and times; a failed `realpath` being a client error
+rather than a fatal one; `sftp_server_close_handles()` so a dropped
+client's files are closed; and filetypes for new files and renames.
 
-Filetypes need no server code of their own: UnixLib implements the
-HostFS convention when the application-defined `__riscosify_control`
-(in `src/main.c`) has `__RISCOSIFY_FILETYPE_EXT`: `riscosify` strips
-`,xxx` and looks extensions up in MimeMap, `open` types new files from
-that, and `unixify` adds `,xxx` in listings where the extension does
-not imply the type.  Two UnixLib details that cost time: `__riscosify`
-returns a pointer to the end of its output buffer, and
-`MimeMap_Translate`'s output code for a RISC OS type number is 0 (1 means
-a type name string written to a buffer in R3).
+Filetypes are mostly UnixLib's work: with `__RISCOSIFY_FILETYPE_EXT` in
+the application-defined `__riscosify_control` (in `src/main.c`),
+`riscosify` strips `,xxx` and looks extensions up in MimeMap, `open`
+types new files from that, and `unixify` adds `,xxx` in listings where
+the extension does not imply the type.  Two small helpers in
+`src/riscos_sftp.c` cover the rest: retyping after a rename, and the
+`filetype` setting for new files whose names MimeMap does not know.  Two
+UnixLib details that cost time: `__riscosify` returns a pointer to the
+end of its output buffer, and `MimeMap_Translate`'s output code for a
+RISC OS type number is 0 (1 means a type name string written to a buffer
+in R3).

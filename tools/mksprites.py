@@ -4,7 +4,7 @@
 Writes riscos/!SSHd/!Sprites22,ff9 (mode 20, square pixels, 34x34) and
 riscos/!SSHd/!Sprites,ff9 (mode 12, 34x17) with sprites "!sshd" and
 "sm!sshd".  Colours are indices into the standard Wimp 16-colour palette.
-Run from the repository root; the output files are committed.
+The output files are committed; run it from anywhere.
 """
 import struct, os
 
@@ -55,11 +55,6 @@ def draw_icon():
     rect(g, 24, 25, 25, 28, 'K')      # keyhole
     return [''.join(row) for row in g]
 
-def rows(art):
-    r = [l for l in art.strip('\n').split('\n')]
-    assert all(len(l) == 34 for l in r) and len(r) == 34, [len(l) for l in r]
-    return r
-
 def shrink(r):   # 34x34 -> 17x17 by sampling every other pixel
     return [l[::2] for l in r[::2]]
 
@@ -89,7 +84,8 @@ def spritefile(sprites):
     body = b''.join(sprites)
     return struct.pack('<III', len(sprites), 16, 16 + len(body)) + body
 
-big = rows('\n'.join(draw_icon()))
+big = draw_icon()
+assert len(big) == 34 and all(len(l) == 34 for l in big)
 here = os.path.dirname(os.path.abspath(__file__))
 app = os.path.join(here, '..', 'riscos', '!SSHd')
 with open(os.path.join(app, '!Sprites22,ff9'), 'wb') as f:

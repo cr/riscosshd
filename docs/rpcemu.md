@@ -41,14 +41,15 @@ ssh -p 2222 -o StrictHostKeyChecking=accept-new riscos@localhost '*Cat'
 
 The server accepts the user name `riscos` by default (the `user` setting
 in `Choices:SSHd.Options`); the public key must be listed in
-`!Boot.Choices.SSHd.authkeys` on the RISC OS side.
+`Choices:SSHd.authkeys` on the RISC OS side.
 
 ## Getting the app into the emulator
 
 `make install` finds the RPCEmu data directory with the newest
-`rpclog.txt` under `~/Documents/RPCEmu` (override with `RPCEMU_HOSTFS`),
+`rpclog.txt` under `~/Documents/RPCEmu` or `~/RPCEmu` (override with
+`RPCEMU_HOSTFS`),
 copies `build/!SSHd` into its `hostfs/Apps/Network/` (the
-`,ff8`/`,feb`/`,fff` suffixes carry the filetypes) and appends
+`,ff8`/`,feb`/`,fff`/`,ff9` suffixes carry the filetypes) and appends
 `~/.ssh/id_ed25519.pub` to `hostfs/!Boot/Choices/SSHd/authkeys`.  Restart
 `!SSHd` in the emulator afterwards; `make test` then checks a command and
 an sftp listing through the forwarded port.

@@ -1,7 +1,7 @@
 /* SFTP backend: libssh's built-in SFTP server (sftpserver.c) running on
  * the channel.  It works on POSIX file calls, which UnixLib maps onto
  * RISC OS: "/dir/file.ext" is "dir.file/ext" on the current disc, and the
- * directory the client starts in is the SFTP root given with -r.
+ * directory the client starts in is the root setting (or -r).
  * Modern scp (OpenSSH 9+) uses SFTP, so it works too; the legacy scp -O
  * protocol is not supported.
  *
@@ -20,6 +20,7 @@
 #include <libssh/sftpserver.h>
 
 #include "backend.h"
+#include "buf.h"
 #include "log.h"
 
 /* Added to libssh by deps/patches/libssh-riscos.patch. */
@@ -31,8 +32,7 @@ void sftp_server_close_handles(sftp_session sftp);
 
 struct sftp_state {
     sftp_session sftp;
-    char *q;
-    size_t qlen, qcap;
+    struct buf q;             /* bytes received, not yet handled */
 };
 
 static int sftp_start(struct chan_ctx *c, const char *command)
@@ -55,36 +55,25 @@ static int sftp_start(struct chan_ctx *c, const char *command)
 static int sftp_data(struct chan_ctx *c, const char *buf, size_t len)
 {
     struct sftp_state *st = c->backend_data;
-    if (st->qlen + len > st->qcap) {
-        size_t ncap = st->qcap ? st->qcap : 65536;
-        char *n;
-        while (ncap < st->qlen + len)
-            ncap *= 2;
-        if (ncap > QUEUE_MAX) {
-            log_msg("%s: sftp request queue over %d bytes, dropping the session", c->owner_name, QUEUE_MAX);
-            chan_finish(c, 1);
-            return (int)len;
-        }
-        n = realloc(st->q, ncap);
-        if (!n)
-            return 0;
-        st->q = n;
-        st->qcap = ncap;
+    if (st->q.len + len > QUEUE_MAX) {
+        log_msg("%s: sftp request queue over %d bytes, dropping the session", c->owner_name, QUEUE_MAX);
+        chan_finish(c, 1);
+    } else if (buf_append(&st->q, buf, len) < 0) {
+        log_msg("%s: out of memory for the sftp queue, dropping the session", c->owner_name);
+        chan_finish(c, 1);
     }
-    memcpy(st->q + st->qlen, buf, len);
-    st->qlen += len;
-    return (int)len;
+    return (int)len;              /* always consumed, so libssh keeps nothing back */
 }
 
 /* Length of the complete SFTP packet at the head of the queue, or 0. */
-static size_t packet_len(const struct sftp_state *st)
+static size_t packet_len(const struct buf *q)
 {
-    const unsigned char *d = (const unsigned char *)st->q;
+    const unsigned char *d = (const unsigned char *)buf_data(q);
     size_t plen;
-    if (st->qlen < 4)
+    if (q->len < 4)
         return 0;
     plen = ((size_t)d[0] << 24) | ((size_t)d[1] << 16) | ((size_t)d[2] << 8) | d[3];
-    if (plen + 4 > st->qlen)
+    if (plen > q->len - 4)        /* written so that it cannot wrap */
         return 0;
     return plen + 4;
 }
@@ -94,19 +83,20 @@ static void sftp_poll(struct chan_ctx *c)
     struct sftp_state *st = c->backend_data;
     size_t n;
 
-    while (!c->finished && (n = packet_len(st)) > 0) {
+    while (!c->finished && (n = packet_len(&st->q)) > 0) {
         int rc;
         if (ssh_channel_window_size(c->channel) < REPLY_MAX)
             return;                                   /* let the client catch up */
-        rc = sftp_channel_default_data_callback(c->session, c->channel, st->q, (uint32_t)n, 0, &st->sftp);
+        rc = sftp_channel_default_data_callback(c->session, c->channel, buf_data(&st->q),
+                                                (uint32_t)n, 0, &st->sftp);
         if (rc < 0) {
-            /* protocol error: libssh sent EOF and closed the channel */
-            c->finished = 1;
-            c->closed = 1;
+            /* A malformed packet, or the server stopped: end the session.
+             * libssh closes the channel itself in some of these cases;
+             * chan_pump closes it if it is still open. */
+            chan_finish(c, 1);
             return;
         }
-        memmove(st->q, st->q + n, st->qlen - n);
-        st->qlen -= n;
+        buf_consume(&st->q, n);
     }
 }
 
@@ -123,7 +113,7 @@ static void sftp_stop(struct chan_ctx *c)
             sftp_server_close_handles(st->sftp);   /* files a dropped client left open */
             sftp_server_free(st->sftp);
         }
-        free(st->q);
+        buf_free(&st->q);
         free(st);
     }
     c->backend_data = NULL;

@@ -16,11 +16,9 @@
 /* GCCSDK targets ARMv3 by default; the bignum inline assembly needs the
  * long-multiply instructions of later cores, so use plain C. */
 #undef MBEDTLS_HAVE_ASM
-#undef MBEDTLS_AESNI_C
-#undef MBEDTLS_AESCE_C
-#undef MBEDTLS_PADLOCK_C
 
-/* mbedtls_ms_time() is provided by src/riscos_entropy.c (gettimeofday). */
+/* mbedtls_ms_time() comes from src/riscos_entropy.c; nothing linked calls
+ * it, but without the ALT platform_util.c would want a POSIX clock. */
 #define MBEDTLS_PLATFORM_MS_TIME_ALT
 
 /* Size: leave out what the server never uses.  libssh needs AES (CBC, CTR,
@@ -62,13 +60,6 @@
 #undef MBEDTLS_ECP_DP_BP512R1_ENABLED
 #undef MBEDTLS_ECP_DP_CURVE448_ENABLED
 
-/* The TLS library is not linked, so its options cost nothing; only the
- * ones whose prerequisites went above are switched off. */
-#undef MBEDTLS_SSL_PROTO_TLS1_3
-#undef MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ENABLED
-#undef MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED
-#undef MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_EPHEMERAL_ENABLED
-#undef MBEDTLS_SSL_EARLY_DATA
-#undef MBEDTLS_KEY_EXCHANGE_DHE_PSK_ENABLED
-#undef MBEDTLS_KEY_EXCHANGE_DHE_RSA_ENABLED
-#undef MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED
+/* No TLS at all; mbedTLS then drops every protocol version, key exchange
+ * and option that depended on the modules removed above. */
+#undef MBEDTLS_SSL_TLS_C

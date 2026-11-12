@@ -8,8 +8,8 @@ and accepts public-key logins only.  `ssh host '*Cat'` runs a command,
 `sftp`/`scp` move files.  Keys are managed in a desktop window, including
 an import that logs in to another machine and fetches its public keys.
 
-Status: exec, interactive shell, SFTP/scp and the desktop front end all
-work against RISC OS 5.30 in RPCEmu (2026-11-11).  See "Roadmap".
+Status: version 0.1.0, tested on RISC OS 5.30 in RPCEmu and installable
+through PackMan.  See "Roadmap".
 
 **Security model.**  Any key listed in `Choices:SSHd.authkeys` has full
 control of the machine: every `*command`, and over SFTP every filing
@@ -20,11 +20,11 @@ the key list accordingly.
 
 ## Installation
 
-SSHd needs RISC OS 5 (developed and tested against 5.30 in RPCEmu; the
-package declares 5.00 or later), a configured network connection, and
-the CryptRandom module, which the package pulls in.  The
-server listens on TCP port 22; if the machine sits behind a router or an
-emulator's NAT, forward that port to reach it from outside.
+SSHd needs RISC OS 5 (developed and tested against 5.30 in RPCEmu), a
+configured network connection, and the CryptRandom module, which the
+package pulls in.  The server listens on TCP port 22; if the machine sits
+behind a router or an emulator's NAT, forward that port to reach it from
+outside.
 
 ### With PackMan (recommended)
 
@@ -50,13 +50,13 @@ emulator's NAT, forward that port to reach it from outside.
    [releases page](https://github.com/cr/riscosshd/releases).
 2. Unpack it on RISC OS with something that turns the `,xxx` suffixes in
    the names into filetypes, such as !SparkFS; PackMan does this itself.
-   Inside are `Apps/Network/!SSHd` and `RiscPkg/Control` and
-   `Copyright`.
+   Inside are `Apps/Network/!SSHd`, `RiscPkg/Control` and
+   `RiscPkg/Copyright`.
 3. Copy `!SSHd` to where you keep network applications, for example
    `$.Apps.Network`.
 4. Install the CryptRandom module (PackMan, package "CryptRandom"); `!Run`
-   soft-loads `System:Modules.CryptRand` and SSHd refuses to start
-   without it, since every key and nonce comes from it.
+   loads `System:Modules.CryptRand` and SSHd refuses to start without it,
+   since every key and nonce comes from it.
 5. To run it at startup, drag `!SSHd` into Configure > Boot > Run.
 
 ### From source
@@ -74,14 +74,13 @@ inside the emulator with PackMan.
 2. With no key configured the Keys window opens by itself.  Add your
    public key in one of three ways: paste the content of your `id_*.pub`
    file into the field and click **Add**; drop the `.pub` file on the
-   window; or use **Import** with `user@host` and the password of a
-   machine that already holds your keys, which logs in there as an SSH
-   client, shows that machine's host key fingerprint for confirmation, and
-   imports its `~/.ssh/id_*.pub`.  Keys live in `Choices:SSHd.authkeys`.
+   window; or use **Import** with `user@host` (or `user@host:port`) and
+   the password of a machine that already holds your keys.  Import logs in
+   there as an SSH client, shows that machine's host key fingerprint for
+   confirmation, and imports `~/.ssh/id_ed25519.pub`, `id_ecdsa.pub` and
+   `id_rsa.pub`.  Keys live in `Choices:SSHd.authkeys`.
 3. The window's top line shows this server's own host key.  Compare it
    with what your client prints on its first connection.
-4. Only the user name `riscos` is accepted until the `user` setting says
-   otherwise; the key decides who gets in.
 
 ```bash
 ssh riscos@riscos-host '*Cat'   # run a command, output streams back
@@ -105,98 +104,53 @@ Remove the package in PackMan, or delete `!SSHd` and its Boot > Run
 entry.  `Choices:SSHd` (host key, authorized keys, settings, log) stays
 until you delete it.
 
-## Running
+## Using it
 
-Commands run in a TaskWindow child, so they behave as in Edit's task
-windows: line input, no Wimp applications.  A command is one line of an
-Obey file: control characters and more than 1000 characters are refused,
-and Obey substitutes `%0`..`%9` (with nothing) and `%%` (with `%`) before
-the command runs.  The exit status is 0 when
-the command completed and 1 when it raised a RISC OS error or was
-interrupted.  A child that prints faster than the client reads is
-suspended and resumed with the TaskWindow module's own messages.  If the
-server itself dies with a fatal error, any children keep running and show
-in the Task Manager as "SSH session"; quit them there.  Connections that
-do not authenticate within 60 s, or sit logged in without a channel for
-120 s, are dropped; at most 8 connections are held at once.  All three
-are settings.
+**Commands and sessions** run in a TaskWindow child, so they behave as in
+Edit's task windows: line input, no Wimp applications.  A command is one
+line of an Obey file: control characters other than tab and more than
+1000 characters are refused, and Obey substitutes `%0`..`%9` (with
+nothing) and `%%` (with `%`) before the command runs.  The exit status is
+0 when the command completed and 1 when it raised a RISC OS error or was
+interrupted; refusals and errors go to stderr.  A child that prints
+faster than the client reads is suspended until it catches up.  If the
+server itself dies with a fatal error, any children keep running and
+show in the Task Manager as "SSH session"; quit them there.
 
-Settings live in `Choices:SSHd.Options` (Options... on the menu opens
-it), written on first run with every setting commented out at its
-default in the `name value  # comment` form, and survive package
-upgrades:
-`port`, `bind`, `root`, `user` (one accepted user name, default
-`riscos`, empty for any), `shell`/`exec`/`sftp` on or off,
-`auth-timeout`, `idle-timeout`, `max-sessions`, `banner` and `motd`
-(text files `Choices:SSHd.Banner`, sent before login, and
-`Choices:SSHd.Motd`, printed when a shell starts), `filetype` (for
-uploads with no `,xxx` suffix and no MimeMap match, default `ffd`),
-`verbose`, `log` and `log-size`.  The log is also written to
-`Choices:SSHd.log`.
+**Connections** that do not log in within 60 s, or sit logged in without
+a session for 120 s, are dropped; at most 8 are held at once, and one
+address may hold at most two that have not logged in yet.  The first
+three numbers are settings.
 
-## Why it looks the way it does
+**SFTP and scp** use libssh's SFTP server, so `sftp` and modern `scp`
+(OpenSSH 9 and later, which transfers over SFTP) both work; the legacy
+`scp -O` protocol does not.  Paths are what UnixLib makes of RISC OS
+names: the boot disc root is `/HostFS::HostFS.$/` on RPCEmu, and
+`dir.file/ext` appears as `/dir/file.ext`.  Clients start in the `root`
+setting's directory, by default the boot disc.  Permissions, owners and
+timestamps are accepted and ignored, as RISC OS has nothing to map them
+to.  Files above 2 GB cannot be read or written past that point.
 
-RISC OS has BSD sockets (the Internet module, reachable through UnixLib)
-and a command-line interpreter, but none of the Unix machinery an SSH
-server normally leans on:
+**Filetypes** follow the HostFS/LanManFS convention.  A name ending in
+`,xxx` (three hex digits) refers to the file without that suffix and, on
+upload or rename, gives it filetype `xxx`: `put prog prog,ffb` stores a
+BASIC file called `prog`.  Otherwise the extension is looked up through
+MimeMap, so `notes.txt` becomes Text and `pic.png` a PNG; a name MimeMap
+does not know gets the `filetype` setting, Data by default.  Listings show
+`,xxx` on files whose type the extension does not already imply, and a
+client may use either spelling: `get prog,ffb` and `get prog` are the same
+file.
 
-- **No `fork`, no processes.**  There is one application at a time in the
-  application slot; everything else is a module or a Wimp task.  The server
-  therefore handles all connections in a single cooperative poll loop, each
-  connection being a `session_ctx` driven by one libssh `ssh_event`.
-- **No pty.**  The RISC OS equivalent is the **TaskWindow** module: a child
-  task whose keyboard input and VDU output are relayed as Wimp messages
-  (`Message_TaskWindow_Input` / `_Output`).  A `shell` request starts such
-  a child with `Wimp_StartTask`; its output goes to the SSH channel and the
-  client's keystrokes are sent to it as input (`src/backend_taskwindow.c`).
-  `exec` requests use the same mechanism with `-quit`: the command is
-  written to a scratch Obey file that sets a system variable to 1 before
-  it and 0 after it, so a RISC OS error or an Escape leaves 1 and becomes
-  the SSH exit status, and output streams as the command produces it.
-  Refusals and errors go to the channel's stderr.  In text mode `exec`
-  runs through `OS_CLI` inside the server's own task with VDU output
-  redirected to a file (`OS_ChangeRedirection`).
-- **No Unix shell.**  `exec` requests are RISC OS `*commands`; an
-  interactive session is the TaskWindow's own `*` command line.  In text
-  mode (`-t`) a line editor feeding `OS_CLI` stands in for it.
-- **Sockets are system-wide handles**, not per-process descriptors, and
-  the machine is cooperatively multitasked.  The server is a Wimp task
-  that services libssh from null events, so the desktop keeps going; in
-  text mode (`-t`) it polls with short timeouts and yields with
-  `OS_UpCall 6`.
-- **Entropy** comes from the CryptRandom module, wired into mbedTLS through
-  `mbedtls_hardware_poll()`.
+**The desktop**: SELECT on the icon opens the log window, ADJUST the Keys
+window, and the menu offers Info, Log Window, a Verbose tick, Keys...,
+Options... (the settings file in your text editor) and Quit.  `!Help`
+describes each part, and interactive help covers every icon and menu item.
 
-The SSH transport is libssh's, unmodified; everything RISC OS specific is
-in `src/riscos*.c` and the backends.
-
-## Layout
-
-```
-src/main.c            argument parsing, config dir, text-mode loop
-src/server.c          ssh_bind, sessions, timeouts, libssh callbacks, output pump
-src/backend.h         session backend interface
-src/backend_taskwindow.c  exec and shell: TaskWindow child relayed over Wimp messages
-src/backend_sftp.c    sftp subsystem: libssh's SFTP server on the channel
-src/backend_exec.c    text mode: one OS_CLI command, captured output
-src/backend_shell.c   text mode: line-mode * prompt on the same mechanism
-src/wimp.c            Wimp front end: icon bar, menu, info, log and keys windows
-src/keyfetch.c        import public keys from another machine as an SSH client
-src/auth.c            authorized_keys parsing, matching, add and remove
-src/hostkey.c         ed25519 host key load/generate
-src/riscos.c          OS_File, OS_GSTrans, OS_CLI capture, signals
-src/riscos_entropy.c  mbedTLS hooks: CryptRandom entropy, ms clock, start-up check
-src/riscos_sftp.c     filetype helpers used by the libssh SFTP patch
-src/riscos_compat.c   statvfs stub for libssh's SFTP server
-src/log.c             log lines to the window, the log file, or stderr in text mode
-tests/                host-side unit test of auth.c (make check)
-riscos/!SSHd          !Run, !Boot, !Help, sprites (binary is added by the build)
-riscos/RiscPkg        Control file for the PackMan package
-cmake/                GCCSDK toolchain file
-deps/                 mbedTLS config, libssh patch, compat header (sources/sysroot git-ignored)
-docker/, tools/       GCCSDK container, dependency build, engine and RPCEmu helpers
-docs/                 toolchain research, RPCEmu notes, audit
-```
+**Settings** live in `Choices:SSHd.Options`, written on first run with
+every setting commented out at its default, and survive package upgrades.
+`!Help` lists them all.  They take effect at the next start; command line
+options (`-p`, `-b`, `-r`, `-d`, `-t` for text mode in a TaskWindow, `-v`)
+override them.
 
 ## Building
 
@@ -220,59 +174,25 @@ the PackMan zip; `make sprites` regenerates the icon from
 `tools/mksprites.py`; `make clean` / `make distclean`.  Variables:
 `ENGINE`, `IMAGE`, `RPCEMU_HOSTFS`, `PUBKEY`, `SSH_PORT`, `SSH_HOST`,
 `SSH_USER`.  `make install` finds the RPCEmu data directory with the most
-recent `rpclog.txt` under `~/Documents/RPCEmu`; set `RPCEMU_HOSTFS` to
-override.  The same `make` runs in GitHub Actions
-(`.github/workflows/build.yml`).  `docs/toolchain.md` explains why
+recent `rpclog.txt` under `~/Documents/RPCEmu` or `~/RPCEmu`; set
+`RPCEMU_HOSTFS` to override.
+
+GitHub Actions (`.github/workflows/build.yml`) runs `make check` and
+`make` on every push and pull request.  `docs/design.md` explains the
+design and the source layout, `docs/toolchain.md` the toolchain and why
 build.riscos.online is not used.
 
-## Package
+## Package and publishing
 
-`dist/SSHd_<version>.zip` is a RiscPkg/PackMan package: `Apps/Network/!SSHd`
-plus `RiscPkg/Control` and `RiscPkg/Copyright`.  The version comes from
-the `Version:` field in `riscos/RiscPkg/Control`.  The component flags
-`(Movable LookAt Run)` let PackMan offer to run `!SSHd` at boot and to
-have `!Boot` look at it, so the server can come up with the desktop.
+`dist/SSHd_<version>.zip` is a RiscPkg/PackMan package:
+`Apps/Network/!SSHd` plus `RiscPkg/Control` and `RiscPkg/Copyright`.  The
+version comes from the `Version:` field in `riscos/RiscPkg/Control`, and
+the component flags `(Movable LookAt Run)` let PackMan offer to run
+`!SSHd` at boot.
 
-## SFTP and scp
-
-The `sftp` subsystem is libssh's built-in SFTP server running on the
-channel (`src/backend_sftp.c`), so `sftp` and modern `scp` (OpenSSH 9 and
-later, which transfers over SFTP) both work.  Paths are what UnixLib makes
-of RISC OS names: the boot disc root is `/HostFS::HostFS.$/` on RPCEmu,
-`dir.file/ext` appears as `/dir/file.ext`, and clients start in the
-directory given with `-r` (default `<Boot$Dir>.^`).  Permissions, owners
-and timestamps in `setstat`/`fsetstat` are accepted and ignored, since
-RISC OS has nothing to map them to.  The legacy `scp -O` protocol is not
-supported.
-
-**Filetypes** follow the HostFS/LanManFS convention.  A name ending in
-`,xxx` (three hex digits) refers to the file without that suffix and, on
-upload or rename, gives it filetype `xxx`: `put prog prog,ffb` stores a
-BASIC file called `prog`.  Otherwise the extension is looked up through
-MimeMap, so `notes.txt` becomes Text and `pic.png` a PNG.  Listings show
-`,xxx` on files whose type the extension does not already imply, and a
-client may use either spelling: `get prog,ffb` and `get prog` are the
-same file.
-
-## Desktop front end
-
-`!SSHd` is a Wimp task.  The icon-bar menu offers **Info...**, a
-tail-style **Log Window**, a **Keys...** window, **Options...** (opens the
-settings file in your text editor) and **Quit**.  The Keys
-window shows the server's host key, lists the authorized keys with a
-Delete button each, and adds keys three ways: a writable field, a text
-file dropped from the Filer or an application, or **Import**, which logs
-in to another machine as an SSH client (libssh's client side, password or
-keyboard-interactive auth, host key fingerprint confirmed in a dialogue)
-and imports that machine's `~/.ssh/id_*.pub`.  It opens by itself when no
-key is configured.  `-t` runs the text mode in a TaskWindow instead.
-
-## Publishing
-
-Each tagged release (`v<version>`, matching `Version:` in
-`riscos/RiscPkg/Control`) rebuilds the package in CI, attaches the zip to
-a GitHub release and republishes the PackMan index on GitHub Pages
-(`.github/workflows/release.yml`, `tools/mkindex.sh`).
+A tag `v<version>` matching that field publishes a release: the same
+workflow attaches the zip to a GitHub release and republishes the
+PackMan index on GitHub Pages (`tools/mkindex.sh`).
 
 ## Roadmap
 

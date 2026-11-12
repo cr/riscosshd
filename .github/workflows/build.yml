@@ -1,5 +1,13 @@
 name: build
-on: [push, pull_request, workflow_dispatch]
+# Every push to main and every pull request builds and tests.  A tag
+# v<version> also publishes: the package goes to a GitHub release and the
+# PackMan index to GitHub Pages, https://cr.github.io/riscosshd/pkg/index
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -7,18 +15,67 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check that a release tag matches the Control file
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v=$(sed -n 's/^Version: *//p' riscos/RiscPkg/Control)
+          test "v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} but Control says $v"; exit 1; }
+      - name: Host-side unit test
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libssh-dev pkg-config && make check
+      - uses: docker/setup-buildx-action@v3
+      - name: Toolchain image (cached between runs)
+        uses: docker/build-push-action@v6
+        with:
+          context: docker
+          platforms: linux/amd64
+          tags: riscosshd-gccsdk
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: Cache cross-built dependencies
         uses: actions/cache@v4
         with:
           path: deps/sysroot
-          key: deps-${{ hashFiles('tools/build-deps.sh', 'deps/mbedtls_riscos_config.h', 'deps/patches/**', 'deps/riscos-compat/**', 'cmake/toolchain-riscos.cmake') }}
-      - name: Keep a restored sysroot newer than the checkout
-        run: test -d deps/sysroot && find deps/sysroot -exec touch {} + || true
-      - name: Host-side unit test
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libssh-dev pkg-config && make check
-      - name: Build (image, dependencies, server, package)
+          key: deps-${{ hashFiles('tools/build-deps.sh', 'deps/mbedtls_riscos_config.h', 'deps/patches/**', 'deps/riscos-compat/**', 'cmake/toolchain-riscos.cmake', 'docker/Dockerfile') }}
+      - name: Mark the image and a restored sysroot as up to date
+        run: |
+          touch .image-built
+          test -d deps/sysroot && find deps/sysroot -exec touch {} + || true
+      - name: Build (dependencies, server, package)
         run: make ENGINE=docker
       - uses: actions/upload-artifact@v4
         with:
           name: SSHd
           path: dist/SSHd_*.zip
+
+  release:
+    needs: riscos
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: SSHd
+          path: dist
+      - name: Package index, GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          site="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          sh tools/mkindex.sh site "$site" dist/SSHd_*.zip
+          gh release create "${GITHUB_REF_NAME}" dist/SSHd_*.zip \
+              --title "SSHd ${GITHUB_REF_NAME#v}" \
+              --notes "PackMan source (add under Sources): $site/pkg/index"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4

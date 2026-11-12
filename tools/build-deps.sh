@@ -34,20 +34,18 @@ fetch "$LIBSSH_URL"  "libssh-$LIBSSH_VER.tar.xz" "$LIBSSH_SHA256"
 if [ ! -f "$SYSROOT/lib/libmbedcrypto.a" ] \
    || [ "$TOP/deps/mbedtls_riscos_config.h" -nt "$SYSROOT/lib/libmbedcrypto.a" ] \
    || [ "$TOOLCHAIN" -nt "$SYSROOT/lib/libmbedcrypto.a" ]; then
-rm -rf "$SRC/mbedtls-$MBEDTLS_VER"
-tar -xjf "$DL/mbedtls-$MBEDTLS_VER.tar.bz2" -C "$SRC"
-cd "$SRC/mbedtls-$MBEDTLS_VER"
-for p in "$TOP"/deps/patches/mbedtls-*.patch; do [ -f "$p" ] && patch -p1 < "$p"; done
-cmake -S . -B build-riscos -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
-    -DRISCOS_SYSROOT="$SYSROOT" -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX="$SYSROOT" \
-    -DENABLE_PROGRAMS=OFF -DENABLE_TESTING=OFF -DMBEDTLS_FATAL_WARNINGS=OFF \
-    -DUSE_SHARED_MBEDTLS_LIBRARY=OFF -DUSE_STATIC_MBEDTLS_LIBRARY=ON \
-    -DGEN_FILES=OFF \
-    -DCMAKE_C_FLAGS="-ffunction-sections -fdata-sections" \
-    -DMBEDTLS_USER_CONFIG_FILE="$TOP/deps/mbedtls_riscos_config.h"
-cmake --build build-riscos -j"$NPROC"
-cmake --install build-riscos
+    rm -rf "$SRC/mbedtls-$MBEDTLS_VER"
+    tar -xjf "$DL/mbedtls-$MBEDTLS_VER.tar.bz2" -C "$SRC"
+    cd "$SRC/mbedtls-$MBEDTLS_VER"
+    cmake -S . -B build-riscos -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$SYSROOT" \
+        -DENABLE_PROGRAMS=OFF -DENABLE_TESTING=OFF -DMBEDTLS_FATAL_WARNINGS=OFF \
+        -DUSE_SHARED_MBEDTLS_LIBRARY=OFF -DUSE_STATIC_MBEDTLS_LIBRARY=ON \
+        -DGEN_FILES=OFF \
+        -DCMAKE_C_FLAGS="-ffunction-sections -fdata-sections" \
+        -DMBEDTLS_USER_CONFIG_FILE="$TOP/deps/mbedtls_riscos_config.h"
+    cmake --build build-riscos -j"$NPROC"
+    cmake --install build-riscos
 fi
 
 # --- libssh --------------------------------------------------------------
@@ -57,10 +55,9 @@ fi
 rm -rf "$SRC/libssh-$LIBSSH_VER"
 tar -xJf "$DL/libssh-$LIBSSH_VER.tar.xz" -C "$SRC"
 cd "$SRC/libssh-$LIBSSH_VER"
-for p in "$TOP"/deps/patches/libssh-*.patch; do [ -f "$p" ] && patch -p1 < "$p"; done
+patch -p1 < "$TOP/deps/patches/libssh-riscos.patch"
 cmake -S . -B build-riscos -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
-    -DRISCOS_SYSROOT="$SYSROOT" -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX="$SYSROOT" \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$SYSROOT" \
     -DBUILD_SHARED_LIBS=OFF -DWITH_MBEDTLS=ON -DMBEDTLS_ROOT_DIR="$SYSROOT" \
     -DWITH_SERVER=ON -DWITH_SFTP=ON -DWITH_ZLIB=OFF -DWITH_GSSAPI=OFF \
     -DWITH_PCAP=OFF -DWITH_EXAMPLES=OFF -DUNIT_TESTING=OFF -DWITH_SYMBOL_VERSIONING=OFF \

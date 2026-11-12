@@ -43,7 +43,7 @@ static int exec_start(struct chan_ctx *c, const char *command)
 {
     int status;
     if (!command)
-        return -1;
+        return BACKEND_UNAVAILABLE;
     status = backend_run_cli(c, command);
     chan_finish(c, status);
     return 0;
@@ -55,8 +55,6 @@ static int exec_data(struct chan_ctx *c, const char *buf, size_t len)
     return (int)len; /* commands take no stdin for now */
 }
 
-static void exec_noop(struct chan_ctx *c) { (void)c; }
-
 const struct backend_ops backend_exec = {
-    "exec", exec_start, exec_data, exec_noop, exec_noop, exec_noop
+    "exec", exec_start, exec_data, NULL, NULL, NULL
 };

@@ -1,18 +1,15 @@
 --- a/cmake/Modules/DefineCMakeDefaults.cmake	2026-06-12 13:53:41
-+++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-12 10:00:00
-@@ -17,5 +17,8 @@
++++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-12 12:00:00
+@@ -17,5 +17,5 @@
  # Create the compile command database for clang by default
  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
  
 -# Always build with -fPIC
 -set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-+# Always build with -fPIC, except on RISC OS: GCCSDK's PIC code needs the
-+# shared object manager at run time, which a static AIF binary lacks.
-+if(NOT CMAKE_TOOLCHAIN_FILE MATCHES "riscos")
-+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-+endif()
++# No -fPIC: GCCSDK's PIC code needs the shared object manager at run time,
++# which a static AIF binary lacks.
 --- a/src/libmbedcrypto.c	2026-06-12 13:53:41
-+++ b/src/libmbedcrypto.c	2026-11-12 10:00:00
++++ b/src/libmbedcrypto.c	2026-11-12 12:00:00
 @@ -1078,7 +1078,11 @@
      rc = mbedtls_ctr_drbg_seed(&ssh_mbedtls_ctr_drbg, mbedtls_entropy_func,
              &ssh_mbedtls_entropy, NULL, 0);
@@ -26,43 +23,35 @@
  
  #if !(defined(MBEDTLS_CHACHA20_C) && defined(MBEDTLS_POLY1305_C))
 --- a/src/misc.c	2026-06-12 13:53:41
-+++ b/src/misc.c	2026-11-12 10:00:00
-@@ -71,6 +71,16 @@
++++ b/src/misc.c	2026-11-12 12:00:00
+@@ -71,6 +71,15 @@
  
  #include "libssh/priv.h"
  #include "libssh/misc.h"
 +
-+#ifdef __riscos__
-+/* UnixLib declares but does not implement if_nametoindex(); treat every
-+ * interface name as unknown, which only affects IPv6 link-local scopes. */
++/* UnixLib does not provide if_nametoindex() (its declaration is under
++ * #if 0); treat every interface name as unknown, which only affects IPv6
++ * link-local scopes. */
 +static unsigned int if_nametoindex(const char *ifname)
 +{
 +    (void)ifname;
 +    return 0;
 +}
-+#endif
  #include "libssh/session.h"
  
  #ifdef HAVE_LIBGCRYPT
 --- a/src/sftpserver.c	2026-06-12 13:53:41
-+++ b/src/sftpserver.c	2026-11-12 10:00:00
-@@ -41,7 +41,11 @@
- 
- #include <errno.h>
- #include <fcntl.h>
-+#include <unistd.h>
- #include <stdio.h>
-+#ifdef __riscos__
-+void riscos_sftp_type_new_file(const char *unixpath);  /* src/riscos_sftp.c */
-+#endif
- #include <sys/stat.h>
- #include <sys/types.h>
- #include <time.h>
-@@ -849,6 +853,29 @@
++++ b/src/sftpserver.c	2026-11-12 12:00:00
+@@ -849,6 +849,33 @@
      char *name;
  };
  
-+#ifdef __riscos__
++/* RISC OS changes (deps/patches/libssh-riscos.patch).  Filetype helpers
++ * from src/riscos_sftp.c: */
++int riscos_sftp_strip_suffix(char *name);
++void riscos_sftp_set_type(const char *unixpath, int type);
++void riscos_sftp_type_new_file(const char *unixpath);
++
 +/* Close and free every open handle of a server session.  sftp_server_free()
 + * only frees the handle table, which would leave the files open. */
 +LIBSSH_API void sftp_server_close_handles(sftp_session sftp);
@@ -83,177 +72,129 @@
 +        sftp->handles[i] = NULL;
 +    }
 +}
-+#endif
 +
  SSH_SFTP_CALLBACK(process_unsupposed);
  SSH_SFTP_CALLBACK(process_open);
  SSH_SFTP_CALLBACK(process_read);
-@@ -866,6 +893,12 @@
+@@ -866,6 +893,10 @@
  SSH_SFTP_CALLBACK(process_remove);
  SSH_SFTP_CALLBACK(process_extended_statvfs);
  SSH_SFTP_CALLBACK(process_setstat);
-+#ifdef __riscos__
 +SSH_SFTP_CALLBACK(process_fsetstat_riscos);
 +SSH_SFTP_CALLBACK(process_rename_riscos);
 +SSH_SFTP_CALLBACK(process_posix_rename_riscos);
 +SSH_SFTP_CALLBACK(process_fstat_riscos);
-+#endif
  
  const struct sftp_message_handler message_handlers[] = {
      {"open", NULL, SSH_FXP_OPEN, process_open},
-@@ -873,8 +906,14 @@
+@@ -873,9 +904,9 @@
      {"read", NULL, SSH_FXP_READ, process_read},
      {"write", NULL, SSH_FXP_WRITE, process_write},
      {"lstat", NULL, SSH_FXP_LSTAT, process_lstat},
-+#ifdef __riscos__
+-    {"fstat", NULL, SSH_FXP_FSTAT, process_unsupposed},
 +    {"fstat", NULL, SSH_FXP_FSTAT, process_fstat_riscos},
-+#endif
-     {"fstat", NULL, SSH_FXP_FSTAT, process_unsupposed},
      {"setstat", NULL, SSH_FXP_SETSTAT, process_setstat},
-+#ifdef __riscos__
+-    {"fsetstat", NULL, SSH_FXP_FSETSTAT, process_unsupposed},
 +    {"fsetstat", NULL, SSH_FXP_FSETSTAT, process_fsetstat_riscos},
-+#endif
-     {"fsetstat", NULL, SSH_FXP_FSETSTAT, process_unsupposed},
      {"opendir", NULL, SSH_FXP_OPENDIR, process_opendir},
      {"readdir", NULL, SSH_FXP_READDIR, process_readdir},
-@@ -883,6 +922,9 @@
+     {"remove", NULL, SSH_FXP_REMOVE, process_remove},
+@@ -883,7 +914,7 @@
      {"rmdir", NULL, SSH_FXP_RMDIR, process_rmdir},
      {"realpath", NULL, SSH_FXP_REALPATH, process_realpath},
      {"stat", NULL, SSH_FXP_STAT, process_stat},
-+#ifdef __riscos__
+-    {"rename", NULL, SSH_FXP_RENAME, process_unsupposed},
 +    {"rename", NULL, SSH_FXP_RENAME, process_rename_riscos},
-+#endif
-     {"rename", NULL, SSH_FXP_RENAME, process_unsupposed},
      {"readlink", NULL, SSH_FXP_READLINK, process_readlink},
      {"symlink", NULL, SSH_FXP_SYMLINK, process_symlink},
-@@ -893,6 +935,9 @@
+     {"init", NULL, SSH_FXP_INIT, sftp_reply_version},
+@@ -893,6 +924,7 @@
  const struct sftp_message_handler extended_handlers[] = {
      /* here are some extended type handlers */
      {"statvfs", "statvfs@openssh.com", 0, process_extended_statvfs},
-+#ifdef __riscos__
 +    {"posix-rename", "posix-rename@openssh.com", 0, process_posix_rename_riscos},
-+#endif
      {NULL, NULL, 0, NULL},
  };
  
-@@ -936,7 +981,24 @@
+@@ -936,7 +968,19 @@
          return SSH_ERROR;
      }
  
-+#ifdef __riscos__
+-    fd = open(filename, file_flag, mode);
 +    /* Honour the remaining open flags, or an upload over a longer file
-+     * keeps the old tail and exclusive creation is not exclusive. */
++     * keeps the old tail and exclusive creation is not exclusive; a new
++     * file with no ,xxx suffix and no MimeMap match gets the default type. */
 +    if (msg_flag & (uint32_t)SSH_FXF_TRUNC)
 +        file_flag |= O_TRUNC;
 +    if (msg_flag & (uint32_t)SSH_FXF_EXCL)
 +        file_flag |= O_EXCL;
-+#endif
-+#ifdef __riscos__
 +    {
 +        int existed = (file_flag & O_CREAT) ? access(filename, F_OK) == 0 : 1;
 +        fd = open(filename, file_flag, mode);
 +        if (fd != -1 && !existed)
 +            riscos_sftp_type_new_file(filename);
 +    }
-+#else
-     fd = open(filename, file_flag, mode);
-+#endif
      if (fd == -1) {
          int saved_errno = errno;
          SSH_LOG(SSH_LOG_PROTOCOL, "error open file with error: %s",
-@@ -956,6 +1018,7 @@
-     }
-     h->fd = fd;
-     h->type = SFTP_FILE_HANDLE;
-+
-     handle_s = sftp_handle_alloc(client_msg->sftp, h);
-     if (handle_s != NULL) {
-         sftp_reply_handle(client_msg, handle_s);
-@@ -996,6 +1059,23 @@
+@@ -996,6 +1040,16 @@
          SSH_LOG(SSH_LOG_PROTOCOL, "invalid fd (%d) received from handle", fd);
          return SSH_ERROR;
      }
-+#ifdef __riscos__
 +    {
 +        /* UnixLib's read() at exactly end-of-file does not return 0, so
-+         * answer reads at or beyond the end from the file size instead. */
++         * answer reads at or beyond the end from the file size instead.
++         * This also covers offsets past 2 GB, as off_t is 32-bit. */
 +        struct stat st;
 +        if (fstat(fd, &st) == 0 && client_msg->offset >= (uint64_t)st.st_size) {
 +            sftp_reply_status(client_msg, SSH_FX_EOF, NULL);
 +            return SSH_OK;
 +        }
 +    }
-+#endif
-+#ifdef __riscos__
-+    if (client_msg->offset > 0x7fffffffULL) {           /* off_t is 32-bit */
-+        sftp_reply_status(client_msg, SSH_FX_FAILURE, "Offset too large");
-+        return SSH_OK;
-+    }
-+#endif
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1005,6 +1085,12 @@
+@@ -1005,6 +1059,10 @@
          return SSH_OK;
      }
  
-+#ifdef __riscos__
 +    /* Short reads are allowed by the protocol; do not let the client size
 +     * the allocation and the reply packet. */
 +    if (client_msg->len > 32768)
 +        client_msg->len = 32768;
-+#endif
      buffer = malloc(client_msg->len);
      if (buffer == NULL) {
          ssh_set_error_oom(sftp->session);
-@@ -1057,6 +1143,12 @@
+@@ -1057,6 +1115,10 @@
      msg_data = ssh_string_get_char(client_msg->data);
      len = ssh_string_len(client_msg->data);
  
-+#ifdef __riscos__
 +    if (client_msg->offset > 0x7fffffffULL) {           /* off_t is 32-bit */
 +        sftp_reply_status(client_msg, SSH_FX_FAILURE, "Offset too large");
 +        return SSH_OK;
 +    }
-+#endif
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1309,6 +1401,7 @@
-             struct sftp_attributes_struct attr;
-             struct stat st;
-             char long_name[MAX_LONG_NAME_LEN];
-+            const char *name = dentry->d_name;
- 
-             if (strlen(dentry->d_name) + srclen + 1 >= PATH_MAX) {
-                 SSH_LOG(SSH_LOG_PROTOCOL,
-@@ -1324,10 +1417,10 @@
-                 clear_filexfer_attrib(&attr);
-             }
- 
--            if (readdir_long_name(dentry->d_name, &st, long_name) == 0) {
--                sftp_reply_names_add(client_msg, dentry->d_name, long_name, &attr);
-+            if (readdir_long_name((char *)name, &st, long_name) == 0) {
-+                sftp_reply_names_add(client_msg, name, long_name, &attr);
+@@ -1327,7 +1389,7 @@
+             if (readdir_long_name(dentry->d_name, &st, long_name) == 0) {
+                 sftp_reply_names_add(client_msg, dentry->d_name, long_name, &attr);
              } else {
 -                printf("readdir long name error\n");
 +                SSH_LOG(SSH_LOG_WARNING, "readdir long name error");
              }
  
              entries++;
-@@ -1428,7 +1521,11 @@
+@@ -1428,7 +1490,7 @@
  
          SSH_LOG(SSH_LOG_PROTOCOL, "realpath failed: %s", strerror(saved_errno));
          sftp_reply_status(client_msg, status, err_msg);
-+#ifdef __riscos__
+-        return SSH_ERROR;
 +        return SSH_OK;   /* a missing path is the client's problem, not a protocol error */
-+#else
-         return SSH_ERROR;
-+#endif
      }
      sftp_reply_name(client_msg, path, NULL);
      free(path);
-@@ -1492,10 +1589,120 @@
+@@ -1492,8 +1554,113 @@
      } else {
          stat_to_filexfer_attrib(&st, &attr);
          sftp_reply_attr(client_msg, &attr);
@@ -261,10 +202,6 @@
 +
 +    return SSH_OK;
 +}
-+
-+#ifdef __riscos__
-+int riscos_sftp_strip_suffix(char *name);          /* src/riscos_sftp.c */
-+void riscos_sftp_set_type(const char *unixpath, int type);
 +
 +/* libssh leaves both rename requests unimplemented.  SSH_FXP_RENAME
 + * (filexfer v3) must fail when the target exists; posix-rename@openssh.com
@@ -370,24 +307,19 @@
 +    sftp_reply_status(client_msg, SSH_FX_OK, NULL);
      return SSH_OK;
  }
-+#endif
  
- static int
- process_setstat(sftp_client_message client_msg)
-@@ -1526,6 +1733,11 @@
+@@ -1526,6 +1693,9 @@
          }
      }
  
-+#ifdef __riscos__
 +    /* No Unix permissions, owners or settable times to speak of: accept
 +     * the request once the size has been handled. */
 +    msg_flags &= ~(SSH_FILEXFER_ATTR_PERMISSIONS | SSH_FILEXFER_ATTR_UIDGID | SSH_FILEXFER_ATTR_ACMODTIME);
-+#endif
      if (msg_flags & SSH_FILEXFER_ATTR_PERMISSIONS) {
          rv = chmod(filename, client_msg->attr->permissions);
          if (rv < 0) {
 --- a/src/ttyopts.c	2026-06-12 13:53:41
-+++ b/src/ttyopts.c	2026-11-12 10:00:00
++++ b/src/ttyopts.c	2026-11-12 12:00:00
 @@ -176,8 +176,10 @@
          return 57600;
      case B115200:

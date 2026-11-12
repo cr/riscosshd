@@ -19,7 +19,7 @@ fi
 if command -v colima >/dev/null 2>&1; then
     if [ "$1" = start ]; then
         echo "Starting Colima..." >&2
-        colima start >&2 2>&1 || exit 1
+        colima start >&2 || exit 1
         . "$(dirname "$0")/docker-env.sh"
         if docker info >/dev/null 2>&1; then
             echo docker

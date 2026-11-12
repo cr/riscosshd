@@ -33,7 +33,7 @@ SRC := $(wildcard src/*.c src/*.h) CMakeLists.txt cmake/toolchain-riscos.cmake \
        $(wildcard riscos/!SSHd/*) riscos/RiscPkg/Control
 DEPS_INPUTS := tools/build-deps.sh deps/mbedtls_riscos_config.h \
        deps/patches/libssh-riscos.patch cmake/toolchain-riscos.cmake \
-       $(wildcard deps/riscos-compat/sys/*.h)
+       $(wildcard deps/riscos-compat/sys/*.h) docker/Dockerfile
 
 .PHONY: all engine image deps build package sprites install test check clean distclean
 
@@ -46,15 +46,17 @@ engine:
 # riscosdotinfo/riscos-gccsdk-4.7 (GCC 4.7.4, UnixLib, elf2aif; linux/amd64
 # only) plus cmake and zip, see docker/Dockerfile.  On Apple Silicon it runs
 # under emulation (Colima's binfmt or Docker Desktop's Rosetta).
-image: docker/Dockerfile
+# .image-built records that the image was built; 'make image' rebuilds it
+# regardless, e.g. after the engine lost its images.
+define build-image
 	@test -n "$(ENGINE)" || { tools/container-engine.sh; exit 1; }
 	. tools/docker-env.sh; $(ENGINE) build --platform linux/amd64 -t $(IMAGE) docker
 	@touch .image-built
-
-# .image-built records that the image was built; if the image is removed
-# with the engine, run 'make image' by hand.
+endef
+image:
+	$(build-image)
 .image-built: docker/Dockerfile
-	@$(MAKE) image
+	$(build-image)
 
 # --- dependencies: mbedTLS and libssh, static, into deps/sysroot -----------
 deps: $(SYSROOT)/lib/libssh.a
@@ -70,9 +72,9 @@ build: $(BINARY)
 
 $(BINARY): $(SYSROOT)/lib/libssh.a $(SRC)
 	$(RUN) sh -c 'cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscos.cmake \
-	    -DRISCOS_SYSROOT=/work/$(SYSROOT) -DCMAKE_BUILD_TYPE=Release >/dev/null && \
-	    cmake --build build -j$$(nproc)'
-	@$(RUN) sh -c 'cp -R "riscos/!SSHd/." "build/!SSHd/" && touch "$(BINARY)"'   # app files change without a relink; in the container, which owns build/
+	    -DCMAKE_BUILD_TYPE=Release >/dev/null && cmake --build build -j$$(nproc) && \
+	    cp -R "riscos/!SSHd/." "build/!SSHd/" && touch "$(BINARY)"'
+	@# the app files are copied in the same container run: it owns build/ on CI
 
 # --- PackMan package ---------------------------------------------------------
 # Layout: Apps/Network/!SSHd, RiscPkg/Control, RiscPkg/Copyright, zipped with

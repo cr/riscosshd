@@ -16,7 +16,6 @@ set(GCCSDK_BIN "$ENV{GCCSDK_INSTALL_CROSSBIN}" CACHE PATH "GCCSDK cross bin dir"
 set(RISCOS_SYSROOT "${CMAKE_CURRENT_LIST_DIR}/../deps/sysroot" CACHE PATH "Cross-built library prefix")
 
 set(CMAKE_C_COMPILER   ${GCCSDK_BIN}/arm-unknown-riscos-gcc)
-set(CMAKE_CXX_COMPILER ${GCCSDK_BIN}/arm-unknown-riscos-g++)
 set(CMAKE_AR           ${GCCSDK_BIN}/arm-unknown-riscos-ar CACHE FILEPATH "")
 set(CMAKE_RANLIB       ${GCCSDK_BIN}/arm-unknown-riscos-ranlib CACHE FILEPATH "")
 set(CMAKE_C_COMPILER_TARGET arm-unknown-riscos)
@@ -28,12 +27,6 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 set(ENV{PKG_CONFIG_LIBDIR} ${RISCOS_SYSROOT}/lib/pkgconfig)
-
-# UnixLib is single-threaded for our purposes: no pthreads.
-set(CMAKE_THREAD_LIBS_INIT "" CACHE STRING "" FORCE)
-set(CMAKE_HAVE_THREADS_LIBRARY 0 CACHE INTERNAL "")
-set(CMAKE_USE_PTHREADS_INIT 0 CACHE INTERNAL "")
-set(Threads_FOUND TRUE CACHE INTERNAL "")
 
 # Everything is static: there is no dynamic linker for AIF binaries.
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)

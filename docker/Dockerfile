@@ -6,7 +6,5 @@ FROM --platform=linux/amd64 riscosdotinfo/riscos-gccsdk-4.7@sha256:c97c21725d627
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cmake ca-certificates curl zip \
  && rm -rf /var/lib/apt/lists/*
-ENV GCCSDK_INSTALL_CROSSBIN=/home/riscos/cross/bin \
-    GCCSDK_INSTALL_ENV=/home/riscos/env \
-    PATH=/home/riscos/cross/bin:/home/riscos/env:$PATH
+# cmake/toolchain-riscos.cmake finds the compiler at /home/riscos/cross/bin.
 WORKDIR /work

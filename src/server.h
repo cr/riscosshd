@@ -5,7 +5,8 @@
 int server_init(ssh_key hostkey);
 /* One iteration of the cooperative main loop: accept new connections,
  * drive key exchange, dispatch packets and callbacks, pump channel output.
- * timeout_ms bounds how long it blocks.  Returns the number of live sessions. */
+ * The first poll waits up to timeout_ms; while data keeps arriving it polls
+ * again for a few centiseconds more.  Returns the number of live sessions. */
 int server_poll(int timeout_ms);
 void server_shutdown(void);
 #endif

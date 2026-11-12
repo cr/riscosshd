@@ -10,6 +10,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <kernel.h>
+#include <swis.h>
 #include <libssh/libssh.h>
 #include <libssh/server.h>
 #include <libssh/callbacks.h>
@@ -23,13 +25,11 @@
 
 #define MAX_AUTH_TRIES 6
 #define PENDING_PER_ADDRESS 2   /* unauthenticated connections one address may hold */
-/* cfg.auth_timeout: seconds from accept to a successful login;
- * cfg.idle_timeout: seconds a logged-in session may sit without a channel;
- * 0 means no limit. */
-static time_t deadline_in(int seconds)
-{
-    return seconds > 0 ? time(NULL) + seconds : 0;
-}
+/* libssh reads at most 4 KB per socket per poll, so one poll per desktop
+ * null event would cap uploads near 200 KB/s.  Each server_poll therefore
+ * polls again while there is work, within this budget. */
+#define POLL_ROUNDS_MAX 32
+#define POLL_BUDGET_CS  3
 
 enum sess_state { SESS_KEX, SESS_RUNNING };
 
@@ -39,6 +39,7 @@ struct session_ctx {
     int auth_tries;
     int authenticated;
     int banner_sent;
+    unsigned long addr;         /* peer IPv4 address, 0 if unknown */
     char user[64];
     char peer[48];              /* "10.10.10.2:51234" */
     struct chan_ctx *chan;      /* one channel per session for now */
@@ -54,29 +55,26 @@ static ssh_event event;
 static struct session_ctx *sessions;
 static int nsessions;
 
-/* ---- channel output queue --------------------------------------------- */
-
-static int queue_bytes(char **buf, size_t *len, size_t *cap, const char *data, size_t n)
+/* cfg.auth_timeout: seconds from accept to a successful login;
+ * cfg.idle_timeout: seconds a logged-in session may sit without a channel;
+ * 0 means no limit. */
+static time_t deadline_in(int seconds)
 {
-    if (*len + n > *cap) {
-        size_t ncap = *cap ? *cap * 2 : 4096;
-        char *p;
-        while (ncap < *len + n)
-            ncap *= 2;
-        p = realloc(*buf, ncap);
-        if (!p)
-            return -1;
-        *buf = p;
-        *cap = ncap;
-    }
-    memcpy(*buf + *len, data, n);
-    *len += n;
-    return 0;
+    return seconds > 0 ? time(NULL) + seconds : 0;
 }
+
+static int now_cs(void)
+{
+    int t = 0;
+    _swix(OS_ReadMonotonicTime, _OUT(0), &t);
+    return t;
+}
+
+/* ---- channel output ----------------------------------------------------- */
 
 int chan_output(struct chan_ctx *c, const char *data, size_t len)
 {
-    return queue_bytes(&c->out, &c->out_len, &c->out_cap, data, len);
+    return buf_append(&c->out, data, len);
 }
 
 int chan_output_str(struct chan_ctx *c, const char *s)
@@ -86,7 +84,7 @@ int chan_output_str(struct chan_ctx *c, const char *s)
 
 int chan_output_err(struct chan_ctx *c, const char *s)
 {
-    return queue_bytes(&c->err, &c->err_len, &c->err_cap, s, strlen(s));
+    return buf_append(&c->err, s, strlen(s));
 }
 
 int chan_output_vdu(struct chan_ctx *c, const char *data, size_t len)
@@ -112,13 +110,20 @@ void chan_finish(struct chan_ctx *c, int status)
     c->exit_status = status;
 }
 
+void chan_refuse(struct chan_ctx *c, const char *msg)
+{
+    chan_output_err(c, msg);
+    chan_output_err(c, "\r\n");
+    chan_finish(c, 1);
+}
+
 /* Send as much of one queue as the channel window allows.  Returns 1 if
  * it is drained. */
-static int pump_queue(struct chan_ctx *c, char *buf, size_t *len, int is_stderr)
+static int pump_queue(struct chan_ctx *c, struct buf *q, int is_stderr)
 {
-    while (*len > 0 && ssh_channel_is_open(c->channel)) {
+    while (q->len > 0 && ssh_channel_is_open(c->channel)) {
         uint32_t window = ssh_channel_window_size(c->channel);
-        size_t n = *len;
+        size_t n = q->len;
         int rc;
         if (window == 0)
             return 0;
@@ -126,27 +131,28 @@ static int pump_queue(struct chan_ctx *c, char *buf, size_t *len, int is_stderr)
             n = window;
         if (n > 32768)
             n = 32768;
-        rc = is_stderr ? ssh_channel_write_stderr(c->channel, buf, (uint32_t)n)
-                       : ssh_channel_write(c->channel, buf, (uint32_t)n);
+        rc = is_stderr ? ssh_channel_write_stderr(c->channel, buf_data(q), (uint32_t)n)
+                       : ssh_channel_write(c->channel, buf_data(q), (uint32_t)n);
         if (rc == SSH_AGAIN || rc == 0)
             return 0;
         if (rc < 0) {
             log_debug("channel write failed: %s", ssh_get_error(c->session));
-            *len = 0;
+            buf_consume(q, q->len);
             return 1;
         }
-        memmove(buf, buf + rc, *len - (size_t)rc);
-        *len -= (size_t)rc;
+        buf_consume(q, (size_t)rc);
     }
-    return *len == 0;
+    return q->len == 0;
 }
 
+/* Send queued output; once a finished session's output is out, send the
+ * exit status, EOF and close.  After the close the channel is no longer
+ * open, which is what lets server_poll free it. */
 static void chan_pump(struct chan_ctx *c)
 {
-    int drained = pump_queue(c, c->out, &c->out_len, 0);
-    drained &= pump_queue(c, c->err, &c->err_len, 1);
-    if (c->finished && drained && !c->closed && ssh_channel_is_open(c->channel)) {
-        c->closed = 1;
+    int drained = pump_queue(c, &c->out, 0);
+    drained &= pump_queue(c, &c->err, 1);
+    if (c->finished && drained && ssh_channel_is_open(c->channel)) {
         ssh_channel_request_send_exit_status(c->channel, c->exit_status);
         ssh_channel_send_eof(c->channel);
         ssh_channel_close(c->channel);
@@ -161,8 +167,8 @@ static void chan_free(struct chan_ctx *c)
         c->backend->stop(c);
     if (c->channel)
         ssh_channel_free(c->channel);
-    free(c->out);
-    free(c->err);
+    buf_free(&c->out);
+    buf_free(&c->err);
     free(c);
 }
 
@@ -177,27 +183,40 @@ static int cb_pty_request(ssh_session session, ssh_channel channel, const char *
     return 0;
 }
 
-/* Accept a request but answer it on stderr with exit status 1. */
-static void refuse_with_message(struct chan_ctx *c, const char *msg)
+/* A second request on a channel that already runs a session is refused
+ * without touching that session. */
+static int channel_busy(struct chan_ctx *c, const char *what)
 {
-    chan_output_err(c, msg);
-    chan_output_err(c, "\r\n");
-    chan_finish(c, 1);
+    if (!c->backend)
+        return 0;
+    log_msg("%s: %s request on a channel that already has a %s session",
+            c->owner_name, what, c->backend->name);
+    return 1;
 }
 
+/* Start backend b; returns its start() result (0, BACKEND_UNAVAILABLE or
+ * BACKEND_REFUSED). */
 static int start_backend(struct chan_ctx *c, const struct backend_ops *b, const char *command)
 {
-    if (c->backend) {
-        log_msg("%s request on a channel that already has a %s session",
-                b->name, c->backend->name);
-        return -1;
-    }
+    int rc;
     c->backend = b;
-    if (b->start(c, command) < 0) {
+    rc = b->start(c, command);
+    if (rc != 0)
         c->backend = NULL;
-        return -1;
-    }
-    return 0;
+    return rc;
+}
+
+/* Exec and shell run in a TaskWindow child on the desktop, so output streams
+ * as it is produced and a hung command cannot take the server down.  In
+ * text mode the TaskWindow backend is unavailable and the in-process
+ * OS_CLI backends serve instead; on the desktop they are never used. */
+static int start_command_backend(struct chan_ctx *c, const struct backend_ops *fallback,
+                                 const char *command)
+{
+    int rc = start_backend(c, &backend_taskwindow, command);
+    if (rc == BACKEND_UNAVAILABLE)
+        rc = start_backend(c, fallback, command);
+    return rc == BACKEND_UNAVAILABLE ? 1 : 0;   /* a refusal is answered on stderr */
 }
 
 static int cb_exec_request(ssh_session session, ssh_channel channel,
@@ -205,49 +224,30 @@ static int cb_exec_request(ssh_session session, ssh_channel channel,
 {
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
-    log_msg("%s: exec '%s'", c->owner->user, command);
-    if (c->backend) {
-        log_msg("%s: exec request on a channel that already has a %s session", c->owner->user, c->backend->name);
-        return 1;                       /* refused; the running session is untouched */
-    }
+    log_msg("%s: exec '%s'", c->owner_name, command);
+    if (channel_busy(c, "exec"))
+        return 1;
     if (!cfg.allow_exec) {
-        refuse_with_message(c, "Command execution is disabled on this server");
+        chan_refuse(c, "Command execution is disabled on this server");
         return 0;
     }
-    /* A TaskWindow child (-quit) on the desktop so output streams as it is
-     * produced and the command's success is known.  Commands it cannot
-     * carry are refused rather than run inside the server task, where a
-     * hung command would take the server down; the OS_CLI capture backend
-     * serves text mode only. */
-    if (start_backend(c, &backend_taskwindow, command) == 0)
-        return 0;
-    if (tw_available()) {
-        refuse_with_message(c, tw_last_refusal());
-        return 0;
-    }
-    return start_backend(c, &backend_exec, command) < 0 ? 1 : 0;
+    return start_command_backend(c, &backend_exec, command);
 }
 
 static int cb_shell_request(ssh_session session, ssh_channel channel, void *userdata)
 {
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
-    log_msg("%s: shell%s", c->owner->user, c->pty ? " (pty)" : "");
-    if (c->backend) {
-        log_msg("%s: shell request on a channel that already has a %s session", c->owner->user, c->backend->name);
+    log_msg("%s: shell%s", c->owner_name, c->pty ? " (pty)" : "");
+    if (channel_busy(c, "shell"))
         return 1;
-    }
     if (!cfg.allow_shell) {
-        refuse_with_message(c, "Interactive sessions are disabled on this server");
+        chan_refuse(c, "Interactive sessions are disabled on this server");
         return 0;
     }
     if (cfg.motd)
         chan_output_str(c, cfg.motd);
-    /* A TaskWindow child when running on the desktop; the line shell
-     * otherwise (text mode, or if the TaskWindow could not be started). */
-    if (start_backend(c, &backend_taskwindow, NULL) == 0)
-        return 0;
-    return start_backend(c, &backend_shell, NULL) < 0 ? 1 : 0;
+    return start_command_backend(c, &backend_shell, NULL);
 }
 
 static int cb_subsystem_request(ssh_session session, ssh_channel channel,
@@ -255,17 +255,15 @@ static int cb_subsystem_request(ssh_session session, ssh_channel channel,
 {
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
-    if (c->backend) {
-        log_msg("%s: subsystem request on a channel that already has a %s session", c->owner->user, c->backend->name);
+    if (channel_busy(c, "subsystem"))
         return 1;
-    }
     if (strcmp(subsystem, "sftp") != 0 || !cfg.allow_sftp) {
-        log_msg("%s: subsystem '%s' refused%s", c->owner->user, subsystem,
+        log_msg("%s: subsystem '%s' refused%s", c->owner_name, subsystem,
                 cfg.allow_sftp ? "" : " (sftp is off)");
         return 1;
     }
-    log_msg("%s: sftp", c->owner->user);
-    return start_backend(c, &backend_sftp, NULL) < 0 ? 1 : 0;
+    log_msg("%s: sftp", c->owner_name);
+    return start_backend(c, &backend_sftp, NULL) == 0 ? 0 : 1;
 }
 
 static int cb_data(ssh_session session, ssh_channel channel, void *data,
@@ -282,7 +280,7 @@ static void cb_eof(ssh_session session, ssh_channel channel, void *userdata)
 {
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
-    if (c->backend && !c->finished)
+    if (c->backend && !c->finished && c->backend->eof)
         c->backend->eof(c);
 }
 
@@ -290,13 +288,7 @@ static void cb_close(ssh_session session, ssh_channel channel, void *userdata)
 {
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
-    c->closed = 1;
-    c->finished = 1;
-    /* Nothing more can be sent: drop the queues so the channel is freed
-     * (and its backend stopped) on the next poll instead of waiting for
-     * output that will never drain. */
-    c->out_len = 0;
-    c->err_len = 0;
+    c->finished = 1;            /* the channel is closed: freed on the next pass */
 }
 
 /* ---- server callbacks --------------------------------------------------- */
@@ -358,7 +350,7 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
     if (s->chan) {
         /* One channel at a time; a closed one may be replaced at once, as
          * multiplexing clients close and open in the same burst. */
-        if (!s->chan->closed || ssh_channel_is_open(s->chan->channel))
+        if (ssh_channel_is_open(s->chan->channel))
             return NULL;
         chan_free(s->chan);
         s->chan = NULL;
@@ -367,7 +359,6 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
     if (!c)
         return NULL;
     c->session = session;
-    c->owner = s;
     c->owner_name = s->user;
     c->channel = ssh_channel_new(session);
     if (!c->channel) {
@@ -413,8 +404,13 @@ static void session_destroy(struct session_ctx *s)
 
 static void accept_connection(void)
 {
-    struct session_ctx *s;
+    struct session_ctx *s, *o;
     ssh_session session = ssh_new();
+    struct sockaddr_in sa;
+    socklen_t sl = sizeof sa;
+    unsigned long addr = 0;
+    char peer[48];
+    int pending = 0;
 
     if (!session)
         return;
@@ -423,41 +419,34 @@ static void accept_connection(void)
         ssh_free(session);
         return;
     }
-    {
-        char peer[48], addr[48];
-        struct sockaddr_in sa;
-        socklen_t sl = sizeof sa;
-        int pending = 0;
-        struct session_ctx *o;
-        if (getpeername(ssh_get_fd(session), (struct sockaddr *)&sa, &sl) == 0) {
-            snprintf(addr, sizeof addr, "%s", inet_ntoa(sa.sin_addr));
-            snprintf(peer, sizeof peer, "%s:%u", addr, (unsigned)ntohs(sa.sin_port));
-        } else {
-            snprintf(addr, sizeof addr, "?");
-            snprintf(peer, sizeof peer, "unknown address");
-        }
-        /* Refusals close the socket without a DISCONNECT packet: before
-         * the version exchange a binary packet only confuses the client. */
-        if (nsessions >= cfg.max_sessions) {
-            log_msg("%s refused: %d sessions already", peer, nsessions);
-            ssh_free(session);
-            return;
-        }
-        for (o = sessions; o; o = o->next)
-            if (!o->authenticated && strncmp(o->peer, addr, strlen(addr)) == 0 && o->peer[strlen(addr)] == ':')
-                pending++;
-        if (pending >= PENDING_PER_ADDRESS) {
-            log_msg("%s refused: %d connections from that address not yet logged in", peer, pending);
-            ssh_free(session);
-            return;
-        }
-        s = calloc(1, sizeof *s);
-        if (!s) {
-            ssh_free(session);
-            return;
-        }
-        snprintf(s->peer, sizeof s->peer, "%s", peer);
+    if (getpeername(ssh_get_fd(session), (struct sockaddr *)&sa, &sl) == 0) {
+        addr = (unsigned long)sa.sin_addr.s_addr;
+        snprintf(peer, sizeof peer, "%s:%u", inet_ntoa(sa.sin_addr), (unsigned)ntohs(sa.sin_port));
+    } else {
+        snprintf(peer, sizeof peer, "unknown address");
     }
+    /* Refusals close the socket without a DISCONNECT packet: before the
+     * version exchange a binary packet only confuses the client. */
+    if (nsessions >= cfg.max_sessions) {
+        log_msg("%s refused: %d sessions already", peer, nsessions);
+        ssh_free(session);
+        return;
+    }
+    for (o = sessions; o; o = o->next)
+        if (!o->authenticated && o->addr == addr)
+            pending++;
+    if (pending >= PENDING_PER_ADDRESS) {
+        log_msg("%s refused: %d connections from that address not yet logged in", peer, pending);
+        ssh_free(session);
+        return;
+    }
+    s = calloc(1, sizeof *s);
+    if (!s) {
+        ssh_free(session);
+        return;
+    }
+    s->addr = addr;
+    snprintf(s->peer, sizeof s->peer, "%s", peer);
     s->session = session;
     s->state = SESS_KEX;
     s->deadline = deadline_in(cfg.auth_timeout);
@@ -473,7 +462,8 @@ static void accept_connection(void)
     nsessions++;
     log_msg("connection from %s (%d active)", s->peer, nsessions);
 
-    /* Kick off the banner exchange; completes over later polls. */
+    /* Start the version exchange; it and the key exchange complete over
+     * later polls. */
     ssh_handle_key_exchange(session);
 }
 
@@ -497,17 +487,12 @@ int server_init(ssh_key hostkey)
     ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_BINDPORT, &cfg.port);
     ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_IMPORT_KEY, hostkey);
     /* Key exchange: the elliptic methods and one 2048-bit group.  The
-     * default list also offers 8192-bit groups and group exchange, each a
-     * C bignum exponentiation on the ARM inside the cooperative loop that
-     * any unauthenticated client could request in a loop; group exchange
-     * would also read a moduli file from the disc. */
+     * default list also offers 8192-bit groups, each a C bignum
+     * exponentiation on the ARM inside the cooperative loop that any
+     * unauthenticated client could request in a loop. */
     ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_KEY_EXCHANGE,
                          "curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,"
                          "diffie-hellman-group14-sha256");
-    if (log_verbose > 1) {
-        int lvl = SSH_LOG_PROTOCOL;
-        ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_LOG_VERBOSITY, &lvl);
-    }
     if (ssh_bind_listen(bind_handle) < 0) {
         log_msg("listen on %s:%d failed: %s", cfg.bind_addr, cfg.port, ssh_get_error(bind_handle));
         return -1;
@@ -532,18 +517,15 @@ static int past_deadline(struct session_ctx *s, time_t now)
     return 0;
 }
 
-int server_poll(int timeout_ms)
+/* Drive key exchange for new sessions outside the event: once it completes
+ * they join the event and callbacks take over.  Returns 1 while any
+ * session is still in key exchange. */
+static int drive_key_exchanges(time_t now)
 {
     struct session_ctx *s, *next;
-    time_t now = time(NULL);
-    int rc;
-
-    if (!event)
-        return 0;               /* startup failed; the desktop task lives on to show why */
-
-    /* Drive key exchange for new sessions outside the event: once it
-     * completes they join the event and callbacks take over. */
+    int pending = 0;
     for (s = sessions; s; s = next) {
+        int rc;
         next = s->next;
         if (s->state != SESS_KEX || past_deadline(s, now))
             continue;
@@ -551,24 +533,23 @@ int server_poll(int timeout_ms)
         if (rc == SSH_OK) {
             s->state = SESS_RUNNING;
             ssh_event_add_session(event, s->session);
-            log_debug("key exchange done");
+            log_debug("%s: key exchange done", s->peer);
         } else if (rc != SSH_AGAIN) {
             log_msg("%s: key exchange failed: %s", s->peer, ssh_get_error(s->session));
             session_destroy(s);
+        } else {
+            pending = 1;
         }
     }
+    return pending;
+}
 
-    for (s = sessions; s; s = s->next)
-        if (s->state == SESS_KEX) {
-            timeout_ms = 0;         /* that session is driven outside the event */
-            break;
-        }
-    rc = ssh_event_dopoll(event, timeout_ms);
-    if (rc == SSH_ERROR)
-        log_debug("event poll error");
-
-    now = time(NULL);
+/* Run backends, send output, free closed channels, drop dead sessions. */
+static void service_sessions(time_t now)
+{
+    struct session_ctx *s, *next;
     for (s = sessions; s; s = next) {
+        struct chan_ctx *c;
         next = s->next;
         if (s->state != SESS_RUNNING || past_deadline(s, now))
             continue;
@@ -577,21 +558,44 @@ int server_poll(int timeout_ms)
             session_destroy(s);
             continue;
         }
-        if (s->chan) {
-            struct chan_ctx *c = s->chan;
-            if (c->backend && !c->finished)
-                c->backend->poll(c);
-            chan_pump(c);
-            if (c->closed && c->out_len == 0 && c->err_len == 0 && !ssh_channel_is_open(c->channel)) {
-                chan_free(c);
-                s->chan = NULL;
-                /* The connection stays for another channel (OpenSSH
-                 * multiplexing) until the idle deadline or the client's
-                 * own disconnect. */
-                log_debug("%s: channel closed", s->user);
-                s->deadline = deadline_in(cfg.idle_timeout);
-            }
+        c = s->chan;
+        if (!c)
+            continue;
+        if (c->backend && !c->finished && c->backend->poll)
+            c->backend->poll(c);
+        chan_pump(c);
+        if (!ssh_channel_is_open(c->channel)) {
+            chan_free(c);
+            s->chan = NULL;
+            /* The connection stays for another channel (OpenSSH
+             * multiplexing) until the idle deadline or the client's own
+             * disconnect. */
+            log_debug("%s: channel closed", s->user);
+            s->deadline = deadline_in(cfg.idle_timeout);
         }
+    }
+}
+
+int server_poll(int timeout_ms)
+{
+    int rounds = 0, until;
+    time_t now = time(NULL);
+
+    if (!event)
+        return 0;               /* startup failed; the desktop task lives on to show why */
+
+    if (drive_key_exchanges(now))
+        timeout_ms = 0;         /* those sessions are driven outside the event */
+    until = now_cs() + POLL_BUDGET_CS;
+    for (;;) {
+        int rc = ssh_event_dopoll(event, timeout_ms);
+        if (rc == SSH_ERROR)
+            log_debug("event poll error");
+        service_sessions(time(NULL));
+        /* SSH_OK: something was read; there may be more waiting */
+        if (rc != SSH_OK || ++rounds >= POLL_ROUNDS_MAX || now_cs() - until >= 0)
+            break;
+        timeout_ms = 0;
     }
     return nsessions;
 }

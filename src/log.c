@@ -6,44 +6,60 @@
 #include "riscos.h"
 
 int log_verbose = 0;
-static void (*log_sink)(const char *line);
+static void (*notify)(void);
+static int to_stderr;
 static const char *log_file;
-static int log_stderr;
+static size_t log_file_limit;
 
-/* Lines logged before a sink exists (startup: configuration, listening
- * port) are kept and replayed into the sink, so the log window is not
- * empty when it first opens. */
-#define EARLY_LINES 32
-static char early[EARLY_LINES][160];
-static int early_count;
+/* The last LOG_LINES lines, oldest at ring[first]. */
+static char ring[LOG_LINES][LOG_COLS];
+static int first, count;
 
-
-void log_set_sink(void (*sink)(const char *line))
+int log_count(void)
 {
-    int i;
-    log_sink = sink;
-    if (sink)
-        for (i = 0; i < early_count; i++)
-            sink(early[i] + 11);        /* the window shows the time only */
-    early_count = 0;
+    return count;
+}
+
+const char *log_line(int i)
+{
+    return ring[(first + i) % LOG_LINES];
+}
+
+void log_set_notify(void (*fn)(void))
+{
+    notify = fn;
 }
 
 void log_set_stderr(int on)
 {
-    log_stderr = on;
+    to_stderr = on;
 }
 
-void log_set_file(const char *path)
+static int append_line(const char *line)
+{
+    char buf[LOG_COLS + 1];
+    int n = snprintf(buf, sizeof buf, "%s\n", line);
+    return ro_append_file(log_file, buf, (size_t)n, log_file_limit);
+}
+
+int log_set_file(const char *path, size_t limit, const char **why)
 {
     int i;
     log_file = path;
-    /* the start-up lines logged before the file was known */
-    for (i = 0; path && i < early_count; i++) {
-        char line[200];
-        int n = snprintf(line, sizeof line, "%s\n", early[i]);
-        if (n > 0)
-            ro_append_file(path, line, (size_t)n);
+    log_file_limit = limit;
+    for (i = 0; i < count; i++) {          /* what was logged before the file was known */
+        if (append_line(log_line(i)) < 0) {
+            *why = ro_append_error;
+            log_file = NULL;
+            return -1;
+        }
     }
+    if (count == 0 && ro_append_file(path, "", 0, limit) < 0) {
+        *why = ro_append_error;
+        log_file = NULL;
+        return -1;
+    }
+    return 0;
 }
 
 void log_sanitise(char *s)
@@ -58,30 +74,29 @@ void log_sanitise(char *s)
 
 static void vlog(const char *fmt, va_list ap)
 {
-    char line[512];
+    char *line;
     time_t now = time(NULL);
     struct tm *tm = localtime(&now);
-    size_t n = tm ? strftime(line, sizeof line, "%Y-%m-%d %H:%M:%S ", tm) : 0;
-    if (n != 20)                        /* no clock: keep the layout the window relies on */
-        n = (size_t)snprintf(line, sizeof line, "0000-00-00 00:00:00 ");
-    vsnprintf(line + n, sizeof line - n, fmt, ap);
-    log_sanitise(line);                 /* user names, commands, comments... */
-    if (log_file) {
-        size_t l = strlen(line);
-        line[l] = '\n';
-        ro_append_file(log_file, line, l + 1);
-        line[l] = '\0';
+    size_t n;
+    if (count < LOG_LINES)
+        line = ring[(first + count++) % LOG_LINES];
+    else {
+        line = ring[first];                /* overwrite the oldest */
+        first = (first + 1) % LOG_LINES;
     }
-    if (log_sink) {
-        log_sink(line + 11);            /* the window shows the time only */
-    } else {
-        if (early_count < EARLY_LINES)
-            snprintf(early[early_count++], sizeof early[0], "%s", line);
-        if (log_stderr) {               /* text mode: this is the TaskWindow */
-            fprintf(stderr, "sshd: %s\n", line + 11);
-            fflush(stderr);
-        }
+    n = tm ? strftime(line, LOG_COLS, "%Y-%m-%d %H:%M:%S ", tm) : 0;
+    if (n != LOG_TIME_AT + 9)              /* no clock: keep the layout */
+        n = (size_t)snprintf(line, LOG_COLS, "0000-00-00 00:00:00 ");
+    vsnprintf(line + n, LOG_COLS - n, fmt, ap);
+    log_sanitise(line);                    /* user names, commands, comments... */
+    if (log_file)
+        append_line(line);
+    if (to_stderr) {
+        fprintf(stderr, "sshd: %s\n", line + LOG_TIME_AT);
+        fflush(stderr);
     }
+    if (notify)
+        notify();
 }
 
 void log_msg(const char *fmt, ...)

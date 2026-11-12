@@ -39,9 +39,9 @@ ssh_key hostkey_load_or_create(const char *path)
         return key;
     }
 
-    log_msg("no host key at %s, generating ed25519 key (needs CryptRandom)", path);
+    log_msg("no host key at %s, generating an ed25519 key", path);
     if (ssh_pki_generate(SSH_KEYTYPE_ED25519, 0, &key) != SSH_OK) {
-        log_msg("key generation failed (is the CryptRandom module loaded?)");
+        log_msg("host key generation failed");
         return NULL;
     }
     if (ssh_pki_export_privkey_base64(key, NULL, NULL, NULL, &pem) != SSH_OK) {

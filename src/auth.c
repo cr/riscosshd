@@ -19,81 +19,80 @@ static struct akey *keys;
 static int nkeys;
 static const char *keys_path;
 
+static void free_akey(struct akey *k)
+{
+    ssh_key_free(k->key);
+    free(k->type);
+    free(k->b64);
+    free(k->comment);
+}
+
 static int add_key(ssh_key k, const char *type, const char *b64, const char *comment)
 {
-    struct akey *n = realloc(keys, sizeof *keys * (size_t)(nkeys + 1));
+    struct akey *n = realloc(keys, sizeof *keys * (size_t)(nkeys + 1)), a;
     if (!n)
         return -1;
     keys = n;
-    keys[nkeys].key = k;
-    keys[nkeys].type = strdup(type);
-    keys[nkeys].b64 = strdup(b64);
-    keys[nkeys].comment = strdup(comment ? comment : "");
-    if (!keys[nkeys].type || !keys[nkeys].b64 || !keys[nkeys].comment) {
-        free(keys[nkeys].type);
-        free(keys[nkeys].b64);
-        free(keys[nkeys].comment);
+    a.key = k;
+    a.type = strdup(type);
+    a.b64 = strdup(b64);
+    a.comment = strdup(comment ? comment : "");
+    if (!a.type || !a.b64 || !a.comment) {
+        a.key = NULL;                       /* the caller still owns k */
+        free_akey(&a);
         return -1;
     }
-    log_sanitise(keys[nkeys].comment);   /* shown in icons and dialogue boxes */
-    nkeys++;
+    log_sanitise(a.comment);                /* shown in icons and dialogue boxes */
+    keys[nkeys++] = a;
     return 0;
 }
 
-/* Parse one "type base64 [comment]" line (options prefixes are not
- * supported).  Returns 1 if a key was added, 0 for blank/comment lines,
- * -1 on a parse error with a message in err. */
+#define LINE_ADDED      1
+#define LINE_EMPTY      0                   /* blank or a # comment */
+#define LINE_INVALID  (-1)
+#define LINE_DUPLICATE (-2)
+
+/* Parse one "type base64 [comment]" line and add the key; err says why
+ * when the result is LINE_INVALID or LINE_DUPLICATE. */
 static int parse_line(const char *src, char *err, size_t errlen)
 {
     char *line, *type, *b64, *comment, *save = NULL;
     enum ssh_keytypes_e kt;
     ssh_key k = NULL;
-    int rc;
+    int rc = LINE_INVALID;
 
     while (isspace((unsigned char)*src))
         src++;
     if (*src == '\0' || *src == '#')
-        return 0;
+        return LINE_EMPTY;
     line = strdup(src);
     if (!line) {
         snprintf(err, errlen, "out of memory");
-        return -1;
+        return LINE_INVALID;
     }
     type = strtok_r(line, " \t\r\n", &save);
     b64 = type ? strtok_r(NULL, " \t\r\n", &save) : NULL;
     comment = b64 ? strtok_r(NULL, "\r\n", &save) : NULL;
     while (comment && isspace((unsigned char)*comment))
         comment++;
-    if (!type || !b64) {
+    if (!type || !b64)
         snprintf(err, errlen, "expected 'type base64 [comment]'");
-        free(line);
-        return -1;
-    }
-    kt = ssh_key_type_from_name(type);
-    if (kt == SSH_KEYTYPE_UNKNOWN) {
+    else if ((kt = ssh_key_type_from_name(type)) == SSH_KEYTYPE_UNKNOWN)
         snprintf(err, errlen, "unknown key type '%s'", type);
-        free(line);
-        return -1;
-    }
-    if (ssh_pki_import_pubkey_base64(b64, kt, &k) != SSH_OK) {
+    else if (ssh_pki_import_pubkey_base64(b64, kt, &k) != SSH_OK)
         snprintf(err, errlen, "cannot decode %s key", type);
-        free(line);
-        return -1;
-    }
-    if (auth_key_allowed(k)) {
+    else if (auth_key_allowed(k)) {
         snprintf(err, errlen, "that key is already authorized");
-        ssh_key_free(k);
-        free(line);
-        return -1;
-    }
-    rc = add_key(k, type, b64, comment);
-    free(line);
-    if (rc < 0) {
+        rc = LINE_DUPLICATE;
+    } else if (add_key(k, type, b64, comment) < 0)
         snprintf(err, errlen, "out of memory");
-        ssh_key_free(k);
-        return -1;
+    else {
+        k = NULL;                           /* now owned by keys[] */
+        rc = LINE_ADDED;
     }
-    return 1;
+    ssh_key_free(k);
+    free(line);
+    return rc;
 }
 
 int auth_load_keys(const char *path)
@@ -114,44 +113,90 @@ int auth_load_keys(const char *path)
     return nkeys;
 }
 
-int auth_add_key_line(const char *line, char *err, size_t errlen)
+/* Append text (whole lines) to the keys file. */
+static int append_to_file(const char *text, size_t n, char *err, size_t errlen)
 {
     char *data;
-    size_t len = 0, add;
+    size_t len = 0;
     const char *e;
-    int rc = parse_line(line, err, errlen);
-
-    if (rc < 0)
-        return -1;
-    if (rc == 0) {
-        snprintf(err, errlen, "no key on that line");
-        return -1;
-    }
     if (!keys_path) {
-        snprintf(err, errlen, "no configuration directory to save it in");
+        snprintf(err, errlen, "added for this session only: no configuration directory");
         return -1;
     }
-    /* Append to the file: existing content + line + newline. */
     data = ro_load_file(keys_path, &len);
-    add = strlen(line) + 2;
-    data = realloc(data, len + add + 1);
+    data = realloc(data, len + n + 2);
     if (!data) {
-        snprintf(err, errlen, "out of memory");
+        snprintf(err, errlen, "added for this session only: out of memory saving it");
         return -1;
     }
     if (len > 0 && data[len - 1] != '\n')
         data[len++] = '\n';
-    memcpy(data + len, line, strlen(line));
-    len += strlen(line);
-    data[len++] = '\n';
-    e = ro_save_file(keys_path, 0xfff, data, len);
+    memcpy(data + len, text, n);
+    e = ro_save_file(keys_path, 0xfff, data, len + n);
     free(data);
     if (e) {
-        snprintf(err, errlen, "key added for this session only; cannot save: %s", e);
+        snprintf(err, errlen, "added for this session only; cannot save: %s", e);
         return -1;
     }
-    log_msg("added %s key %s", keys[nkeys - 1].type, keys[nkeys - 1].comment);
     return 0;
+}
+
+int auth_add_key_line(const char *line, char *err, size_t errlen)
+{
+    char buf[1400];
+    int rc = parse_line(line, err, errlen), n;
+    if (rc == LINE_EMPTY)
+        snprintf(err, errlen, "no key on that line");
+    if (rc != LINE_ADDED)
+        return -1;
+    log_msg("added %s key %s", keys[nkeys - 1].type, keys[nkeys - 1].comment);
+    n = snprintf(buf, sizeof buf, "%s\n", line);
+    if (n < 0 || (size_t)n >= sizeof buf) {
+        snprintf(err, errlen, "added for this session only: line too long to save");
+        return -1;
+    }
+    return append_to_file(buf, (size_t)n, err, errlen);
+}
+
+int auth_add_keys(const char *text, int *added, int *duplicate, int *invalid,
+                  char *err, size_t errlen)
+{
+    char *copy = strdup(text), *p, *nl, *out;
+    size_t olen = 0;
+    int rc = 0;
+    *added = *duplicate = *invalid = 0;
+    out = malloc(strlen(text) + 2);
+    if (!copy || !out) {
+        free(copy);
+        free(out);
+        snprintf(err, errlen, "out of memory");
+        return -1;
+    }
+    for (p = copy; p && *p; p = nl) {
+        char why[128];
+        size_t l;
+        nl = strchr(p, '\n');
+        if (nl)
+            *nl++ = '\0';
+        l = strlen(p);
+        if (l && p[l - 1] == '\r')         /* CRLF files */
+            p[l - 1] = '\0';
+        switch (parse_line(p, why, sizeof why)) {
+        case LINE_ADDED:
+            log_msg("added %s key %s", keys[nkeys - 1].type, keys[nkeys - 1].comment);
+            olen += (size_t)sprintf(out + olen, "%s\n", p);
+            (*added)++;
+            break;
+        case LINE_DUPLICATE: (*duplicate)++; break;
+        case LINE_INVALID:   (*invalid)++; break;
+        default: break;
+        }
+    }
+    if (olen)
+        rc = append_to_file(out, olen, err, errlen);
+    free(copy);
+    free(out);
+    return rc;
 }
 
 int auth_count(void)
@@ -209,10 +254,7 @@ int auth_remove_key(int i, char *err, size_t errlen)
         return -1;
     }
     log_msg("removed %s key %s", keys[i].type, keys[i].comment);
-    ssh_key_free(keys[i].key);
-    free(keys[i].type);
-    free(keys[i].b64);
-    free(keys[i].comment);
+    free_akey(&keys[i]);
     memmove(&keys[i], &keys[i + 1], sizeof *keys * (size_t)(nkeys - i - 1));
     nkeys--;
     e = keys_path ? save_all() : NULL;
@@ -233,12 +275,8 @@ int auth_key_allowed(ssh_key pubkey)
 
 void auth_free(void)
 {
-    for (int i = 0; i < nkeys; i++) {
-        ssh_key_free(keys[i].key);
-        free(keys[i].type);
-        free(keys[i].b64);
-        free(keys[i].comment);
-    }
+    for (int i = 0; i < nkeys; i++)
+        free_akey(&keys[i]);
     free(keys);
     keys = NULL;
     nkeys = 0;
