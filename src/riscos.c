@@ -21,6 +21,8 @@ char *ro_gstrans(const char *src)
         log_msg("GSTrans '%s': %s", src, e->errmess);
         return NULL;
     }
+    if (len < 0 || len >= (int)sizeof buf)   /* never trust the length beyond the buffer */
+        len = sizeof buf - 1;
     buf[len] = '\0';
     return strdup(buf);
 }
