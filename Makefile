@@ -53,7 +53,7 @@ SRC := $(wildcard src/*.c src/*.h) CMakeLists.txt cmake/toolchain-riscos.cmake \
        $(wildcard riscos/!SSHd/*) riscos/RiscPkg/Control
 DEPS_INPUTS := tools/build-deps.sh deps/mbedtls_riscos_config.h \
        deps/patches/libssh-riscos.patch cmake/toolchain-riscos.cmake \
-       $(wildcard deps/riscos-compat/sys/*.h) docker/Dockerfile
+       $(wildcard deps/riscos-compat/*/*.h) docker/Dockerfile
 
 .PHONY: all engine image deps build package sprites install smoke test check clean distclean
 

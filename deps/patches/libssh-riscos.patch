@@ -43,26 +43,6 @@ index 658458b..19882dc 100644
          }
  
          SSH_LOG(SSH_LOG_PACKET, "Valid signature received");
-diff --git a/src/misc.c b/src/misc.c
-index 7528902..3b29a94 100644
---- a/src/misc.c
-+++ b/src/misc.c
-@@ -71,6 +71,15 @@
- 
- #include "libssh/priv.h"
- #include "libssh/misc.h"
-+
-+/* UnixLib does not provide if_nametoindex() (its declaration is under
-+ * #if 0); treat every interface name as unknown, which only affects IPv6
-+ * link-local scopes. */
-+static unsigned int if_nametoindex(const char *ifname)
-+{
-+    (void)ifname;
-+    return 0;
-+}
- #include "libssh/session.h"
- 
- #ifdef HAVE_LIBGCRYPT
 diff --git a/src/pki_mbedcrypto.c b/src/pki_mbedcrypto.c
 index 748aa3c..17804ea 100644
 --- a/src/pki_mbedcrypto.c

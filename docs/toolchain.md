@@ -139,13 +139,18 @@ Pinned versions: mbedTLS 3.6.7, libssh 0.11.5.
 |---|---|---|
 | mbedTLS: `#error "No mbedtls_ms_time available"` | not Unix/Windows | `MBEDTLS_PLATFORM_MS_TIME_ALT`, `mbedtls_ms_time()` in `src/riscos_entropy.c` |
 | libssh: `strndup` implicit | UnixLib hides it without `_GNU_SOURCE` | `-D_GNU_SOURCE` in `tools/build-deps.sh` |
-| libssh: `if_nametoindex` implicit | UnixLib declares it under `#if 0` | stub in `deps/patches/libssh-riscos.patch` |
+| libssh: `if_nametoindex` implicit | UnixLib declares it under `#if 0` | stub in `deps/riscos-compat/net/if.h` |
 | libssh: `B230400` undeclared | UnixLib's termios stops at 115200 | `#ifdef` guard in the patch |
 | segfault in `libssh_constructor()` at start | libssh forces `-fPIC`; GCCSDK PIC globals go through a table only the shared-object manager fills in, absent in a static AIF | patch `DefineCMakeDefaults.cmake` to drop PIC; constructor/destructor attributes and `__thread` disabled with `-DHAVE_CONSTRUCTOR_ATTRIBUTE=0` etc. |
 | "branch through zero" in `mbedtls_ctr_drbg_reseed_internal` | with the constructor gone, `ssh_init()` must run before any key operation | `main()` calls `ssh_init()` first |
 | `ssh_init failed` | libssh picked pthread locking (UnixLib has `pthread.h`) but mbedTLS has no `MBEDTLS_THREADING_C` | `ssh_threads_set_callbacks(ssh_threads_get_noop())` before `ssh_init()` |
 | `CryptRandom module missing or failing` | not in the 5.30 ROM; PackMan puts it in `System:Modules.CryptRand` and nothing loads it | the package depends on CryptRandom, `!Run` loads it if present, and `main()` probes it and refuses to start without it; the patch also makes `ssh_crypto_init()` fail when the DRBG cannot be seeded |
 | "EMT trap" with no message | UnixLib maps hardware exceptions inside SWIs and RISC OS 5's branch-through-zero trap to SIGEMT | `src/riscos.c` installs a SIGEMT/SIGOSERROR handler that prints `_kernel_last_oserror()` |
+
+The rule for where a fix goes: a function or header UnixLib lacks goes in
+`deps/riscos-compat/` (on libssh's include path; `net/if.h` adds to
+UnixLib's own with `#include_next`), a change of libssh's behaviour goes
+in the patch.
 
 `CryptRandom_Block` (R0 = buffer, R1 = length) works as documented; an
 earlier suspicion that it faulted was the unseeded DRBG above.
