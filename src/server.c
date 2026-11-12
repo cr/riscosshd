@@ -200,14 +200,14 @@ static int cb_pty_request(ssh_session session, ssh_channel channel, const char *
     return 0;
 }
 
-/* A second request on a channel that already runs a session is refused
- * without touching that session. */
+/* A second request on a channel that already runs a session, or whose
+ * session has finished (a refusal, say), is refused without touching it. */
 static int channel_busy(struct chan_ctx *c, const char *what)
 {
-    if (!c->backend)
+    if (!c->backend && !c->finished)
         return 0;
-    log_msg("%s: %s request on a channel that already has a %s session",
-            c->owner_name, what, c->backend->name);
+    log_msg("%s: %s request on a channel that is %s", c->owner_name, what,
+            c->backend ? "already in use" : "finished");
     return 1;
 }
 
