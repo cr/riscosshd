@@ -1,7 +1,7 @@
 /* Wimp front end: icon-bar icon, menu, Info, log and Keys windows.
  * The server itself is driven from null events via server_poll(0). */
-#ifndef WIMP_H
-#define WIMP_H
+#ifndef SSHD_WIMP_H
+#define SSHD_WIMP_H
 /* Register with the Wimp and create the icon and windows.  Returns -1 on
  * failure (errors reported with Wimp_ReportError where possible). */
 int wimp_init(void);

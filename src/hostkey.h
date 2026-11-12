@@ -1,5 +1,5 @@
-#ifndef HOSTKEY_H
-#define HOSTKEY_H
+#ifndef SSHD_HOSTKEY_H
+#define SSHD_HOSTKEY_H
 #include <libssh/libssh.h>
 /* Load the host key from path (any type libssh reads), or generate an
  * ed25519 key and save it there if the file does not exist.  Returns NULL

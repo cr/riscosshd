@@ -1,5 +1,5 @@
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef SSHD_CONFIG_H
+#define SSHD_CONFIG_H
 /* Runtime configuration: defaults in main.c, then the Options file in the
  * configuration directory, then the command line. */
 

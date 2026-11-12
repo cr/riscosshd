@@ -7,8 +7,8 @@
  * but does not retype, and a new file MimeMap knows nothing about gets the
  * configured default type.
  */
-#ifndef RISCOS_SFTP_H
-#define RISCOS_SFTP_H
+#ifndef SSHD_RISCOS_SFTP_H
+#define SSHD_RISCOS_SFTP_H
 /* If name ends in ",xxx", remove it and return xxx; else -1. */
 int riscos_sftp_strip_suffix(char *name);
 /* Set a file's type (UnixLib-style path); errors are logged, not fatal. */

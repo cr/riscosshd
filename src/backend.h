@@ -16,8 +16,8 @@
  *   backend_shell  text mode only: a line-mode "*" prompt on the same
  *                  capture mechanism, one OS_CLI call per line.
  */
-#ifndef BACKEND_H
-#define BACKEND_H
+#ifndef SSHD_BACKEND_H
+#define SSHD_BACKEND_H
 
 #include <stddef.h>
 #include <libssh/libssh.h>

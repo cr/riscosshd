@@ -1,5 +1,5 @@
-#ifndef LOG_H
-#define LOG_H
+#ifndef SSHD_LOG_H
+#define SSHD_LOG_H
 #include <stddef.h>
 /* Log lines are "YYYY-MM-DD HH:MM:SS text".  The last LOG_LINES are kept
  * in memory for the log window (which shows them from the time on) and

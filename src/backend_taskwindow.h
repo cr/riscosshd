@@ -2,8 +2,8 @@
  * TaskWindow child task, relayed through Wimp messages.  Only usable when
  * the server is a Wimp task; wimp.c registers the task handle and forwards
  * the messages.  In text mode start() answers BACKEND_UNAVAILABLE. */
-#ifndef BACKEND_TASKWINDOW_H
-#define BACKEND_TASKWINDOW_H
+#ifndef SSHD_BACKEND_TASKWINDOW_H
+#define SSHD_BACKEND_TASKWINDOW_H
 #include "backend.h"
 
 #define Message_TaskWindow_Input   0x808C0

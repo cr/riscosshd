@@ -3,8 +3,8 @@
  * Everything here talks to the OS directly through SWIs so that no UnixLib
  * filename translation gets in the way of native RISC OS paths.
  */
-#ifndef RISCOS_H
-#define RISCOS_H
+#ifndef SSHD_RISCOS_H
+#define SSHD_RISCOS_H
 
 #include <stddef.h>
 

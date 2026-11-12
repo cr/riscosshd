@@ -1,5 +1,5 @@
-#ifndef SERVER_H
-#define SERVER_H
+#ifndef SSHD_SERVER_H
+#define SSHD_SERVER_H
 #include <libssh/libssh.h>
 /* Create the listening socket.  hostkey is adopted by the bind. */
 int server_init(ssh_key hostkey);

@@ -1,5 +1,5 @@
-#ifndef RISCOS_ENTROPY_H
-#define RISCOS_ENTROPY_H
+#ifndef SSHD_RISCOS_ENTROPY_H
+#define SSHD_RISCOS_ENTROPY_H
 #include <stddef.h>
 /* mbedTLS hardware entropy hook, fed by the CryptRandom module. */
 int mbedtls_hardware_poll(void *data, unsigned char *output, size_t len, size_t *olen);

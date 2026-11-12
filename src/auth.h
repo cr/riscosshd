@@ -1,5 +1,5 @@
-#ifndef AUTH_H
-#define AUTH_H
+#ifndef SSHD_AUTH_H
+#define SSHD_AUTH_H
 #include <stddef.h>
 #include <libssh/libssh.h>
 /* Authorized keys: OpenSSH authorized_keys lines without options, i.e.

@@ -2,8 +2,8 @@
  * Consuming only moves an offset; the bytes are moved down once, when an
  * append would otherwise have to grow the buffer, so draining a large
  * queue in small pieces costs no copying. */
-#ifndef BUF_H
-#define BUF_H
+#ifndef SSHD_BUF_H
+#define SSHD_BUF_H
 #include <stddef.h>
 
 struct buf {

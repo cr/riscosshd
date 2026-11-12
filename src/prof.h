@@ -3,8 +3,8 @@
  * macro is empty.  The clock is OS_ReadMonotonicTime, in centiseconds:
  * a single interval is coarse, but summed over thousands of packets the
  * totals are sound.  Totals are logged every 5 s while there is traffic. */
-#ifndef PROF_H
-#define PROF_H
+#ifndef SSHD_PROF_H
+#define SSHD_PROF_H
 
 enum prof_slot {
     PROF_IDLE,      /* in Wimp_PollIdle / Wimp_Poll, i.e. given to the desktop */
