@@ -33,7 +33,7 @@ LAccount:Account (user@host)
 LPassword:Password
 LImport:Import
 LDelete:Delete
-LNone:Authorised keys: none yet, so nobody can log in.
+LNone:Authorised keys: none. Nobody can log in until you add one.
 LCount:Authorised keys (%0):
 
 # Info window
