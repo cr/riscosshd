@@ -676,27 +676,32 @@ static int fit_menu_width(int width, char (*texts)[32], int n)
 /* Every translatable text into its buffer, before the windows are made. */
 static void load_texts(void)
 {
+    /* Texts that never change once loaded: titles and icon labels. */
+    static const struct { const char *token; char *buf; size_t size; } fixed[] = {
+        { "TLog",      log_title,                sizeof log_title },
+        { "LMTitle",   log_menu.title,           sizeof log_menu.title },
+        { "TKeys",     keys_title,               sizeof keys_title },
+        { "TInfo",     info_title,               sizeof info_title },
+        { "LHost2",    host_line2,               sizeof host_line2 },
+        { "LPrompt",   prompt_text,              sizeof prompt_text },
+        { "LAdd",      add_text,                 sizeof add_text },
+        { "LFetch",    fetch_text,               sizeof fetch_text },
+        { "LAccount",  acc_text,                 sizeof acc_text },
+        { "LPassword", pass_text,                sizeof pass_text },
+        { "LImport",   fetch_btn_text,           sizeof fetch_btn_text },
+        { "LDelete",   delete_text,              sizeof delete_text },
+        { "IPurposeV", info_values[II_PURPOSE],  sizeof info_values[II_PURPOSE] },
+    };
+    for (size_t i = 0; i < sizeof fixed / sizeof fixed[0]; i++)
+        msgs_get(fixed[i].token, fixed[i].buf, fixed[i].size, NULL);
     for (int i = 0; i < MENU_ITEMS; i++)
         msgs_get(menu_tokens[i], menu_texts[i], sizeof menu_texts[i], NULL);
     menu.width = fit_menu_width(menu.width, menu_texts, MENU_ITEMS);
-    msgs_get("TLog", log_title, sizeof log_title, NULL);
     for (int i = 0; i < LMENU_ITEMS; i++)
         msgs_get(log_menu_tokens[i], log_menu_texts[i], sizeof log_menu_texts[i], NULL);
     log_menu.width = fit_menu_width(log_menu.width, log_menu_texts, LMENU_ITEMS);
-    msgs_get("LMTitle", log_menu.title, sizeof log_menu.title, NULL);
-    msgs_get("TKeys", keys_title, sizeof keys_title, NULL);
-    msgs_get("TInfo", info_title, sizeof info_title, NULL);
-    msgs_get("LHost2", host_line2, sizeof host_line2, NULL);
-    msgs_get("LPrompt", prompt_text, sizeof prompt_text, NULL);
-    msgs_get("LAdd", add_text, sizeof add_text, NULL);
-    msgs_get("LFetch", fetch_text, sizeof fetch_text, NULL);
-    msgs_get("LAccount", acc_text, sizeof acc_text, NULL);
-    msgs_get("LPassword", pass_text, sizeof pass_text, NULL);
-    msgs_get("LImport", fetch_btn_text, sizeof fetch_btn_text, NULL);
-    msgs_get("LDelete", delete_text, sizeof delete_text, NULL);
     for (int i = 0; i < II_COUNT; i++)
         msgs_get(info_tokens[i], info_labels[i], sizeof info_labels[i], NULL);
-    msgs_get("IPurposeV", info_values[II_PURPOSE], sizeof info_values[II_PURPOSE], NULL);
     info_version();
 }
 
