@@ -24,6 +24,7 @@ add_executable(sshd
   src/server.c
   src/buf.c
   src/prof.c
+  src/msgs.c
   src/backend_exec.c
   src/backend_shell.c
   src/auth.c

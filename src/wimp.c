@@ -23,6 +23,7 @@
 #include "config.h"
 #include "riscos.h"
 #include "log.h"
+#include "msgs.h"
 #include "prof.h"
 
 #ifndef Wimp_TextOp
@@ -148,30 +149,25 @@ static char list_label[96];
 static char key_input[1200];
 static char fetch_host[256], fetch_pass[128];
 static char host_line[128];
-static char host_line2[] = "ssh shows this the first time you connect; it should match exactly.";
+static char host_line2[96];
 static char host_label[120];
-static char log_title[40] = "SSHd Server Log";
-static char keys_title[40] = "SSHd Authorized Keys";
+static char log_title[40], keys_title[40];
 
 /* Menu entries are indirected, so they may be longer than 12 characters. */
-static const char menu_info[] = "Info";
-static const char menu_help_text[] = "Help...";
-static const char menu_log[] = "Log window";
-static const char menu_verbose[] = "Verbose";
-static const char menu_keys[] = "Keys...";
-static const char menu_options[] = "Choices...";
-static const char menu_quit[] = "Quit";
+/* Menu entries are indirected, so they may be longer than 12 characters;
+ * the texts come from the Messages file (load_texts). */
+static char menu_texts[MENU_ITEMS][32];
+static const char *const menu_tokens[MENU_ITEMS] = {
+    "MInfo", "MHelp", "MLog", "MVerbose", "MKeys", "MChoices", "MQuit"
+};
 #define MENU_ITEM_FLAGS (ICON_TEXT | ICON_FILLED | ICON_INDIRECTED | ICON_FG(7) | ICON_BG(0))
+#define MENU_ITEM(i, f) { f, -1, MENU_ITEM_FLAGS, { .ind = { menu_texts[i], (const char *)-1, sizeof menu_texts[i] } } }
 static struct wimp_menu menu = {
     "SSHd", 7, 2, 7, 0, 220, 44, 0,
     {
-        { 0,           -1, MENU_ITEM_FLAGS, { .ind = { menu_info, (const char *)-1, sizeof menu_info } } },
-        { MENU_DOTTED, -1, MENU_ITEM_FLAGS, { .ind = { menu_help_text, (const char *)-1, sizeof menu_help_text } } },
-        { 0,           -1, MENU_ITEM_FLAGS, { .ind = { menu_log,  (const char *)-1, sizeof menu_log } } },
-        { MENU_DOTTED, -1, MENU_ITEM_FLAGS, { .ind = { menu_verbose, (const char *)-1, sizeof menu_verbose } } },
-        { 0,           -1, MENU_ITEM_FLAGS, { .ind = { menu_keys, (const char *)-1, sizeof menu_keys } } },
-        { MENU_DOTTED, -1, MENU_ITEM_FLAGS, { .ind = { menu_options, (const char *)-1, sizeof menu_options } } },
-        { 0x80,        -1, MENU_ITEM_FLAGS, { .ind = { menu_quit, (const char *)-1, sizeof menu_quit } } },
+        MENU_ITEM(MENU_INFO, 0), MENU_ITEM(MENU_HELP, MENU_DOTTED), MENU_ITEM(MENU_LOG, 0),
+        MENU_ITEM(MENU_VERBOSE, MENU_DOTTED), MENU_ITEM(MENU_KEYS, 0),
+        MENU_ITEM(MENU_OPTIONS, MENU_DOTTED), MENU_ITEM(MENU_QUIT, 0x80),
     }
 };
 
@@ -327,7 +323,7 @@ static void open_on_top(int win)
 
 /* --- keys window rows ---------------------------------------------------- */
 
-static char delete_text[] = "Delete";
+static char delete_text[24];
 
 /* Rebuild the key rows as icons and size the window to fit them. */
 static void refresh_keys_list(void)
@@ -369,9 +365,12 @@ static void refresh_keys_list(void)
     ext[1] = ROW_TOP - (n > nrows ? n : nrows) * ROW_H - 16;
     nrows = n;
     if (n == 0)
-        snprintf(list_label, sizeof list_label, "Authorized keys: none yet, so nobody can log in.");
-    else
-        snprintf(list_label, sizeof list_label, "Authorized keys (%d):", n);
+        msgs_get("LNone", list_label, sizeof list_label, NULL);
+    else {
+        char num[12];
+        snprintf(num, sizeof num, "%d", n);
+        msgs_get("LCount", list_label, sizeof list_label, num);
+    }
     redraw_icon(keys_win, KI_LISTLABEL);
     _swix(Wimp_ForceRedraw, _INR(0, 4), keys_win, 0, ext[1], KEYS_W, ROW_TOP + 4);
 
@@ -495,9 +494,9 @@ void wimp_open_keys_window(void)
         char hint[96];
         connect_hint(hint, sizeof hint);      /* now: the network may have come up late */
         if (hint[0])
-            snprintf(host_label, sizeof host_label, "Connect with %s; host key fingerprint:", hint);
+            msgs_get("LConnect", host_label, sizeof host_label, hint);
         else
-            snprintf(host_label, sizeof host_label, "This server's host key fingerprint:");
+            msgs_get("LHost", host_label, sizeof host_label, NULL);
     }
     snprintf(host_line, sizeof host_line, "%s",
              hostkey_fingerprint()[0] ? hostkey_fingerprint() : "(not loaded: the server did not start)");
@@ -634,20 +633,48 @@ static int create_window(struct wimp_window *w)
     return handle;
 }
 
-static char info_title[16] = "About SSHd";
-static char info_labels[II_COUNT][12] = {
-    "Name", "Purpose", "Website", "Version", "Built", "Compiler", "libssh", "Crypto", "Licences"
+static char info_title[40];
+static char info_labels[II_COUNT][24];
+static const char *const info_tokens[II_COUNT] = {
+    "IName", "IPurpose", "IWebsite", "IVersion", "IBuilt", "ICompiler", "ILibssh", "ICrypto", "ILicences"
 };
 static char info_values[II_COUNT][96] = {
-    "SSHd", "SSH server for RISC OS", "https://github.com/cr/riscosshd", SSHD_VERSION,
+    "SSHd", "", "https://github.com/cr/riscosshd", SSHD_VERSION,
     __DATE__ " " __TIME__, "GCC " __VERSION__ " (GCCSDK, UnixLib)", "",
     "mbedTLS " MBEDTLS_VERSION_STRING ", CryptRandom entropy", "MIT, LGPL 2.1, Apache 2.0: see !Help"
 };
-static char prompt_text[] = "Add a public key: paste the line from your id_ed25519.pub, or drop the .pub file on this window";
+static char prompt_text[128];
 static char group_dummy[] = "";
-static char add_text[] = "Add", fetch_btn_text[] = "Import";
-static char fetch_text[] = "Import the public keys of an account on another machine:";
-static char acc_text[] = "Account (user@host)", pass_text[] = "Password";
+static char add_text[16], fetch_btn_text[16];
+static char fetch_text[96];
+static char acc_text[48], pass_text[48];
+
+/* Every translatable text into its buffer, before the windows are made. */
+static void load_texts(void)
+{
+    size_t longest = 0;
+    for (int i = 0; i < MENU_ITEMS; i++) {
+        msgs_get(menu_tokens[i], menu_texts[i], sizeof menu_texts[i], NULL);
+        if (strlen(menu_texts[i]) > longest)
+            longest = strlen(menu_texts[i]);
+    }
+    if ((int)longest * 16 + 32 > menu.width)
+        menu.width = (int)longest * 16 + 32;
+    msgs_get("TLog", log_title, sizeof log_title, NULL);
+    msgs_get("TKeys", keys_title, sizeof keys_title, NULL);
+    msgs_get("TInfo", info_title, sizeof info_title, NULL);
+    msgs_get("LHost2", host_line2, sizeof host_line2, NULL);
+    msgs_get("LPrompt", prompt_text, sizeof prompt_text, NULL);
+    msgs_get("LAdd", add_text, sizeof add_text, NULL);
+    msgs_get("LFetch", fetch_text, sizeof fetch_text, NULL);
+    msgs_get("LAccount", acc_text, sizeof acc_text, NULL);
+    msgs_get("LPassword", pass_text, sizeof pass_text, NULL);
+    msgs_get("LImport", fetch_btn_text, sizeof fetch_btn_text, NULL);
+    msgs_get("LDelete", delete_text, sizeof delete_text, NULL);
+    for (int i = 0; i < II_COUNT; i++)
+        msgs_get(info_tokens[i], info_labels[i], sizeof info_labels[i], NULL);
+    msgs_get("IPurposeV", info_values[II_PURPOSE], sizeof info_values[II_PURPOSE], NULL);
+}
 
 static void create_windows(void)
 {
@@ -736,6 +763,8 @@ int wimp_init(void)
         return -1;
     }
     tw_set_task_handle(task_handle);
+    msgs_open();
+    load_texts();
     create_windows();
     if (create_iconbar_icon() < 0 || log_win < 0 || keys_win < 0 || info_win < 0) {
         wimp_shutdown();        /* leave no half-registered task behind */
@@ -861,13 +890,13 @@ static void key_pressed(int *b)
 static const char *menu_help(int item)
 {
     switch (item) {
-    case MENU_INFO:    return "Move right to see information about this version of SSHd.";
-    case MENU_HELP:    return "Click SELECT to read the help for SSHd.";
-    case MENU_LOG:     return "Click SELECT to open the log window, which follows the server's activity.";
-    case MENU_VERBOSE: return "Click SELECT to turn detailed logging on or off. This lasts until SSHd quits; set 'verbose' in Choices to keep it.";
-    case MENU_KEYS:    return "Click SELECT to open the window of keys that may log in.";
-    case MENU_OPTIONS: return "Click SELECT to edit the settings in your text editor; they apply when SSHd is next started.";
-    case MENU_QUIT:    return "Click SELECT to stop the SSH server and remove it from the icon bar.";
+    case MENU_INFO:    return "HMInfo";
+    case MENU_HELP:    return "HMHelp";
+    case MENU_LOG:     return "HMLog";
+    case MENU_VERBOSE: return "HMVerbose";
+    case MENU_KEYS:    return "HMKeys";
+    case MENU_OPTIONS: return "HMChoices";
+    case MENU_QUIT:    return "HMQuit";
     default:           return NULL;
     }
 }
@@ -875,17 +904,15 @@ static const char *menu_help(int item)
 static const char *keys_help(int ic)
 {
     switch (ic) {
-    case KI_INPUT: return "Type or paste a public key here (the content of an id_*.pub file), then press RETURN or click Add.";
-    case KI_ADD:   return "Click SELECT to add the key in the field to the authorized keys.";
-    case KI_FHOST: return "The account on another machine whose public keys you want to allow, as user@host or user@host:port.";
-    case KI_FPASS: return "That account's password. It is used once to log in and read its id_ed25519, id_ecdsa and id_rsa public keys, then forgotten.";
-    case KI_FETCH: return "Click SELECT to log in to the machine named on the left and import its public keys.";
+    case KI_INPUT: return "HInput";
+    case KI_ADD:   return "HAdd";
+    case KI_FHOST: return "HAccount";
+    case KI_FPASS: return "HPassword";
+    case KI_FETCH: return "HImport";
     case KI_HOST: case KI_HOST2: case KI_HOSTLABEL:
-                   return "This server's host key fingerprint. On your first connection ssh prints the same text; answer yes only if they match.";
+                   return "HHost";
     default:
-        return row_of_delete_icon(ic) >= 0
-             ? "Click SELECT to remove this key; it will no longer be able to log in."
-             : "Drop a file containing public keys anywhere on this window to add them.";
+        return row_of_delete_icon(ic) >= 0 ? "HDelete" : "HDrop";
     }
 }
 
@@ -896,11 +923,11 @@ static void help_request(int *b)
     int win = b[8], ic = b[9];
     const char *text = NULL;
     if (win == -2)
-        text = "This is the SSH server. Click SELECT to open its log, ADJUST for the authorized keys, MENU for the settings and more.";
+        text = "HIcon";
     else if (win == log_win)
-        text = "The server's log, newest line at the bottom; also written to the file log in SSHd's Choices directory.";
+        text = "HLog";
     else if (win == info_win)
-        text = "Information about this copy of SSHd.";
+        text = "HInfo";
     else if (win == keys_win)
         text = keys_help(ic);
     else {
@@ -912,7 +939,7 @@ static void help_request(int *b)
     }
     if (!text)
         return;
-    snprintf((char *)&b[5], 236, "%s", text);
+    msgs_get(text, (char *)&b[5], 236, NULL);    /* text is a Messages token */
     b[0] = (int)((20 + strlen((char *)&b[5]) + 1 + 3) & ~3u);
     b[3] = b[2];
     b[4] = 0x503;
@@ -1000,6 +1027,7 @@ void wimp_run(void)
 
 void wimp_shutdown(void)
 {
+    msgs_close();
     if (task_handle)
         _swix(Wimp_CloseDown, _INR(0, 1), task_handle, TASK_MAGIC);
     task_handle = 0;
