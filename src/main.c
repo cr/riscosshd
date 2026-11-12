@@ -453,7 +453,7 @@ int main(int argc, char **argv)
         ro_save_file(cfg.authorized_keys_path, 0xfff, "", 0);
         n = 0;
     } else {
-        log_msg("%d authorized key%s", n, n == 1 ? "" : "s");
+        log_msg("%d authorised key%s", n, n == 1 ? "" : "s");
     }
 
     hostkey = hostkey_load_or_create(cfg.hostkey_path);

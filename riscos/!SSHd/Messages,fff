@@ -19,7 +19,7 @@ LMClear:Clear
 # Window titles
 TLog:SSHd Server Log
 TLogStatus:SSHd log: port %0, %1 logged in
-TKeys:SSHd Authorized Keys
+TKeys:SSHd Authorised Keys
 TInfo:About SSHd
 
 # Keys window
@@ -33,8 +33,8 @@ LAccount:Account (user@host)
 LPassword:Password
 LImport:Import
 LDelete:Delete
-LNone:Authorized keys: none yet, so nobody can log in.
-LCount:Authorized keys (%0):
+LNone:Authorised keys: none yet, so nobody can log in.
+LCount:Authorised keys (%0):
 
 # Info window
 IName:Name
@@ -49,11 +49,11 @@ ILicences:Licences
 IPurposeV:SSH server for RISC OS
 
 # Interactive help
-HIcon:This is the SSH server. Click SELECT to open its log, ADJUST for the authorized keys, MENU for the settings and more.
+HIcon:This is the SSH server. Click SELECT to open its log, ADJUST for the authorised keys, MENU for the settings and more.
 HLog:The server's log, newest line at the bottom; also written to the file log in SSHd's Choices directory.
 HInfo:Information about this copy of SSHd.
 HInput:Type or paste a public key here (the content of an id_*.pub file), then press RETURN or click Add.
-HAdd:Click SELECT to add the key in the field to the authorized keys.
+HAdd:Click SELECT to add the key in the field to the authorised keys.
 HAccount:The account on another machine whose public keys you want to allow, as user@host or user@host:port.
 HPassword:That account's password. It is used once to log in and read its id_ed25519, id_ecdsa and id_rsa public keys, then forgotten.
 HImport:Click SELECT to log in to the machine named on the left and import its public keys.

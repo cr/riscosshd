@@ -9,7 +9,7 @@ Licence: Free
 Description: SSH server for RISC OS 5
  An SSH server built on libssh and mbedTLS, running as a desktop task.
  Accepts public-key logins only; runs *commands and interactive sessions
- in a TaskWindow, and serves sftp/scp.  Authorized keys are managed in a
+ in a TaskWindow, and serves sftp/scp.  Authorised keys are managed in a
  window, with an import from another machine.  Configuration lives in
  Choices:SSHd.  SSHd itself is MIT licensed; it statically links libssh
  (LGPL 2.1), mbedTLS (Apache 2.0) and UnixLib, see RiscPkg.Copyright.

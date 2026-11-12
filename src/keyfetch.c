@@ -192,12 +192,12 @@ int keyfetch_run(const char *userhost, const char *password,
     if (auth_add_keys(out, &added, &dup, &bad, err, sizeof err) < 0)
         snprintf(msg, msglen, "%d key%s imported, but %s", added, added == 1 ? "" : "s", err);
     else if (added == 0 && dup > 0)
-        snprintf(msg, msglen, "The keys of %s@%s are already authorized", user, host);
+        snprintf(msg, msglen, "The keys of %s@%s are already authorised", user, host);
     else if (added == 0)
         snprintf(msg, msglen, "No keys found on %s (looked for ~/.ssh/id_ed25519.pub, id_ecdsa.pub, id_rsa.pub)", host);
     else
         snprintf(msg, msglen, "%d key%s imported from %s@%s%s%s", added, added == 1 ? "" : "s", user, host,
-                 dup ? ", others already authorized" : "", bad ? " (some lines were not keys)" : "");
+                 dup ? ", others already authorised" : "", bad ? " (some lines were not keys)" : "");
     log_msg("key fetch: %s", msg);
     result = added;
 out:

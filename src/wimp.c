@@ -560,10 +560,10 @@ static void keys_add_from_file(const char *path)
     if (rc < 0)
         reportf("%d key%s %s", added, added == 1 ? "" : "s", err);
     else if (added == 0 && bad)
-        reportf("%d key%s added, %d already authorized, %d line%s not a key",
+        reportf("%d key%s added, %d already authorised, %d line%s not a key",
                 added, added == 1 ? "" : "s", dup, bad, bad == 1 ? "" : "s");
     else if (added == 0 || dup || bad)
-        tellf("%d key%s added, %d already authorized, %d line%s not a key",
+        tellf("%d key%s added, %d already authorised, %d line%s not a key",
               added, added == 1 ? "" : "s", dup, bad, bad == 1 ? "" : "s");
 }
 

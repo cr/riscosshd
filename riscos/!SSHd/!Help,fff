@@ -18,7 +18,7 @@ Keys window
 -----------
 Shows the server's own host key at the top (generated on first run with
 the CryptRandom module and kept in Choices:SSHd.hostkey), then three ways
-to add an authorized key:
+to add an authorised key:
   - type or paste it into the field (the format ssh-keygen writes to
     id_ed25519.pub or id_rsa.pub), then Add or Return;
   - drop such a file onto the window;
@@ -31,12 +31,12 @@ to add an authorized key:
     (macOS: Sharing > Remote Login; Linux: openssh-server); without one,
     copy its ~/.ssh/id_ed25519.pub here some other way and drop it on the
     window.  ssh-copy-id does not work: SSHd has no password logins.
-Below that is the list of authorized keys, each with a Delete button.
+Below that is the list of authorised keys, each with a Delete button.
 Keys are stored in <Choices$Write>.SSHd.authkeys, one per line, and a key
 that is already listed is not added twice.  The window opens by itself
 when no key is configured yet.
 
-Any authorized key has full control of the machine: every *command, and
+Any authorised key has full control of the machine: every *command, and
 over SFTP every filing system.  Only the user name "riscos" is accepted
 (the "user" setting below); it is a filter, not a password: the key decides.
 

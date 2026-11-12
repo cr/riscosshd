@@ -107,7 +107,7 @@ stalls on it.
 ### Removing
 
 Remove the package in PackMan, or delete `!SSHd` and its Boot > Run
-entry.  `Choices:SSHd` (host key, authorized keys, settings, log) stays
+entry.  `Choices:SSHd` (host key, authorised keys, settings, log) stays
 until you delete it.
 
 ## Using it

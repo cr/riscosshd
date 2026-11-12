@@ -2,7 +2,7 @@
 #define SSHD_AUTH_H
 #include <stddef.h>
 #include <libssh/libssh.h>
-/* Authorized keys: OpenSSH authorized_keys lines without options, i.e.
+/* Authorised keys: OpenSSH authorized_keys lines without options, i.e.
  * "type base64 [comment]", one per line. */
 
 /* Load the keys from a RISC OS path.  Returns the number loaded, or -1 if
@@ -11,7 +11,7 @@ int auth_load_keys(const char *path);
 /* Returns 1 if pubkey matches one of the loaded keys. */
 int auth_key_allowed(ssh_key pubkey);
 /* Add the key on one line and append it to the file.  A key that is
- * already authorized is refused.  Returns 0, or -1 with a message in err. */
+ * already authorised is refused.  Returns 0, or -1 with a message in err. */
 int auth_add_key_line(const char *line, char *err, size_t errlen);
 /* Add every key in text (blank lines and # comments are skipped) and
  * append the new ones to the file in one write.  Counts go to *added,
@@ -23,7 +23,7 @@ int auth_count(void);
 /* One-line description of key i: "ED25519 SHA256:... comment", the
  * fingerprint as ssh-keygen -l shows it. */
 void auth_describe_one(int i, char *buf, size_t len);
-/* Remove key i and rewrite the authorized keys file (comment lines in the
+/* Remove key i and rewrite the authorised keys file (comment lines in the
  * file are not preserved).  Returns 0, or -1 with a message in err. */
 int auth_remove_key(int i, char *err, size_t errlen);
 void auth_free(void);

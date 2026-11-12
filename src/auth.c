@@ -89,7 +89,7 @@ static int parse_line(const char *src, char *err, size_t errlen)
     else if (ssh_pki_import_pubkey_base64(b64, kt, &k) != SSH_OK)
         snprintf(err, errlen, "cannot decode %s key", type);
     else if (auth_key_allowed(k)) {
-        snprintf(err, errlen, "that key is already authorized");
+        snprintf(err, errlen, "that key is already authorised");
         rc = LINE_DUPLICATE;
     } else if (add_key(k, type, b64, comment) < 0)
         snprintf(err, errlen, "out of memory");
