@@ -117,15 +117,10 @@ static void sftp_eof(struct chan_ctx *c)
 static void sftp_stop(struct chan_ctx *c)
 {
     struct sftp_state *st = c->backend_data;
-    if (st) {
-        if (st->sftp) {
-            sftp_server_close_handles(st->sftp);   /* files a dropped client left open */
-            sftp_server_free(st->sftp);
-        }
-        buf_free(&st->q);
-        free(st);
-    }
-    c->backend_data = NULL;
+    sftp_server_close_handles(st->sftp);   /* files a dropped client left open */
+    sftp_server_free(st->sftp);
+    buf_free(&st->q);
+    free(st);
 }
 
 const struct backend_ops backend_sftp = {

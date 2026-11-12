@@ -256,19 +256,21 @@ static void chan_pump(struct chan_ctx *c)
 
 /* Free a channel.  The caller must have unlinked it first: closing it in
  * libssh flushes, and a flush can run a nested poll whose callbacks must
- * not find it again.  Those callbacks see a channel with no backend.  The
- * chan_ctx goes last, as libssh points at its callback struct until
- * ssh_channel_free. */
+ * not find it again.  Those callbacks see a finished channel with no
+ * backend, even while stop runs, so none can reach the backend state it
+ * frees.  The chan_ctx goes last, as libssh points at its callback struct
+ * until ssh_channel_free. */
 static void chan_free(struct chan_ctx *c)
 {
+    const struct backend_ops *b;
     if (!c)
         return;
-    if (c->backend && c->backend->stop)
-        c->backend->stop(c);
+    b = c->backend;
     c->backend = NULL;
     c->finished = 1;
-    if (c->channel)
-        ssh_channel_free(c->channel);
+    if (b && b->stop)
+        b->stop(c);
+    ssh_channel_free(c->channel);
     buf_free(&c->out);
     buf_free(&c->err);
     free(c);

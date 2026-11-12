@@ -452,9 +452,6 @@ static void tw_poll(struct chan_ctx *c)
 static void tw_stop(struct chan_ctx *c)
 {
     struct tw_state *s = c->backend_data;
-    if (!s)
-        return;
-    c->backend_data = NULL;
     if (s->child) {
         kill_child(s);
         unlink_state(s);

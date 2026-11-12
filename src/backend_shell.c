@@ -105,7 +105,7 @@ static void shell_data(struct chan_ctx *c, const char *buf, size_t len)
 static void shell_eof(struct chan_ctx *c)
 {
     struct shell_state *s = c->backend_data;
-    if (s && s->len > 0 && !c->pty)
+    if (s->len > 0 && !c->pty)
         run_line(c, s);           /* piped input without trailing newline */
     chan_finish(c, 0);
 }
@@ -113,7 +113,6 @@ static void shell_eof(struct chan_ctx *c)
 static void shell_stop(struct chan_ctx *c)
 {
     free(c->backend_data);
-    c->backend_data = NULL;
 }
 
 const struct backend_ops backend_shell = {
