@@ -657,18 +657,18 @@ static char info_values[II_COUNT][96] = {
 
 /* "0.1.0-3 (12 Nov 2026)": the Style Guide's version line.  The date is
  * the build's SOURCE_DATE_EPOCH (CMakeLists.txt), not the time of
- * compiling, so that builds are reproducible. */
+ * compiling, so that builds are reproducible.  A build that is not the
+ * release itself adds which commit it is.  libssh's version is only
+ * known at run time. */
 #ifndef SSHD_BUILD_DATE
 #define SSHD_BUILD_DATE "unknown date"
 #endif
-static void info_version(void)
+static void info_versions(void)
 {
-    snprintf(info_values[II_VERSION], sizeof info_values[II_VERSION], "%s (%s)",
-             SSHD_VERSION, SSHD_BUILD_DATE);
-    /* a build that is not the release itself says which commit it is */
-    if (strcmp(SSHD_GIT, "v" SSHD_VERSION) != 0)
-        snprintf(info_values[II_VERSION] + strlen(info_values[II_VERSION]),
-                 sizeof info_values[II_VERSION] - strlen(info_values[II_VERSION]), ", %s", SSHD_GIT);
+    int release = strcmp(SSHD_GIT, "v" SSHD_VERSION) == 0;
+    snprintf(info_values[II_VERSION], sizeof info_values[II_VERSION], "%s (%s)%s%s",
+             SSHD_VERSION, SSHD_BUILD_DATE, release ? "" : ", ", release ? "" : SSHD_GIT);
+    snprintf(info_values[II_LIBSSH], sizeof info_values[II_LIBSSH], "%s", ssh_version(0));
 }
 static char prompt_text[128];
 static char group_dummy[] = "";
@@ -717,7 +717,7 @@ static void load_texts(void)
     log_menu.width = fit_menu_width(log_menu.width, log_menu_texts, LMENU_ITEMS);
     for (int i = 0; i < II_COUNT; i++)
         msgs_get(info_tokens[i], info_labels[i], sizeof info_labels[i], NULL);
-    info_version();
+    info_versions();
 }
 
 static void create_windows(void)
@@ -772,7 +772,6 @@ static void create_windows(void)
 
     /* Info window: the usual label/value box, icons only; it is the Info
      * menu item's submenu, so the Wimp opens it on its own. */
-    snprintf(info_values[II_LIBSSH], sizeof info_values[II_LIBSSH], "%s", ssh_version(0));
     window_def(&w, 940, 420, WIN_AUTOREDRAW, 1, -(16 + II_COUNT * 44), 940,
                info_title, sizeof info_title);
     w.flags &= ~(WIN_BACK | WIN_CLOSE);  /* an Info box has a title bar only */
