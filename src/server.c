@@ -362,6 +362,7 @@ static int cb_auth_pubkey(ssh_session session, const char *user, struct ssh_key_
     }
     if (++s->auth_tries >= MAX_AUTH_TRIES) {
         log_msg("%s from %s: too many auth failures", user, s->peer);
+        ssh_session_set_disconnect_message(s->session, "Too many failed login attempts");
         ssh_disconnect(s->session);
     }
     return SSH_AUTH_DENIED;
@@ -565,7 +566,14 @@ int server_init(ssh_key hostkey)
 static int past_deadline(struct session_ctx *s, time_t now)
 {
     if (s->deadline && now >= s->deadline) {
+        char why[64];
+        if (s->authenticated)
+            snprintf(why, sizeof why, "No session opened for %d seconds", cfg.idle_timeout);
+        else
+            snprintf(why, sizeof why, "No login within %d seconds", cfg.auth_timeout);
         log_msg("%s: timed out %s", s->peer, s->authenticated ? "with no channel" : "before authenticating");
+        /* clients print this instead of libssh's default "Bye Bye" */
+        ssh_session_set_disconnect_message(s->session, why);
         session_destroy(s);
         return 1;
     }
@@ -672,8 +680,10 @@ int server_poll(int timeout_ms)
 
 void server_shutdown(void)
 {
-    while (sessions)
+    while (sessions) {
+        ssh_session_set_disconnect_message(sessions->session, "SSHd is shutting down");
         session_destroy(sessions);
+    }
     if (event)
         ssh_event_free(event);
     if (bind_handle)
