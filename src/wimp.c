@@ -1,10 +1,11 @@
 /* SPDX-License-Identifier: MIT */
 /* Wimp front end for sshd: icon-bar icon with a menu (Info, Help..., Log
  * window, Verbose, Keys..., Choices..., Quit), an Info window, a tail-style log
- * window drawn with the desktop font, and a Keys window where public keys
- * can be typed, pasted, dropped as a file, imported from another machine,
- * and deleted.  Windows and the menu are built in code, so there is no
- * Templates file.  All Wimp access goes through _swix; no OSLib.
+ * window drawn with the desktop font with a menu of its own (Open log file,
+ * Clear), and a Keys window where public keys can be typed, pasted, dropped
+ * as a file, imported from another machine, and deleted.  Windows and menus
+ * are built in code, so there is no Templates file.  All Wimp access goes
+ * through _swix; no OSLib.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -169,7 +170,6 @@ static char host_line2[96];
 static char host_label[120];
 static char log_title[40], keys_title[40];
 
-/* Menu entries are indirected, so they may be longer than 12 characters. */
 /* Menu entries are indirected, so they may be longer than 12 characters;
  * the texts come from the Messages file (load_texts). */
 static char menu_texts[MENU_ITEMS][32];
@@ -438,6 +438,21 @@ static void log_notify(void)
     log_update(0);
 }
 
+/* The log window's title: port and logged-in sessions, as a status line. */
+static void log_title_update(void)
+{
+    static int shown = -1;
+    int n = server_logged_in();
+    char port[12], num[12];
+    if (n == shown || log_win < 0)
+        return;
+    shown = n;
+    snprintf(port, sizeof port, "%d", cfg.port);
+    snprintf(num, sizeof num, "%d", n);
+    msgs_get2("TLogStatus", log_title, sizeof log_title, port, num);
+    _swix(Wimp_ForceRedraw, _INR(0, 2), log_win, TASK_MAGIC, 3);   /* title bar only */
+}
+
 static void redraw_log(int *block)
 {
     int more = 0, n = log_count();
@@ -678,7 +693,7 @@ static void load_texts(void)
 {
     /* Texts that never change once loaded: titles and icon labels. */
     static const struct { const char *token; char *buf; size_t size; } fixed[] = {
-        { "TLog",      log_title,                sizeof log_title },
+        { "MTitle",    menu.title,               sizeof menu.title },
         { "LMTitle",   log_menu.title,           sizeof log_menu.title },
         { "TKeys",     keys_title,               sizeof keys_title },
         { "TInfo",     info_title,               sizeof info_title },
@@ -813,6 +828,7 @@ int wimp_init(void)
     }
     log_set_notify(log_notify);
     log_update(0);              /* size the window for the lines logged so far */
+    log_title_update();
     menu.item[MENU_INFO].submenu = info_win;   /* Style Guide: Info is a submenu box */
     refresh_keys_list();
     return 0;
@@ -828,21 +844,6 @@ static void show_menu(void *m)
                                     (log_verbose ? MENU_TICK : 0);
     current_menu = m;
     _swix(Wimp_CreateMenu, _INR(1, 3), m, menu_x, menu_y);
-}
-
-/* The log window's title: port and logged-in sessions, as a status line. */
-static void log_title_update(void)
-{
-    static int shown = -1;
-    int n = server_logged_in();
-    char port[12], num[12];
-    if (n == shown || log_win < 0)
-        return;
-    shown = n;
-    snprintf(port, sizeof port, "%d", cfg.port);
-    snprintf(num, sizeof num, "%d", n);
-    msgs_get2("TLogStatus", log_title, sizeof log_title, port, num);
-    _swix(Wimp_ForceRedraw, _INR(0, 2), log_win, TASK_MAGIC, 3);   /* title bar only */
 }
 
 static void open_menu(int x)

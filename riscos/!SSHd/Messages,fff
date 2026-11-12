@@ -17,7 +17,6 @@ LMOpen:Open log file
 LMClear:Clear
 
 # Window titles
-TLog:SSHd Server Log
 TLogStatus:SSHd log: port %0, %1 logged in
 TKeys:SSHd Authorised Keys
 TInfo:About this program
