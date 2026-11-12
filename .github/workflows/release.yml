@@ -1,0 +1,43 @@
+name: release
+# A tag v<version> builds the package, attaches it to a GitHub release and
+# publishes the PackMan index on GitHub Pages:
+#   https://cr.github.io/riscosshd/pkg/index
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache cross-built dependencies
+        uses: actions/cache@v4
+        with:
+          path: deps/sysroot
+          key: deps-${{ hashFiles('tools/build-deps.sh', 'deps/mbedtls_riscos_config.h', 'deps/patches/**', 'deps/riscos-compat/**', 'cmake/toolchain-riscos.cmake') }}
+      - name: Keep a restored sysroot newer than the checkout
+        run: test -d deps/sysroot && find deps/sysroot -exec touch {} + || true
+      - name: Check that the tag matches the Control file
+        run: |
+          v=$(sed -n 's/^Version: *//p' riscos/RiscPkg/Control)
+          test "v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} but Control says $v"; exit 1; }
+      - name: Build the package
+        run: make ENGINE=docker
+      - name: Package index for PackMan
+        run: sh tools/mkindex.sh site "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}" dist/SSHd_*.zip
+      - name: GitHub release with the zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" dist/SSHd_*.zip --title "SSHd ${GITHUB_REF_NAME#v}" --notes "PackMan source: https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/pkg/index"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4

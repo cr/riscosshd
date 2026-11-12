@@ -4,6 +4,7 @@ Section: Network
 Maintainer: Christiane Ruetten <cr@users.noreply.github.com>
 Standards-Version: 0.6.0
 Version: 0.1.0-1
+Environment: arm
 Licence: Free
 Description: SSH server for RISC OS 5
  An SSH server built on libssh and mbedTLS, running as a desktop task.

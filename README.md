@@ -201,10 +201,21 @@ with the log window open rather than showing a modal box, so a boot
 sequence that runs `!SSHd` is never stalled.  After an upgrade, Quit the
 running instance and start the new one.
 
+## Installing with PackMan
+
+Add this source in PackMan (Sources..., then Update lists) and install
+SSHd from the Network section; CryptRandom comes in as a dependency:
+
+    https://cr.github.io/riscosshd/pkg/index
+
+Each tagged release (`v<version>`) rebuilds the package, attaches the zip
+to a GitHub release and republishes the index on GitHub Pages
+(`.github/workflows/release.yml`, `tools/mkindex.sh`).
+
 ## Roadmap
 
-1. Publish the package in a PackMan index (`riscos/RiscPkg/Control` is ready; the zip layout is
-   what `package-zip` produces).
+1. Get the package into the riscos.info autobuilder index, so it needs
+   no extra source in PackMan.
 2. Window-size and colour handling for the TaskWindow session.
 
 ## Licence
