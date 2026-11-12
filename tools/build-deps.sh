@@ -30,24 +30,20 @@ fetch "$MBEDTLS_URL" "mbedtls-$MBEDTLS_VER.tar.bz2" "$MBEDTLS_SHA256"
 fetch "$LIBSSH_URL"  "libssh-$LIBSSH_VER.tar.xz" "$LIBSSH_SHA256"
 
 # --- mbedTLS -------------------------------------------------------------
-# Rebuild mbedTLS when its configuration or the toolchain file is newer
-# than the library, not only when the library is missing.
-if [ ! -f "$SYSROOT/lib/libmbedcrypto.a" ] \
-   || [ "$TOP/deps/mbedtls_riscos_config.h" -nt "$SYSROOT/lib/libmbedcrypto.a" ] \
-   || [ "$TOOLCHAIN" -nt "$SYSROOT/lib/libmbedcrypto.a" ]; then
-    rm -rf "$SRC/mbedtls-$MBEDTLS_VER"
-    tar -xjf "$DL/mbedtls-$MBEDTLS_VER.tar.bz2" -C "$SRC"
-    cd "$SRC/mbedtls-$MBEDTLS_VER"
-    cmake -S . -B build-riscos -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
-        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$SYSROOT" \
-        -DENABLE_PROGRAMS=OFF -DENABLE_TESTING=OFF -DMBEDTLS_FATAL_WARNINGS=OFF \
-        -DUSE_SHARED_MBEDTLS_LIBRARY=OFF -DUSE_STATIC_MBEDTLS_LIBRARY=ON \
-        -DGEN_FILES=OFF \
-        -DCMAKE_C_FLAGS="-ffunction-sections -fdata-sections" \
-        -DMBEDTLS_USER_CONFIG_FILE="$TOP/deps/mbedtls_riscos_config.h"
-    cmake --build build-riscos -j"$NPROC"
-    cmake --install build-riscos
-fi
+# Built from scratch every time, like libssh: make runs this script only
+# when one of its inputs changed (a version pin, the config, the image).
+rm -rf "$SRC/mbedtls-$MBEDTLS_VER"
+tar -xjf "$DL/mbedtls-$MBEDTLS_VER.tar.bz2" -C "$SRC"
+cd "$SRC/mbedtls-$MBEDTLS_VER"
+cmake -S . -B build-riscos -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$SYSROOT" \
+    -DENABLE_PROGRAMS=OFF -DENABLE_TESTING=OFF -DMBEDTLS_FATAL_WARNINGS=OFF \
+    -DUSE_SHARED_MBEDTLS_LIBRARY=OFF -DUSE_STATIC_MBEDTLS_LIBRARY=ON \
+    -DGEN_FILES=OFF \
+    -DCMAKE_C_FLAGS="-ffunction-sections -fdata-sections" \
+    -DMBEDTLS_USER_CONFIG_FILE="$TOP/deps/mbedtls_riscos_config.h"
+cmake --build build-riscos -j"$NPROC"
+cmake --install build-riscos
 
 # --- libssh --------------------------------------------------------------
 # No constructor/destructor attributes and no __thread: UnixLib has not set
