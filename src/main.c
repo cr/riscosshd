@@ -309,7 +309,7 @@ static int check_settings(void)
 static char *load_text(const char *dir, const char *leaf)
 {
     char *path = join(dir, leaf), *data, *out, *p, *q;
-    size_t len = 0, lines = 0;
+    size_t len = 0;
     if (!path)
         return NULL;
     data = ro_load_file(path, &len);
@@ -320,10 +320,7 @@ static char *load_text(const char *dir, const char *leaf)
     }
     if (len > 4096)
         len = 4096;
-    for (p = data; p < data + len; p++)
-        if (*p == '\n')
-            lines++;
-    out = malloc(len + lines + 3);
+    out = malloc(2 * len + 3);             /* at worst every byte a line end */
     if (!out) {
         free(data);
         return NULL;

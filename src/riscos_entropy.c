@@ -18,17 +18,14 @@
 int mbedtls_hardware_poll(void *data, unsigned char *output, size_t len, size_t *olen)
 {
     (void)data;
-    *olen = 0;
-    if (_swix(CryptRandom_Block, _INR(0, 1), output, len) == NULL) {
-        *olen = len;
-        return 0;
-    }
-    /* Older module without CryptRandom_Block: fetch byte by byte. */
-    for (size_t i = 0; i < len; i++) {
-        int b = 0;
-        if (_swix(CryptRandom_Byte, _OUT(0), &b) != NULL)
-            return -1; /* MBEDTLS_ERR_ENTROPY_SOURCE_FAILED is raised by the caller */
-        output[i] = (unsigned char)b;
+    if (_swix(CryptRandom_Block, _INR(0, 1), output, len) != NULL) {
+        /* Older module without CryptRandom_Block: fetch byte by byte. */
+        for (size_t i = 0; i < len; i++) {
+            int b = 0;
+            if (_swix(CryptRandom_Byte, _OUT(0), &b) != NULL)
+                return -1; /* MBEDTLS_ERR_ENTROPY_SOURCE_FAILED is raised by the caller */
+            output[i] = (unsigned char)b;
+        }
     }
     *olen = len;
     return 0;

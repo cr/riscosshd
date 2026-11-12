@@ -18,12 +18,12 @@ enum prof_slot {
 };
 
 #ifdef SSHD_PROFILE
-int prof_now(void);
+#include "riscos.h"
 void prof_add(enum prof_slot slot, int start);
 void prof_bytes(long in);          /* channel bytes received */
 void prof_round(int had_data);     /* one ssh_event_dopoll round */
 void prof_report(void);            /* logs and resets every 5 s */
-#define PROF_START(v)       int v = prof_now()
+#define PROF_START(v)       int v = ro_now_cs()
 #define PROF_STOP(slot, v)  prof_add(slot, v)
 #define PROF_BYTES(n)       prof_bytes(n)
 #define PROF_ROUND(d)       prof_round(d)

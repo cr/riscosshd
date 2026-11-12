@@ -1,25 +1,17 @@
 /* SPDX-License-Identifier: MIT */
 /* See prof.h.  Compiles to nothing without SSHD_PROFILE. */
 #ifdef SSHD_PROFILE
-#include <kernel.h>
-#include <swis.h>
 #include "prof.h"
+#include "riscos.h"
 #include "log.h"
 
 static long cs[PROF_SLOTS], calls[PROF_SLOTS];
 static long bytes_in, rounds, rounds_data;
 static int window_start;
 
-int prof_now(void)
-{
-    int t = 0;
-    _swix(OS_ReadMonotonicTime, _OUT(0), &t);
-    return t;
-}
-
 void prof_add(enum prof_slot slot, int start)
 {
-    cs[slot] += prof_now() - start;
+    cs[slot] += ro_cs_since(start, ro_now_cs());
     calls[slot]++;
 }
 
@@ -37,10 +29,10 @@ void prof_round(int had_data)
 
 void prof_report(void)
 {
-    int now = prof_now(), wall;
+    int now = ro_now_cs(), wall;
     if (!window_start)
         window_start = now;
-    wall = now - window_start;
+    wall = ro_cs_since(window_start, now);
     if (wall < 500)
         return;
     if (bytes_in || calls[PROF_SFTP])

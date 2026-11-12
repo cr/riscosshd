@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: MIT */
-/* RISC OS helpers: file access through OS_File, GSTrans, and running a
- * command through OS_CLI with its VDU output captured to a buffer.
- * Everything here talks to the OS directly through SWIs so that no UnixLib
- * filename translation gets in the way of native RISC OS paths.
+/* RISC OS helpers: files, system variables and GSTrans; running a
+ * command through OS_CLI with its VDU output captured; Escape and fatal
+ * error signals; the centisecond clock, yielding to the desktop, and the
+ * machine's address.  Files are reached through SWIs directly so that no
+ * UnixLib filename translation gets in the way of native RISC OS paths.
  */
 #ifndef SSHD_RISCOS_H
 #define SSHD_RISCOS_H
