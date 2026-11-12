@@ -26,9 +26,10 @@
  * ECDSA/ECDH on the NIST curves, Curve25519, bignum for its own DH, PEM and
  * PK parsing/writing of unencrypted keys, CTR_DRBG and the entropy pool.
  * Everything below is outside that set.  mbedtls_strerror() stays as the
- * dummy that returns a fixed string. */
-#undef MBEDTLS_SELF_TEST
-#undef MBEDTLS_VERSION_FEATURES
+ * dummy that returns a fixed string.  Modules that nothing calls and that
+ * change nothing else (HKDF, DHM, EC J-PAKE, the version feature list) are
+ * left to the linker's --gc-sections. */
+#undef MBEDTLS_SELF_TEST          /* also counts every ECP operation in ecp.c */
 #undef MBEDTLS_ERROR_C
 #undef MBEDTLS_PSA_CRYPTO_C
 #undef MBEDTLS_PSA_CRYPTO_STORAGE_C
@@ -42,9 +43,6 @@
 #undef MBEDTLS_CCM_C
 #undef MBEDTLS_CMAC_C
 #undef MBEDTLS_NIST_KW_C
-#undef MBEDTLS_HKDF_C
-#undef MBEDTLS_DHM_C
-#undef MBEDTLS_ECJPAKE_C
 #undef MBEDTLS_PKCS5_C
 #undef MBEDTLS_PKCS12_C
 #undef MBEDTLS_CIPHER_MODE_CFB
