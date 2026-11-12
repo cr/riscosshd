@@ -175,17 +175,47 @@ static struct wimp_menu menu = {
 
 /* --- helpers ------------------------------------------------------------ */
 
+/* Wimp_ReportError flags, RISC OS 3.5 style: bit 0 OK, bit 1 Cancel,
+ * bit 8 new style, bits 9-11 category (the title reads "Error from" for
+ * errors, "Message from" otherwise).  R3/R4 name the application sprite,
+ * R5 lists extra buttons, which return 3, 4, ... */
+#define BOX_OK        1
+#define BOX_CANCEL    2
+#define BOX_NEW       (1 << 8)
+#define BOX_INFO      (1 << 9)
+#define BOX_ERROR     (2 << 9)
+#define BOX_QUESTION  (4 << 9)
+
+static int box(unsigned flags, const char *buttons, const char *fmt, va_list ap)
+{
+    struct { int num; char text[252]; } b;
+    int answer = 0;
+    b.num = 0;
+    vsnprintf(b.text, sizeof b.text, fmt, ap);
+    if (_swix(Wimp_ReportError, _INR(0, 5) | _OUT(1), &b, flags | BOX_NEW, "SSHd", "!sshd", 1,
+              buttons, &answer) != NULL) {
+        fprintf(stderr, "SSHd: %s\n", b.text);
+        return 0;
+    }
+    return answer;
+}
+
 /* An error box with OK; works before wimp_init too. */
 static void reportf(const char *fmt, ...)
 {
-    struct { int num; char text[252]; } err;
     va_list ap;
-    err.num = 0;
     va_start(ap, fmt);
-    vsnprintf(err.text, sizeof err.text, fmt, ap);
+    box(BOX_OK | BOX_ERROR, NULL, fmt, ap);
     va_end(ap);
-    if (_swix(Wimp_ReportError, _INR(0, 2), &err, 1, "SSHd") != NULL)
-        fprintf(stderr, "SSHd: %s\n", err.text);
+}
+
+/* A message box with OK, for news that is not an error. */
+static void tellf(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    box(BOX_OK | BOX_INFO, NULL, fmt, ap);
+    va_end(ap);
 }
 
 void wimp_report_error(const char *msg)
@@ -193,20 +223,15 @@ void wimp_report_error(const char *msg)
     reportf("%s", msg);
 }
 
-/* A box with OK and Cancel; returns 1 for OK. */
-static int ask_ok_cancel(const char *fmt, ...)
+/* A question with an action button and Cancel; returns 1 for the action. */
+static int ask(const char *action, const char *fmt, ...)
 {
-    struct { int num; char text[252]; } box;
-    int answer = 0;
+    int answer;
     va_list ap;
-    box.num = 0;
     va_start(ap, fmt);
-    vsnprintf(box.text, sizeof box.text, fmt, ap);
+    answer = box(BOX_CANCEL | BOX_QUESTION, action, fmt, ap);
     va_end(ap);
-    /* flags: bit0 OK, bit1 Cancel; R1 on exit 1 = OK, 2 = Cancel */
-    if (_swix(Wimp_ReportError, _INR(0, 2) | _OUT(1), &box, 3, "SSHd", &answer))
-        return 0;
-    return answer == 1;
+    return answer == 3;
 }
 
 static void icon(struct wimp_icon *ic, int x0, int y0, int x1, int y1, unsigned flags,
@@ -339,7 +364,7 @@ static void keys_delete_row(int i)
     if (i < 0 || i >= auth_count())
         return;
     auth_describe_one(i, desc, sizeof desc);
-    if (!ask_ok_cancel("Delete key %s?", desc))
+    if (!ask("Delete", "Delete key %s?", desc))
         return;
     if (auth_remove_key(i, err, sizeof err) < 0)
         reportf("Key not deleted: %s", err);
@@ -472,9 +497,12 @@ static void keys_add_from_file(const char *path)
     refresh_keys_list();
     if (rc < 0)
         reportf("%d key%s %s", added, added == 1 ? "" : "s", err);
-    else if (added == 0 || dup || bad)
+    else if (added == 0 && bad)
         reportf("%d key%s added, %d already authorized, %d line%s not a key",
                 added, added == 1 ? "" : "s", dup, bad, bad == 1 ? "" : "s");
+    else if (added == 0 || dup || bad)
+        tellf("%d key%s added, %d already authorized, %d line%s not a key",
+              added, added == 1 ? "" : "s", dup, bad, bad == 1 ? "" : "s");
 }
 
 /* --- fetch keys from another machine ------------------------------------- */
@@ -505,7 +533,7 @@ static int fetch_confirm(const char *fingerprint, const char *host, unsigned por
 {
     int ok;
     _swix(Hourglass_Off, 0);
-    ok = ask_ok_cancel("%s port %u reports the host key fingerprint %s. "
+    ok = ask("Continue", "%s port %u reports the host key fingerprint %s. "
                        "Continue only if that matches what it shows (ssh-keygen -lf).",
                        host, port, fingerprint);
     wimp_pump();
@@ -516,16 +544,20 @@ static int fetch_confirm(const char *fingerprint, const char *host, unsigned por
 static void keys_fetch(void)
 {
     char msg[300];
+    int rc;
     if (fetching)                          /* a click queued during the import */
         return;
     fetching = 1;
     _swix(Hourglass_On, 0);
-    keyfetch_run(fetch_host, fetch_pass, fetch_confirm, msg, sizeof msg);
+    rc = keyfetch_run(fetch_host, fetch_pass, fetch_confirm, msg, sizeof msg);
     _swix(Hourglass_Off, 0);
     memset(fetch_pass, 0, sizeof fetch_pass);          /* used once, never kept */
     redraw_icon(keys_win, KI_FPASS);
     refresh_keys_list();
-    reportf("%s", msg);
+    if (rc > 0)
+        tellf("%s", msg);
+    else
+        reportf("%s", msg);
     fetching = 0;
 }
 
