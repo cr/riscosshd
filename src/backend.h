@@ -59,6 +59,7 @@ struct chan_ctx {
 
     int finished;            /* backend done; close once output drained */
     int exit_status;
+    struct chan_ctx *retired_next;   /* server.c: list of replaced channels */
 };
 
 /* Queue bytes for the client.  Returns 0 or -1 on allocation failure. */

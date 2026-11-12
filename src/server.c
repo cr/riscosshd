@@ -44,6 +44,7 @@ struct session_ctx {
     char user[64];
     char peer[48];              /* "10.10.10.2:51234" */
     struct chan_ctx *chan;      /* one channel per session for now */
+    struct chan_ctx *retired;   /* replaced channels, freed from the main loop */
     time_t deadline;            /* drop the session if not authenticated, or
                                    with no channel, by this time; 0 = none */
     struct ssh_server_callbacks_struct server_cb;
@@ -162,12 +163,17 @@ static void chan_pump(struct chan_ctx *c)
     }
 }
 
+/* Free a channel.  The caller must have unlinked it first: closing it in
+ * libssh flushes, and a flush can run a nested poll whose callbacks must
+ * not find it again.  Those callbacks see a channel with no backend. */
 static void chan_free(struct chan_ctx *c)
 {
     if (!c)
         return;
     if (c->backend && c->backend->stop)
         c->backend->stop(c);
+    c->backend = NULL;
+    c->finished = 1;
     if (c->channel)
         ssh_channel_free(c->channel);
     buf_free(&c->out);
@@ -357,10 +363,13 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
         return NULL;
     if (s->chan) {
         /* One channel at a time; a closed one may be replaced at once, as
-         * multiplexing clients close and open in the same burst. */
+         * multiplexing clients close and open in the same burst.  This
+         * callback can run inside a flush of the old channel, so it is
+         * not freed here but parked for the main loop. */
         if (ssh_channel_is_open(s->chan->channel))
             return NULL;
-        chan_free(s->chan);
+        s->chan->retired_next = s->retired;
+        s->retired = s->chan;
         s->chan = NULL;
     }
     c = calloc(1, sizeof *c);
@@ -392,9 +401,19 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
 
 /* ---- session lifecycle -------------------------------------------------- */
 
+static void free_retired(struct session_ctx *s)
+{
+    while (s->retired) {
+        struct chan_ctx *c = s->retired;
+        s->retired = c->retired_next;
+        chan_free(c);
+    }
+}
+
 static void session_destroy(struct session_ctx *s)
 {
     struct session_ctx **pp;
+    struct chan_ctx *c = s->chan;
     for (pp = &sessions; *pp; pp = &(*pp)->next) {
         if (*pp == s) {
             *pp = s->next;
@@ -403,7 +422,9 @@ static void session_destroy(struct session_ctx *s)
     }
     if (s->state == SESS_RUNNING)
         ssh_event_remove_session(event, s->session);
-    chan_free(s->chan);
+    s->chan = NULL;
+    chan_free(c);
+    free_retired(s);
     ssh_disconnect(s->session);
     ssh_free(s->session);
     free(s);
@@ -566,15 +587,23 @@ static void service_sessions(time_t now)
             session_destroy(s);
             continue;
         }
+        free_retired(s);                /* nothing on the stack refers to them */
         c = s->chan;
         if (!c)
             continue;
+        /* Both calls below can run a nested poll (libssh flushes on write
+         * and close), in which the client may replace the channel: then c
+         * is retired and must not be touched again here. */
         if (c->backend && !c->finished && c->backend->poll)
             c->backend->poll(c);
+        if (s->chan != c)
+            continue;
         chan_pump(c);
+        if (s->chan != c)
+            continue;
         if (!ssh_channel_is_open(c->channel)) {
-            chan_free(c);
             s->chan = NULL;
+            chan_free(c);
             /* The connection stays for another channel (OpenSSH
              * multiplexing) until the idle deadline or the client's own
              * disconnect. */
