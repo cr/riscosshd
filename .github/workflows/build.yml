@@ -24,24 +24,22 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0              # tags, for git describe and the version check
-      - name: Warn when the Control version is already released
-        if: github.ref == 'refs/heads/main'
+      - name: Check the Control version against the tags
+        # a release tag must match it; on main, warn when it is already released
         run: |
           v=$(sed -n 's/^Version: *//p' riscos/RiscPkg/Control)
-          if t=$(git rev-parse -q --verify "refs/tags/v$v^{commit}") && [ "$t" != "$GITHUB_SHA" ]; then
-            echo "::warning::Control says $v, which is already released as v$v: bump the version before the next release"
-          fi
-      - name: Check that a release tag matches the Control file
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          v=$(sed -n 's/^Version: *//p' riscos/RiscPkg/Control)
-          test "v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} but Control says $v"; exit 1; }
+          case "$GITHUB_REF" in
+          refs/tags/v*)
+            test "v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} but Control says $v"; exit 1; }
+            ;;
+          refs/heads/main)
+            if t=$(git rev-parse -q --verify "refs/tags/v$v^{commit}") && [ "$t" != "$GITHUB_SHA" ]; then
+              echo "::warning::Control says $v, which is already released as v$v: bump the version before the next release"
+            fi
+            ;;
+          esac
       - name: Host-side unit test
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libssh-dev pkg-config && make check
-      - name: Toolchain image
-        # A plain build: the base is pinned by digest and pulls quickly on
-        # hosted runners; a buildx layer cache made the job slower.
-        run: docker build --platform linux/amd64 -t riscosshd-gccsdk docker
       - name: Cache cross-built dependencies
         # not for releases: a tag builds everything from the pinned sources
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
@@ -49,10 +47,8 @@ jobs:
         with:
           path: deps/sysroot
           key: deps-${{ hashFiles('tools/build-deps.sh', 'deps/mbedtls_riscos_config.h', 'deps/patches/**', 'deps/riscos-compat/**', 'cmake/toolchain-riscos.cmake', 'docker/Dockerfile') }}
-      - name: Mark the image and a restored sysroot as up to date
-        run: |
-          touch .image-built
-          test -d deps/sysroot && find deps/sysroot -exec touch {} + || true
+      - name: Mark a restored sysroot as up to date
+        run: test -d deps/sysroot && find deps/sysroot -exec touch {} + || true
       - name: Build (dependencies, server, package)
         run: make ENGINE=docker WERROR=1 QUIET=
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
