@@ -107,7 +107,7 @@ GCC/UnixLib ABI would be frozen in the repository.
   Podman or Colima.
 - `.github/workflows/build.yml` runs `make check` and `make ENGINE=docker`
   on an amd64 GitHub runner, where the image needs no emulation, caches
-  the image and `deps/sysroot`, and uploads the package as an artifact;
+  `deps/sysroot`, and uploads the package as an artifact;
   on a `v<version>` tag it also publishes the release and the PackMan
   index.
 

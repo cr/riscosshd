@@ -22,16 +22,10 @@ jobs:
           test "v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} but Control says $v"; exit 1; }
       - name: Host-side unit test
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libssh-dev pkg-config && make check
-      - uses: docker/setup-buildx-action@v3
-      - name: Toolchain image (cached between runs)
-        uses: docker/build-push-action@v6
-        with:
-          context: docker
-          platforms: linux/amd64
-          tags: riscosshd-gccsdk
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Toolchain image
+        # A plain build: the base is pinned by digest and pulls quickly on
+        # hosted runners; a buildx layer cache made the job slower.
+        run: docker build --platform linux/amd64 -t riscosshd-gccsdk docker
       - name: Cache cross-built dependencies
         uses: actions/cache@v4
         with:
