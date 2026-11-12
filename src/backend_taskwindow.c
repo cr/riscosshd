@@ -63,17 +63,15 @@ struct tw_state {
     int dead;                  /* Morio/TaskCloseDown received or kill sent */
     int suspended;             /* Message_TaskWindow_Suspend sent */
     int dropped;               /* input dropped because the child was not reading */
-    int is_exec;               /* started with a command (Obey wrapper, -quit) */
-    int eof_pending;           /* non-pty shell: client sent EOF */
+    int eof_pending;           /* shell: EOF or a pasted exit; finish once quiet */
     int last_activity;         /* centiseconds, OS_ReadMonotonicTime */
     int last_sent;             /* when the last input chunk went out */
     int awaiting_output;       /* a chunk is out and nothing came back yet */
     int esc;                   /* pty: inside a terminal escape sequence (ESC_*) */
     int cr_pending;            /* the last packet ended in CR: skip a leading LF */
-    int quitting;              /* exit after a paste: drop later input */
     char line[16];             /* shell: start of the line being typed, for 'exit' */
     size_t line_len;           /* its full length, even past sizeof line */
-    char *scrap;               /* exec: the Obey file, deleted at the end */
+    char *scrap;               /* exec: the Obey file, deleted at the end; NULL for a shell */
     char rcvar[24];            /* exec: "SSHd$Rc<id>" */
     struct buf pending;        /* input waiting for the child (paced, or not yet ready) */
     struct tw_state *next;
@@ -257,7 +255,6 @@ static int tw_start(struct chan_ctx *c, const char *command)
     s->chan = c;
     s->txt = next_txt++;
     if (command) {
-        s->is_exec = 1;
         snprintf(s->rcvar, sizeof s->rcvar, "SSHd$Rc%08X", (unsigned)s->txt);
         s->scrap = write_wrapper(s, command);
         if (!s->scrap)
@@ -330,7 +327,7 @@ static void tw_data(struct chan_ctx *c, const char *buf, size_t len)
     size_t n = 0;
     int earlier_line = 0;                /* this packet already ended a line */
 
-    if (s->quitting)
+    if (s->eof_pending)                  /* nothing counts after EOF or a pasted exit */
         return;
     for (size_t i = 0; i < len; i++) {
         unsigned char ch = (unsigned char)buf[i];
@@ -363,7 +360,7 @@ static void tw_data(struct chan_ctx *c, const char *buf, size_t len)
             continue;
         }
         if (ch == '\n' || ch == '\r') {
-            if (!s->is_exec && line_is_exit(s)) {
+            if (!s->scrap && line_is_exit(s)) {
                 if (!earlier_line && s->pending.len == 0) {
                     chan_output_str(c, "\r\n");
                     chan_finish(c, 0);
@@ -376,7 +373,6 @@ static void tw_data(struct chan_ctx *c, const char *buf, size_t len)
                  * it is dropped, as it would be once a Unix shell exits. */
                 queue_input(s, out, n);
                 queue_input(s, "\025", 1);
-                s->quitting = 1;
                 s->eof_pending = 1;
                 s->last_activity = ro_now_cs();
                 n = 0;
@@ -423,7 +419,7 @@ static void tw_eof(struct chan_ctx *c)
     /* Piped input is finished.  An exec channel ends when its command
      * does; a pty shell with Ctrl-D or the child's exit; a plain piped
      * shell once the child has gone quiet. */
-    if (!c->pty && !s->is_exec) {
+    if (!c->pty && !s->scrap) {
         s->eof_pending = 1;
         s->last_activity = ro_now_cs();
     }
@@ -475,7 +471,7 @@ const struct backend_ops backend_taskwindow = {
 static int exit_status(struct tw_state *s)
 {
     char val[16];
-    if (!s->is_exec)
+    if (!s->scrap)
         return 0;
     if (ro_read_var(s->rcvar, val, sizeof val) < 0)
         return 1;
