@@ -28,6 +28,9 @@ struct sshd_config {
     int log_size_kb;            /* restart the log file past this size */
 };
 extern struct sshd_config cfg;
+/* 1 once ssh_init succeeded: libssh's random number generator is seeded.
+ * After a failed start it stays 0 and key import is refused. */
+extern int crypto_ready;
 /* <config dir>.Options, and a writer of its commented template if the
  * file is missing (main.c) */
 const char *options_path(void);

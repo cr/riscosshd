@@ -5,6 +5,7 @@
 
 #include "keyfetch.h"
 #include "auth.h"
+#include "config.h"
 #include "log.h"
 
 #define REMOTE_CMD "cat ~/.ssh/id_ed25519.pub ~/.ssh/id_ecdsa.pub ~/.ssh/id_rsa.pub 2>/dev/null"
@@ -57,6 +58,12 @@ int keyfetch_run(const char *userhost, const char *password,
     char *fp, *out = NULL;
     int rc, ok, added = 0, dup = 0, bad = 0, result = -1;
 
+    if (!crypto_ready) {
+        /* after a failed start libssh may hold a freed, unseeded random
+         * generator: a key exchange on it would be predictable */
+        snprintf(msg, msglen, "Import is unavailable: the server did not start (see the log)");
+        return -1;
+    }
     if (!at || at == userhost) {
         snprintf(msg, msglen, "Enter the account as user@host");
         return -1;

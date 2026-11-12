@@ -37,6 +37,8 @@ struct sshd_config cfg = {
     .default_filetype = DEFAULT_FILETYPE, .log_size_kb = 256,
 };
 
+int crypto_ready;
+
 /* Settings that live outside cfg. */
 static const char *root_arg = "<Boot$Dir>.^";
 static int logfile = 1, banner = 1, motd = 1;
@@ -376,6 +378,7 @@ int main(int argc, char **argv)
     ssh_threads_set_callbacks(ssh_threads_get_noop());
     if (ssh_init() < 0)
         return fatal("libssh initialisation failed (random number source)");
+    crypto_ready = 1;
     ro_init_signals(text_mode ? on_quit : NULL);   /* Escape quits in text mode only */
 
     cfg.config_dir = ro_gstrans(dir_arg);
