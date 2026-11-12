@@ -7,7 +7,7 @@ if(NOT CMAKE_C_COMPILER MATCHES "arm-unknown-riscos")
 endif()
 
 set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")   # optimisation comes from CMAKE_BUILD_TYPE
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -ffunction-sections -fdata-sections")   # optimisation comes from CMAKE_BUILD_TYPE
 
 # (find_* REQUIRED needs CMake 3.18; the container has 3.16, so check by hand.)
 find_path(LIBSSH_INCLUDE_DIR libssh/libssh.h)
@@ -45,7 +45,7 @@ target_compile_definitions(sshd PRIVATE LIBSSH_STATIC=1 WITH_SERVER=1 SSHD_VERSI
 target_link_libraries(sshd PRIVATE
   ${LIBSSH_LIBRARY} ${MBEDTLS_LIBRARY} ${MBEDX509_LIBRARY} ${MBEDCRYPTO_LIBRARY})
 # Strip: UnixLib backtraces use embedded function names, not ELF symbols.
-target_link_options(sshd PRIVATE -s)
+target_link_options(sshd PRIVATE -s -Wl,--gc-sections)   # drop the library code nothing references
 set_target_properties(sshd PROPERTIES OUTPUT_NAME "sshd" SUFFIX ",e1f")
 
 # Convert the static ELF to an AIF absolute (filetype FF8) that runs without
