@@ -179,8 +179,10 @@ do not authenticate within 60 s, or sit logged in without a channel for
 120 s, are dropped; at most 8 connections are held at once.  All three
 are settings.
 
-Settings live in `Choices:SSHd.Options`, written on first run with every
-setting commented out at its default, and survive package upgrades:
+Settings live in `Choices:SSHd.Options` (Options... on the menu opens
+it), written on first run with every setting commented out at its
+default in the `name value  # comment` form, and survive package
+upgrades:
 `port`, `bind`, `root`, `user` (one accepted user name, default
 `riscos`, empty for any), `shell`/`exec`/`sftp` on or off,
 `auth-timeout`, `idle-timeout`, `max-sessions`, `banner` and `motd`

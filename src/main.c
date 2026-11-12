@@ -104,26 +104,52 @@ static int fatal(const char *fmt, const char *arg)
  * defaults are there to edit.  Every line is a comment: the defaults
  * apply until one is uncommented. */
 static const char options_template[] =
-    "# SSHd settings, one per line; lines starting with # are ignored.\n"
-    "# Changes take effect when SSHd is next started.\n"
-    "#port 22              TCP port to listen on\n"
-    "#bind 0.0.0.0         address to listen on; 0.0.0.0 is every interface\n"
-    "#root <Boot$Dir>.^    directory SFTP clients start in\n"
-    "#user riscos          the one user name that may log in; leave empty for any\n"
-    "#shell on             off refuses interactive sessions\n"
-    "#exec on              off refuses single commands (ssh host '*cmd')\n"
-    "#sftp on              off refuses SFTP and scp\n"
-    "#auth-timeout 60      seconds a connection has to log in; 0 is unlimited\n"
-    "#idle-timeout 120     seconds a logged-in connection may sit with no\n"
-    "#                     session open; 0 is unlimited\n"
-    "#max-sessions 8       connections held at once\n"
-    "#banner on            send <Choices$Write>.SSHd.Banner before login\n"
-    "#motd on              print <Choices$Write>.SSHd.Motd when a shell starts\n"
-    "#filetype ffd         type for uploads with no ,xxx suffix and no MimeMap\n"
-    "#                     match: ffd Data, fff Text\n"
-    "#verbose 0            1 for more log lines, 2 for SSH protocol detail\n"
-    "#log on               off stops writing <Choices$Write>.SSHd.log\n"
-    "#log-size 256         start the log file afresh past this many KB\n";
+    "# SSHd settings.  A line is \"name value\"; anything from # to the end of\n"
+    "# the line is a comment.  Remove the # in front of a setting to change\n"
+    "# it.  Changes take effect when SSHd is next started.\n"
+    "\n"
+    "# TCP port to listen on\n"
+    "#port 22\n"
+    "\n"
+    "# Address to listen on; 0.0.0.0 is every interface\n"
+    "#bind 0.0.0.0\n"
+    "\n"
+    "# Directory SFTP clients start in\n"
+    "#root <Boot$Dir>.^\n"
+    "\n"
+    "# The one user name that may log in; leave the value empty for any\n"
+    "#user riscos\n"
+    "\n"
+    "# Services: off refuses interactive sessions, single commands\n"
+    "# (ssh host '*cmd') or SFTP and scp respectively\n"
+    "#shell on\n"
+    "#exec on\n"
+    "#sftp on\n"
+    "\n"
+    "# Seconds a connection has to log in, and seconds a logged-in connection\n"
+    "# may sit with no session open; 0 is unlimited\n"
+    "#auth-timeout 60\n"
+    "#idle-timeout 120\n"
+    "\n"
+    "# Connections held at once\n"
+    "#max-sessions 8\n"
+    "\n"
+    "# Send <Choices$Write>.SSHd.Banner before login, and print\n"
+    "# <Choices$Write>.SSHd.Motd when a shell starts (text files you create)\n"
+    "#banner on\n"
+    "#motd on\n"
+    "\n"
+    "# Type for uploads with no ,xxx suffix and no MimeMap match:\n"
+    "# ffd Data, fff Text\n"
+    "#filetype ffd\n"
+    "\n"
+    "# 1 for more log lines, 2 for SSH protocol detail\n"
+    "#verbose 0\n"
+    "\n"
+    "# off stops writing <Choices$Write>.SSHd.log; the file is started afresh\n"
+    "# past log-size KB\n"
+    "#log on\n"
+    "#log-size 256\n";
 
 static char *options_file;
 
@@ -166,28 +192,23 @@ static void read_options(const char *dir, const char **root_arg, int *logfile,
     }
     for (p = data; p && *p; p = nl) {
         char key[32], val[256];
+        char *hash, *end;
         int n;
         nl = strchr(p, '\n');
         if (nl)
             *nl++ = '\0';
-        if (*p == '#')
-            continue;
-        n = sscanf(p, "%31s %255[^\r]", key, val);
+        /* "# ..." anywhere starts a comment; the value is the rest of the
+         * line, trimmed, and may hold spaces (a directory name) */
+        hash = strchr(p, '#');
+        if (hash)
+            *hash = '\0';
+        for (end = p + strlen(p); end > p && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r'); end--)
+            end[-1] = '\0';
+        n = sscanf(p, "%31s %255[^\n]", key, val);
         if (n < 1)
             continue;
         if (n == 1)
             val[0] = '\0';               /* "user" alone: any user */
-        /* a trailing comment: keep the first word only, except for root,
-         * whose directory name may hold single spaces (a comment follows
-         * two or more, or a tab) */
-        {
-            char *sp = strcmp(key, "root") == 0 ? strstr(val, "  ") : strpbrk(val, " \t");
-            char *tab = strchr(val, '\t');
-            if (tab && (!sp || tab < sp))
-                sp = tab;
-            if (sp)
-                *sp = '\0';
-        }
         if (strcmp(key, "port") == 0)
             cfg.port = atoi(val);
         else if (strcmp(key, "root") == 0)

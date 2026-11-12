@@ -69,9 +69,11 @@ anyone relink against a modified libssh as the LGPL requires.
 
 Settings
 --------
-The first run writes <Choices$Write>.SSHd.Options, a text file with every
-setting as a comment showing its default; uncomment a line to change it.
-It survives package upgrades, which replace !Run.  Settings take effect
+The first run writes <Choices$Write>.SSHd.Options (Options... on the icon
+bar menu opens it), a text file with every setting as a comment showing
+its default; remove the # in front of a setting to change it.  A line is
+"name value"; anything from # to the end of the line is a comment.  The
+file survives package upgrades, which replace !Run.  Settings take effect
 when SSHd is next started.
   port 22            TCP port to listen on
   bind 0.0.0.0       address to listen on (all interfaces)
@@ -92,8 +94,8 @@ when SSHd is next started.
   verbose 0          1 for more log lines, 2 for SSH protocol detail
   log on             off stops writing <Choices$Write>.SSHd.log
   log-size 256       start the log file afresh past this many KB
-Lines starting with # are comments.  The log file keeps the same lines as
-the log window; it is where to look after a crash.
+The log file keeps the same lines as the log window; it is where to look
+after a crash.
 
 Command line options override the file (run sshd by hand in a TaskWindow
 with -t for text mode): -p port, -d config-dir, -r sftp-dir, -b address,
