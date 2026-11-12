@@ -323,7 +323,7 @@ static int line_is_exit(const struct tw_state *s)
     return !strcmp(p, "exit") || !strcmp(p, "logout") || !strcmp(p, "quit");
 }
 
-static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
+static void tw_data(struct chan_ctx *c, const char *buf, size_t len)
 {
     struct tw_state *s = c->backend_data;
     char out[MSG_DATA_MAX];
@@ -331,7 +331,7 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
     int earlier_line = 0;                /* this packet already ended a line */
 
     if (s->quitting)
-        return (int)len;
+        return;
     for (size_t i = 0; i < len; i++) {
         unsigned char ch = (unsigned char)buf[i];
         if (n == sizeof out) {           /* translate in message-sized chunks */
@@ -415,7 +415,6 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
     }
     if (n)
         queue_input(s, out, n);
-    return (int)len;
 }
 
 static void tw_eof(struct chan_ctx *c)

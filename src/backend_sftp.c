@@ -57,7 +57,7 @@ static int sftp_start(struct chan_ctx *c, const char *command)
 }
 
 /* Queue everything; requests are processed from sftp_poll(). */
-static int sftp_data(struct chan_ctx *c, const char *buf, size_t len)
+static void sftp_data(struct chan_ctx *c, const char *buf, size_t len)
 {
     struct sftp_state *st = c->backend_data;
     if (st->q.len + len > QUEUE_MAX) {
@@ -67,7 +67,6 @@ static int sftp_data(struct chan_ctx *c, const char *buf, size_t len)
         log_msg("%s: out of memory for the sftp queue, dropping the session", c->owner_name);
         chan_finish(c, 1);
     }
-    return (int)len;              /* always consumed, so libssh keeps nothing back */
 }
 
 /* Length of the complete SFTP packet at the head of the queue, or 0. */

@@ -36,8 +36,8 @@ struct backend_ops {
     /* Begin the session.  command is NULL for a shell request.  Returns 0,
      * BACKEND_UNAVAILABLE or BACKEND_REFUSED. */
     int (*start)(struct chan_ctx *c, const char *command);
-    /* Input from the client.  Return the number of bytes consumed. */
-    int (*data)(struct chan_ctx *c, const char *buf, size_t len);
+    /* Optional: input from the client, all of it consumed. */
+    void (*data)(struct chan_ctx *c, const char *buf, size_t len);
     /* Optional: the client sent EOF on the channel. */
     void (*eof)(struct chan_ctx *c);
     /* Optional: called on each pass of the main loop until the session

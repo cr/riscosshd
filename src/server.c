@@ -376,15 +376,14 @@ static int cb_data(ssh_session session, ssh_channel channel, void *data,
                    uint32_t len, int is_stderr, void *userdata)
 {
     struct chan_ctx *c = userdata;
-    int rc;
     PROF_START(t);
     (void)session; (void)channel; (void)is_stderr;
     PROF_BYTES(len);
-    if (!c->backend || c->finished)
-        return (int)len;
-    rc = c->backend->data(c, data, len);
-    PROF_STOP(PROF_CBDATA, t);
-    return rc;
+    if (c->backend && !c->finished && c->backend->data) {
+        c->backend->data(c, data, len);
+        PROF_STOP(PROF_CBDATA, t);
+    }
+    return (int)len;            /* always consumed, so libssh keeps nothing back */
 }
 
 static void cb_eof(ssh_session session, ssh_channel channel, void *userdata)

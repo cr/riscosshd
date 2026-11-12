@@ -42,12 +42,6 @@ static int exec_start(struct chan_ctx *c, const char *command)
     return 0;
 }
 
-static int exec_data(struct chan_ctx *c, const char *buf, size_t len)
-{
-    (void)c; (void)buf;
-    return (int)len; /* commands take no stdin for now */
-}
-
 const struct backend_ops backend_exec = {
-    "exec", exec_start, exec_data, NULL, NULL, NULL
+    "exec", exec_start, NULL, NULL, NULL, NULL
 };

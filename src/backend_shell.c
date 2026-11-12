@@ -63,7 +63,7 @@ static void run_line(struct chan_ctx *c, struct shell_state *s)
     prompt(c);
 }
 
-static int shell_data(struct chan_ctx *c, const char *buf, size_t len)
+static void shell_data(struct chan_ctx *c, const char *buf, size_t len)
 {
     struct shell_state *s = c->backend_data;
     size_t i;
@@ -100,7 +100,6 @@ static int shell_data(struct chan_ctx *c, const char *buf, size_t len)
                 chan_output(c, (const char *)&ch, 1);
         }
     }
-    return (int)len;
 }
 
 static void shell_eof(struct chan_ctx *c)
