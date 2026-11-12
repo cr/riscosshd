@@ -38,15 +38,11 @@ add_executable(sshd
   src/backend_sftp.c
   src/riscos_sftp.c)
 target_include_directories(sshd SYSTEM PRIVATE ${LIBSSH_INCLUDE_DIR})   # their warnings are not ours
-# Package version from the RiscPkg Control file, shown in the Info window.
-file(STRINGS ${CMAKE_SOURCE_DIR}/riscos/RiscPkg/Control CONTROL_VERSION REGEX "^Version:")
-string(REGEX REPLACE "^Version: *" "" SSHD_VERSION "${CONTROL_VERSION}")
-# Build date for the Info window: SOURCE_DATE_EPOCH when set (the Makefile
-# sets the last commit's time), so the same commit builds the same binary.
+# SSHD_VERSION (from riscos/RiscPkg/Control) and SSHD_GIT come from the
+# Makefile.  Build date for the Info window: SOURCE_DATE_EPOCH when set (the
+# Makefile sets the last commit's time), so the same commit builds the same
+# binary.
 string(TIMESTAMP SSHD_BUILD_DATE "%d %b %Y" UTC)
-if(NOT SSHD_GIT)
-  set(SSHD_GIT unknown)
-endif()
 target_compile_definitions(sshd PRIVATE WITH_SERVER=1 SSHD_VERSION="${SSHD_VERSION}"
                            SSHD_BUILD_DATE="${SSHD_BUILD_DATE}" SSHD_GIT="${SSHD_GIT}")
 # make WERROR=1 (CI): warnings in our own code fail the build
@@ -62,7 +58,7 @@ endif()
 target_link_libraries(sshd PRIVATE ${LIBSSH_LIBRARY} ${MBEDCRYPTO_LIBRARY})
 # Strip: UnixLib backtraces use embedded function names, not ELF symbols.
 target_link_options(sshd PRIVATE -s -Wl,--gc-sections)   # drop the library code nothing references
-set_target_properties(sshd PROPERTIES OUTPUT_NAME "sshd" SUFFIX ",e1f")
+set_target_properties(sshd PROPERTIES SUFFIX ",e1f")
 
 # Convert the static ELF to an AIF absolute (filetype FF8) that runs without
 # the ELF loader.  The Makefile copies riscos/!SSHd's other files next to it

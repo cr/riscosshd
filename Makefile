@@ -92,7 +92,8 @@ $(PROFILE_STAMP):
 
 $(BINARY): $(SYSROOT)/lib/libssh.a $(SRC) $(PROFILE_STAMP)
 	$(RUN) sh -c 'cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscos.cmake \
-	    -DCMAKE_BUILD_TYPE=Release -DSSHD_PROFILE=$(PROFILE) -DSSHD_WERROR=$(WERROR) -DSSHD_GIT=$(GIT_DESC) $(QUIET) && cmake --build build -j$$(nproc) && \
+	    -DCMAKE_BUILD_TYPE=Release -DSSHD_PROFILE=$(PROFILE) -DSSHD_WERROR=$(WERROR) \
+	    -DSSHD_VERSION=$(VERSION) -DSSHD_GIT=$(GIT_DESC) $(QUIET) && cmake --build build -j$$(nproc) && \
 	    cp -R "riscos/!SSHd/." "build/!SSHd/" && touch "$(BINARY)"'
 	@# the app files are copied in the same container run: it owns build/ on CI
 
