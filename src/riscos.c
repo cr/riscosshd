@@ -94,30 +94,29 @@ const char *ro_append_file(const char *path, const void *data, size_t len, size_
      * is used as given); the handle is 0 when the file does not exist, as
      * only open-for-output (0x83) creates one. */
     e = _swix(OS_Find, _INR(0, 1) | _OUT(0), 0xc3, path, &fh);
-    if (!e && fh == 0) {
-        e = _swix(OS_Find, _INR(0, 1) | _OUT(0), 0x83, path, &fh);
-        created = 1;
-    }
-    if (e || fh == 0)
-        return e ? e->errmess : "handle 0";
-    _swix(OS_Args, _INR(0, 1) | _OUT(2), 2, fh, &extent);
-    if (limit && (size_t)extent > limit) {
-        /* Past the limit the file becomes <path>-old (replacing an older
-         * one) and a new file starts, so a flood of lines can neither fill
-         * the disc nor wipe out the record just before it. */
-        char old[300];
-        _swix(OS_Find, _INR(0, 1), 0, fh);
-        fh = 0;
-        if ((size_t)snprintf(old, sizeof old, "%s-old", path) < sizeof old) {
-            _swix(OS_File, _INR(0, 1), 6, old);
-            _swix(OS_FSControl, _INR(0, 2), 25, path, old);   /* rename */
+    if (!e && fh) {
+        _swix(OS_Args, _INR(0, 1) | _OUT(2), 2, fh, &extent);
+        if (limit && (size_t)extent > limit) {
+            /* Past the limit the file becomes <path>-old (replacing an
+             * older one) and a new file starts, so a flood of lines can
+             * neither fill the disc nor wipe out the record just before
+             * it. */
+            char old[300];
+            _swix(OS_Find, _INR(0, 1), 0, fh);
+            fh = 0;
+            if ((size_t)snprintf(old, sizeof old, "%s-old", path) < sizeof old) {
+                ro_delete(old);
+                _swix(OS_FSControl, _INR(0, 2), 25, path, old);   /* rename */
+            }
         }
+    }
+    if (!e && !fh) {
         e = _swix(OS_Find, _INR(0, 1) | _OUT(0), 0x83, path, &fh);
-        if (e || fh == 0)
-            return e ? e->errmess : "handle 0";
         created = 1;
         extent = 0;
     }
+    if (e || !fh)
+        return e ? e->errmess : "handle 0";
     _swix(OS_Args, _INR(0, 2), 1, fh, extent);              /* pointer to the end */
     if (_swix(OS_GBPB, _INR(0, 3) | _OUT(3), 2, fh, data, len, &unwritten) || unwritten) {
         _swix(OS_Find, _INR(0, 1), 0, fh);
@@ -281,7 +280,7 @@ int ro_run_command(const char *command, const char *capture_path,
         *out = data;
         *out_len = len;
     }
-    _swix(OS_File, _INR(0, 1), 6, capture_path); /* delete, ignore errors */
+    ro_delete(capture_path);
 
     if (cmd_err) {
         *err = strdup(cmd_err->errmess);
