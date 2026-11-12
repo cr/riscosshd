@@ -1,50 +1,44 @@
 /* SPDX-License-Identifier: MIT */
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <kernel.h>
 #include <swis.h>
 #include <unixlib/local.h>
 
 #include "riscos_sftp.h"
+#include "config.h"
 #include "log.h"
 
-static int hexval(char c)
+/* The type a ",xxx" suffix at the end of name gives, or -1 if it has
+ * none. */
+static int suffix_type(const char *name)
 {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
+    size_t n = strlen(name);
+    if (n < 5 || name[n - 4] != ',' || strspn(name + n - 3, "0123456789abcdefABCDEF") != 3)
+        return -1;
+    return (int)strtol(name + n - 3, NULL, 16);
 }
 
 int riscos_sftp_strip_suffix(char *name)
 {
-    size_t n = strlen(name);
-    int a, b, c;
-    if (n < 5 || name[n - 4] != ',')
-        return -1;
-    a = hexval(name[n - 3]); b = hexval(name[n - 2]); c = hexval(name[n - 1]);
-    if (a < 0 || b < 0 || c < 0)
-        return -1;
-    name[n - 4] = '\0';
-    return (a << 8) | (b << 4) | c;
+    int type = suffix_type(name);
+    if (type >= 0)
+        name[strlen(name) - 4] = '\0';
+    return type;
 }
-
-int riscos_sftp_default_type = 0xffd;
 
 void riscos_sftp_type_new_file(const char *unixpath)
 {
     const char *leaf = strrchr(unixpath, '/'), *dot;
-    char copy[256];
     int type;
     leaf = leaf ? leaf + 1 : unixpath;
-    snprintf(copy, sizeof copy, "%s", leaf);
-    if (riscos_sftp_strip_suffix(copy) >= 0)
+    if (suffix_type(leaf) >= 0)
         return;                         /* "name,xxx": UnixLib typed it */
-    dot = strrchr(copy, '.');
+    dot = strrchr(leaf, '.');
     /* MimeMap_Translate: input 3 = ".ext", output 0 = filetype number */
     if (dot && dot[1] && _swix(MimeMap_Translate, _INR(0, 3) | _OUT(3), 3, dot, 0, 0, &type) == NULL)
         return;                         /* MimeMap chose the type */
-    riscos_sftp_set_type(unixpath, riscos_sftp_default_type);
+    riscos_sftp_set_type(unixpath, cfg.default_filetype);
 }
 
 void riscos_sftp_set_type(const char *unixpath, int type)

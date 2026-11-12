@@ -25,7 +25,6 @@
 #include "auth.h"
 #include "hostkey.h"
 #include "riscos.h"
-#include "riscos_sftp.h"
 #include "riscos_entropy.h"
 #include "wimp.h"
 #include "log.h"
@@ -440,7 +439,6 @@ int main(int argc, char **argv)
                 cfg.allow_exec ? "on" : "off", cfg.allow_sftp ? "on" : "off");
     if (cfg.user[0])
         log_msg("only user name %s may log in", cfg.user);
-    riscos_sftp_default_type = cfg.default_filetype;
 
     /* SFTP: libssh's server resolves paths relative to the process's
      * current directory, so make that the configured root. */
