@@ -283,15 +283,44 @@ static void set_caret(int win, int ic, const char *text)
     _swix(Wimp_SetCaretPosition, _INR(0, 5), win, ic, 0, 0, -1, (int)strlen(text));
 }
 
-/* Open a window at its current place, on top of the stack. */
+/* Screen size in OS units, from the current mode. */
+static void screen_size(int *w, int *h)
+{
+    int xl = 1279, yl = 1023, xe = 1, ye = 1;
+    _swix(OS_ReadModeVariable, _INR(0, 1) | _OUT(2), -1, 11, &xl);
+    _swix(OS_ReadModeVariable, _INR(0, 1) | _OUT(2), -1, 12, &yl);
+    _swix(OS_ReadModeVariable, _INR(0, 1) | _OUT(2), -1, 4, &xe);
+    _swix(OS_ReadModeVariable, _INR(0, 1) | _OUT(2), -1, 5, &ye);
+    *w = (xl + 1) << xe;
+    *h = (yl + 1) << ye;
+}
+
+/* Open a window on top of the stack: centred on the screen the first time
+ * (a window that is already open stays where it is), where the user left
+ * it afterwards. */
 static void open_on_top(int win)
 {
-    int state[9];
+    static int centred[3];
+    static int nc;
+    int state[9], i;
     if (win < 0)
         return;
     state[0] = win;
     if (_swix(Wimp_GetWindowState, _IN(1), state))
         return;
+    for (i = 0; i < nc && centred[i] != win; i++)
+        ;
+    if (i == nc && nc < 3 && !(state[8] & (1 << 16))) {
+        int sw, sh, w = state[3] - state[1], h = state[4] - state[2];
+        screen_size(&sw, &sh);
+        if (w > sw) w = sw;
+        if (h > sh - 160) h = sh - 160;   /* clear of the icon bar */
+        state[1] = (sw - w) / 2;
+        state[3] = state[1] + w;
+        state[2] = 132 + (sh - 132 - h) / 2;
+        state[4] = state[2] + h;
+        centred[nc++] = win;
+    }
     state[7] = -1;
     _swix(Wimp_OpenWindow, _IN(1), state);
 }
