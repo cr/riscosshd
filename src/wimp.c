@@ -64,7 +64,9 @@ enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
 #define KEYS_MIN_EXTENT (-800)    /* keys window height with few rows */
 
 enum { MENU_INFO = 0, MENU_HELP, MENU_LOG, MENU_VERBOSE, MENU_KEYS, MENU_OPTIONS, MENU_QUIT, MENU_ITEMS };
-#define MENU_DOTTED 2             /* item flag: dotted line below */
+#define MENU_TICK   1             /* item flags: ticked, */
+#define MENU_DOTTED 2             /* dotted line below, */
+#define MENU_LAST   0x80          /* last item */
 /* Info window icons: label/value pairs */
 enum { II_NAME = 0, II_PURPOSE, II_AUTHOR, II_VERSION, II_WEBSITE, II_COMPILER, II_LIBSSH, II_CRYPTO,
        II_LICENCE, II_COUNT };
@@ -111,12 +113,13 @@ struct wimp_menu_item {
     } d;
 };
 
-struct wimp_menu {
-    char title[12];
-    unsigned char tfg, tbg, wfg, wbg;
-    int width, height, gap;
-    struct wimp_menu_item item[MENU_ITEMS];
-};
+/* A menu with n items, laid out as Wimp_CreateMenu reads it. */
+#define WIMP_MENU(n) struct {                 \
+    char title[12];                           \
+    unsigned char tfg, tbg, wfg, wbg;         \
+    int width, height, gap;                   \
+    struct wimp_menu_item item[n];            \
+}
 
 #define ICON_TEXT       (1u << 0)
 #define ICON_SPRITE     (1u << 1)
@@ -171,30 +174,25 @@ static const char *const menu_tokens[MENU_ITEMS] = {
     "MInfo", "MHelp", "MLog", "MVerbose", "MKeys", "MChoices", "MQuit"
 };
 #define MENU_ITEM_FLAGS (ICON_TEXT | ICON_FILLED | ICON_INDIRECTED | ICON_FG(7) | ICON_BG(0))
-#define MENU_ITEM(i, f) { f, -1, MENU_ITEM_FLAGS, { .ind = { menu_texts[i], (const char *)-1, sizeof menu_texts[i] } } }
+#define MENU_ITEM(buf, f) { f, -1, MENU_ITEM_FLAGS, { .ind = { buf, (const char *)-1, sizeof buf } } }
 enum { LMENU_OPEN = 0, LMENU_CLEAR, LMENU_ITEMS };
 static char log_menu_texts[LMENU_ITEMS][32];
 static const char *const log_menu_tokens[LMENU_ITEMS] = { "LMOpen", "LMClear" };
-static struct {
-    char title[12];
-    unsigned char tfg, tbg, wfg, wbg;
-    int width, height, gap;
-    struct wimp_menu_item item[LMENU_ITEMS];
-} log_menu = {
-    "Log", 7, 2, 7, 0, 240, 44, 0,
+static WIMP_MENU(LMENU_ITEMS) log_menu = {
+    "Log", 7, 2, 7, 0, 220, 44, 0,
     {
-        { 0,    -1, MENU_ITEM_FLAGS, { .ind = { log_menu_texts[0], (const char *)-1, sizeof log_menu_texts[0] } } },
-        { 0x80, -1, MENU_ITEM_FLAGS, { .ind = { log_menu_texts[1], (const char *)-1, sizeof log_menu_texts[1] } } },
+        MENU_ITEM(log_menu_texts[LMENU_OPEN], 0), MENU_ITEM(log_menu_texts[LMENU_CLEAR], MENU_LAST),
     }
 };
 static void *current_menu;         /* the menu last opened: icon bar or log */
 
-static struct wimp_menu menu = {
+static WIMP_MENU(MENU_ITEMS) menu = {
     "SSHd", 7, 2, 7, 0, 220, 44, 0,
     {
-        MENU_ITEM(MENU_INFO, 0), MENU_ITEM(MENU_HELP, MENU_DOTTED), MENU_ITEM(MENU_LOG, 0),
-        MENU_ITEM(MENU_VERBOSE, MENU_DOTTED), MENU_ITEM(MENU_KEYS, 0),
-        MENU_ITEM(MENU_OPTIONS, MENU_DOTTED), MENU_ITEM(MENU_QUIT, 0x80),
+        MENU_ITEM(menu_texts[MENU_INFO], 0), MENU_ITEM(menu_texts[MENU_HELP], MENU_DOTTED),
+        MENU_ITEM(menu_texts[MENU_LOG], 0), MENU_ITEM(menu_texts[MENU_VERBOSE], MENU_DOTTED),
+        MENU_ITEM(menu_texts[MENU_KEYS], 0), MENU_ITEM(menu_texts[MENU_OPTIONS], MENU_DOTTED),
+        MENU_ITEM(menu_texts[MENU_QUIT], MENU_LAST),
     }
 };
 
@@ -670,20 +668,28 @@ static char add_text[16], fetch_btn_text[16];
 static char fetch_text[96];
 static char acc_text[48], pass_text[48];
 
+/* A menu width that fits the longest of n entries in the desktop font,
+ * so that a translation is not clipped; never narrower than width. */
+static int fit_menu_width(int width, char (*texts)[32], int n)
+{
+    for (int i = 0; i < n; i++) {
+        int w = (int)strlen(texts[i]) * 16 + 32;
+        if (w > width)
+            width = w;
+    }
+    return width;
+}
+
 /* Every translatable text into its buffer, before the windows are made. */
 static void load_texts(void)
 {
-    size_t longest = 0;
-    for (int i = 0; i < MENU_ITEMS; i++) {
+    for (int i = 0; i < MENU_ITEMS; i++)
         msgs_get(menu_tokens[i], menu_texts[i], sizeof menu_texts[i], NULL);
-        if (strlen(menu_texts[i]) > longest)
-            longest = strlen(menu_texts[i]);
-    }
-    if ((int)longest * 16 + 32 > menu.width)
-        menu.width = (int)longest * 16 + 32;
+    menu.width = fit_menu_width(menu.width, menu_texts, MENU_ITEMS);
     msgs_get("TLog", log_title, sizeof log_title, NULL);
     for (int i = 0; i < LMENU_ITEMS; i++)
         msgs_get(log_menu_tokens[i], log_menu_texts[i], sizeof log_menu_texts[i], NULL);
+    log_menu.width = fit_menu_width(log_menu.width, log_menu_texts, LMENU_ITEMS);
     msgs_get("LMTitle", log_menu.title, sizeof log_menu.title, NULL);
     msgs_get("TKeys", keys_title, sizeof keys_title, NULL);
     msgs_get("TInfo", info_title, sizeof info_title, NULL);
@@ -816,19 +822,14 @@ int wimp_init(void)
 
 /* --- event loop ----------------------------------------------------------- */
 
-/* Open (or, after an Adjust click, reopen) the icon bar menu with the
- * Verbose tick up to date. */
-static void show_menu(void)
+/* Open (or, after an Adjust click, reopen) the icon bar or log menu at
+ * menu_x, menu_y.  The Verbose tick is brought up to date either way. */
+static void show_menu(void *m)
 {
-    menu.item[MENU_VERBOSE].flags = (menu.item[MENU_VERBOSE].flags & ~1u) | (log_verbose ? 1u : 0u);
-    current_menu = &menu;
-    _swix(Wimp_CreateMenu, _INR(1, 3), &menu, menu_x, menu_y);
-}
-
-static void show_log_menu(void)
-{
-    current_menu = &log_menu;
-    _swix(Wimp_CreateMenu, _INR(1, 3), &log_menu, menu_x, menu_y);
+    menu.item[MENU_VERBOSE].flags = (menu.item[MENU_VERBOSE].flags & ~(unsigned)MENU_TICK) |
+                                    (log_verbose ? MENU_TICK : 0);
+    current_menu = m;
+    _swix(Wimp_CreateMenu, _INR(1, 3), m, menu_x, menu_y);
 }
 
 /* The log window's title: port and logged-in sessions, as a status line. */
@@ -853,7 +854,7 @@ static void open_menu(int x)
         height += 44 + ((menu.item[i].flags & MENU_DOTTED) ? 24 : 0);
     menu_x = x - 64;
     menu_y = height;
-    show_menu();
+    show_menu(&menu);
 }
 
 static void open_options(void)
@@ -873,7 +874,6 @@ static void open_options(void)
 
 static void log_menu_selection(int *items)
 {
-    int ptr[5];
     if (items[0] == LMENU_OPEN) {
         char cmd[320];
         if (!log_file_name())
@@ -888,17 +888,10 @@ static void log_menu_selection(int *items)
         log_update(1);
         _swix(Wimp_ForceRedraw, _INR(0, 4), log_win, 0, -(LOG_LINES * LOG_LINE_H), LOG_WIDTH, 0);
     }
-    if (_swix(Wimp_GetPointerInfo, _IN(1), ptr) == NULL && (ptr[2] & 1))
-        show_log_menu();
 }
 
-static void menu_selection(int *items)
+static void iconbar_menu_selection(int *items)
 {
-    int ptr[5];
-    if (current_menu == &log_menu) {
-        log_menu_selection(items);
-        return;
-    }
     switch (items[0]) {
     case MENU_INFO:    open_on_top(info_win); break;
     case MENU_LOG:     wimp_open_log_window(); break;
@@ -926,9 +919,18 @@ static void menu_selection(int *items)
         break;
     }
     }
+}
+
+static void menu_selection(int *items)
+{
+    int ptr[5];
+    if (current_menu == &log_menu)
+        log_menu_selection(items);
+    else
+        iconbar_menu_selection(items);
     /* Adjust keeps the menu open. */
     if (_swix(Wimp_GetPointerInfo, _IN(1), ptr) == NULL && (ptr[2] & 1))
-        show_menu();
+        show_menu(current_menu);
 }
 
 static void mouse_click(int *b)
@@ -944,7 +946,7 @@ static void mouse_click(int *b)
     } else if (win == log_win && (buttons & 2)) {
         menu_x = x - 64;
         menu_y = b[1];
-        show_log_menu();
+        show_menu(&log_menu);
     } else if (win == keys_win) {
         if (ic == KI_ADD)
             keys_add_from_input();
