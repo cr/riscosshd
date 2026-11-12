@@ -68,6 +68,7 @@ struct tw_state {
     int last_sent;             /* when the last input chunk went out */
     int awaiting_output;       /* a chunk is out and nothing came back yet */
     int esc;                   /* pty: inside a terminal escape sequence (ESC_*) */
+    int cr_pending;            /* the last packet ended in CR: skip a leading LF */
     char line[16];             /* shell: start of the line being typed, for 'exit' */
     size_t line_len;           /* its full length, even past sizeof line */
     char *scrap;               /* exec: the Obey file, deleted at the end */
@@ -332,6 +333,11 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
             s->esc = ESC_NONE;
             continue;
         }
+        if (s->cr_pending) {             /* CRLF split across two packets */
+            s->cr_pending = 0;
+            if (ch == '\n')
+                continue;
+        }
         if (c->pty && ch == 0x1b && i + 1 < len && (buf[i + 1] == '[' || buf[i + 1] == 'O')) {
             s->esc = buf[i + 1] == '[' ? ESC_CSI : ESC_SS3;
             i++;
@@ -345,8 +351,12 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
             }
             s->line_len = 0;
             out[n++] = '\r';                 /* RISC OS line end for ReadLine */
-            if (ch == '\r' && i + 1 < len && buf[i + 1] == '\n')
-                i++;
+            if (ch == '\r') {
+                if (i + 1 == len)
+                    s->cr_pending = 1;
+                else if (buf[i + 1] == '\n')
+                    i++;
+            }
         } else if (!c->pty) {
             out[n++] = (char)ch;             /* a pipe: bytes are data, not keys */
             line_add(s, ch);
