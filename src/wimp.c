@@ -364,7 +364,8 @@ static void keys_delete_row(int i)
     if (i < 0 || i >= auth_count())
         return;
     auth_describe_one(i, desc, sizeof desc);
-    if (!ask("Delete", "Delete key %s?", desc))
+    if (!ask("Delete", "Remove the key %s? It will no longer be able to log in; "
+                       "sessions already open stay open.", desc))
         return;
     if (auth_remove_key(i, err, sizeof err) < 0)
         reportf("Key not deleted: %s", err);
