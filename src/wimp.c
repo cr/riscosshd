@@ -211,13 +211,16 @@ static struct wimp_menu menu = {
 #define BOX_ERROR     (2 << 9)
 #define BOX_QUESTION  (4 << 9)
 
-static int box(unsigned flags, const char *buttons, const char *fmt, va_list ap) __attribute__((format(printf, 3, 0)));
-static int box(unsigned flags, const char *buttons, const char *fmt, va_list ap)
+static int boxf(unsigned flags, const char *buttons, const char *fmt, ...) PRINTF_LIKE(3, 4);
+static int boxf(unsigned flags, const char *buttons, const char *fmt, ...)
 {
     struct { int num; char text[252]; } b;
     int answer = 0;
+    va_list ap;
     b.num = 0;
+    va_start(ap, fmt);
     vsnprintf(b.text, sizeof b.text, fmt, ap);
+    va_end(ap);
     if (_swix(Wimp_ReportError, _INR(0, 5) | _OUT(1), &b, flags | BOX_NEW, "SSHd", "!sshd", 1,
               buttons, &answer) != NULL) {
         fprintf(stderr, "SSHd: %s\n", b.text);
@@ -226,41 +229,16 @@ static int box(unsigned flags, const char *buttons, const char *fmt, va_list ap)
     return answer;
 }
 
-/* An error box with OK; works before wimp_init too. */
-static void reportf(const char *fmt, ...) PRINTF_LIKE(1, 2);
-static void reportf(const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    box(BOX_OK | BOX_ERROR, NULL, fmt, ap);
-    va_end(ap);
-}
-
-/* A message box with OK, for news that is not an error. */
-static void tellf(const char *fmt, ...) PRINTF_LIKE(1, 2);
-static void tellf(const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    box(BOX_OK | BOX_INFO, NULL, fmt, ap);
-    va_end(ap);
-}
+/* An error box with OK, which works before wimp_init too; a message box
+ * with OK for news that is not an error; and a question with an action
+ * button and Cancel, true for the action. */
+#define reportf(...)     boxf(BOX_OK | BOX_ERROR, NULL, __VA_ARGS__)
+#define tellf(...)       boxf(BOX_OK | BOX_INFO, NULL, __VA_ARGS__)
+#define ask(action, ...) (boxf(BOX_CANCEL | BOX_QUESTION, action, __VA_ARGS__) == 3)
 
 void wimp_report_error(const char *msg)
 {
     reportf("%s", msg);
-}
-
-/* A question with an action button and Cancel; returns 1 for the action. */
-static int ask(const char *action, const char *fmt, ...) PRINTF_LIKE(2, 3);
-static int ask(const char *action, const char *fmt, ...)
-{
-    int answer;
-    va_list ap;
-    va_start(ap, fmt);
-    answer = box(BOX_CANCEL | BOX_QUESTION, action, fmt, ap);
-    va_end(ap);
-    return answer == 3;
 }
 
 static void icon(struct wimp_icon *ic, int x0, int y0, int x1, int y1, unsigned flags,
@@ -575,12 +553,10 @@ static void keys_add_from_file(const char *path)
     refresh_keys_list();
     if (rc < 0)
         reportf("%d key%s %s", added, added == 1 ? "" : "s", err);
-    else if (added == 0 && bad)
-        reportf("%d key%s added, %d already authorised, %d line%s not a key",
-                added, added == 1 ? "" : "s", dup, bad, bad == 1 ? "" : "s");
-    else if (added == 0 || dup || bad)
-        tellf("%d key%s added, %d already authorised, %d line%s not a key",
-              added, added == 1 ? "" : "s", dup, bad, bad == 1 ? "" : "s");
+    else if (added == 0 || dup || bad)     /* an error only if nothing was a key */
+        boxf(BOX_OK | (added == 0 && bad ? BOX_ERROR : BOX_INFO), NULL,
+             "%d key%s added, %d already authorised, %d line%s not a key",
+             added, added == 1 ? "" : "s", dup, bad, bad == 1 ? "" : "s");
 }
 
 /* --- fetch keys from another machine ------------------------------------- */
@@ -631,10 +607,7 @@ static void keys_fetch(void)
     memset(fetch_pass, 0, sizeof fetch_pass);          /* used once, never kept */
     redraw_icon(keys_win, KI_FPASS);
     refresh_keys_list();
-    if (rc > 0)
-        tellf("%s", msg);
-    else
-        reportf("%s", msg);
+    boxf(BOX_OK | (rc > 0 ? BOX_INFO : BOX_ERROR), NULL, "%s", msg);
     fetching = 0;
 }
 
