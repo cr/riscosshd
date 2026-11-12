@@ -178,7 +178,7 @@
      if (fd == -1) {
          int saved_errno = errno;
          SSH_LOG(SSH_LOG_PROTOCOL, "error open file with error: %s",
-@@ -996,6 +1040,16 @@
+@@ -996,6 +1040,20 @@
          SSH_LOG(SSH_LOG_PROTOCOL, "invalid fd (%d) received from handle", fd);
          return SSH_ERROR;
      }
@@ -187,6 +187,10 @@
 +         * answer reads at or beyond the end from the file size instead.
 +         * This also covers offsets past 2 GB, as off_t is 32-bit. */
 +        struct stat st;
++        if (fstat(fd, &st) == 0 && st.st_size < 0) {      /* past what off_t holds */
++            sftp_reply_status(client_msg, SSH_FX_FAILURE, "File larger than 2 GB");
++            return SSH_OK;
++        }
 +        if (fstat(fd, &st) == 0 && client_msg->offset >= (uint64_t)st.st_size) {
 +            sftp_reply_status(client_msg, SSH_FX_EOF, NULL);
 +            return SSH_OK;
@@ -195,7 +199,7 @@
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1005,6 +1059,10 @@
+@@ -1005,6 +1063,10 @@
          return SSH_OK;
      }
  
@@ -206,7 +210,7 @@
      buffer = malloc(client_msg->len);
      if (buffer == NULL) {
          ssh_set_error_oom(sftp->session);
-@@ -1057,6 +1115,10 @@
+@@ -1057,6 +1119,10 @@
      msg_data = ssh_string_get_char(client_msg->data);
      len = ssh_string_len(client_msg->data);
  
@@ -217,7 +221,7 @@
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1327,7 +1389,7 @@
+@@ -1327,7 +1393,7 @@
              if (readdir_long_name(dentry->d_name, &st, long_name) == 0) {
                  sftp_reply_names_add(client_msg, dentry->d_name, long_name, &attr);
              } else {
@@ -226,7 +230,7 @@
              }
  
              entries++;
-@@ -1428,7 +1490,7 @@
+@@ -1428,7 +1494,7 @@
  
          SSH_LOG(SSH_LOG_PROTOCOL, "realpath failed: %s", strerror(saved_errno));
          sftp_reply_status(client_msg, status, err_msg);
@@ -235,16 +239,21 @@
      }
      sftp_reply_name(client_msg, path, NULL);
      free(path);
-@@ -1498,6 +1560,132 @@
- }
+@@ -1493,11 +1559,137 @@
+         stat_to_filexfer_attrib(&st, &attr);
+         sftp_reply_attr(client_msg, &attr);
+     }
++
++    return SSH_OK;
++}
  
- static int
++static int
 +reply_errno(sftp_client_message client_msg, int e)
 +{
 +    sftp_reply_status(client_msg, unix_errno_to_ssh_stat(e), strerror(e));
-+    return SSH_OK;
-+}
-+
+     return SSH_OK;
+ }
+ 
 +/* libssh leaves both rename requests unimplemented.  SSH_FXP_RENAME
 + * (filexfer v3) must fail when the target exists; posix-rename@openssh.com
 + * must replace it.  rename() through UnixLib does the work either way.
@@ -254,7 +263,7 @@
 + * "readme" and "README", "a" and "./a".  Nothing is deleted before the
 + * rename has worked: a target to be replaced is moved aside first and
 + * restored if the rename fails, so whatever the names, no file is lost. */
-+static int
+ static int
 +do_rename(sftp_client_message client_msg, int replace)
 +{
 +    const char *oldpath = sftp_client_message_get_filename(client_msg);
@@ -368,7 +377,7 @@
  process_setstat(sftp_client_message client_msg)
  {
      int rv;
-@@ -1526,6 +1714,9 @@
+@@ -1526,6 +1718,9 @@
          }
      }
  
@@ -378,7 +387,7 @@
      if (msg_flags & SSH_FILEXFER_ATTR_PERMISSIONS) {
          rv = chmod(filename, client_msg->attr->permissions);
          if (rv < 0) {
-@@ -1689,16 +1880,6 @@
+@@ -1689,16 +1884,6 @@
  }
  
  static int
