@@ -973,19 +973,19 @@ static void key_pressed(int *b)
     _swix(Wimp_ProcessKey, _IN(0), key);
 }
 
+/* Help tokens for the Keys window's fixed icons; the rest of the window,
+ * key rows and Delete buttons fall back to keys_help's defaults. */
+static const char *const keys_help_tokens[KI_COUNT] = {
+    [KI_HOSTLABEL] = "HHost", [KI_HOST] = "HHost", [KI_HOST2] = "HHost",
+    [KI_INPUT] = "HInput", [KI_ADD] = "HAdd",
+    [KI_FHOST] = "HAccount", [KI_FPASS] = "HPassword", [KI_FETCH] = "HImport",
+};
+
 static const char *keys_help(int ic)
 {
-    switch (ic) {
-    case KI_INPUT: return "HInput";
-    case KI_ADD:   return "HAdd";
-    case KI_FHOST: return "HAccount";
-    case KI_FPASS: return "HPassword";
-    case KI_FETCH: return "HImport";
-    case KI_HOST: case KI_HOST2: case KI_HOSTLABEL:
-                   return "HHost";
-    default:
-        return row_of_delete_icon(ic) >= 0 ? "HDelete" : "HDrop";
-    }
+    if (ic >= 0 && ic < KI_COUNT && keys_help_tokens[ic])
+        return keys_help_tokens[ic];
+    return row_of_delete_icon(ic) >= 0 ? "HDelete" : "HDrop";
 }
 
 /* Interactive help: Message_HelpRequest names a window and icon,
