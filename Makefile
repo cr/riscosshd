@@ -68,15 +68,10 @@ engine:
 # under emulation (Colima's binfmt or Docker Desktop's Rosetta).
 # .image-built records that the image was built; 'make image' rebuilds it
 # regardless, e.g. after the engine lost its images.
-define build-image
+image .image-built: docker/Dockerfile
 	@test -n "$(ENGINE)" || { tools/container-engine.sh; exit 1; }
 	. tools/docker-env.sh; $(ENGINE) build --platform linux/amd64 -t $(IMAGE) docker
 	@touch .image-built
-endef
-image:
-	$(build-image)
-.image-built: docker/Dockerfile
-	$(build-image)
 
 # --- dependencies: mbedTLS and libssh, static, into deps/sysroot -----------
 deps: $(SYSROOT)/lib/libssh.a
@@ -120,14 +115,15 @@ $(PACKAGE): $(BINARY) riscos/RiscPkg/Control LICENSE tools/mkcopyright.sh tools/
 install: $(BINARY)
 	@h=$$(tools/find-rpcemu.sh) && sh tools/rpcemu-install.sh "$$h" "$(PUBKEY)"
 
+# The emulator's host key changes with every fresh install: don't record it.
+SSH_OPTS := -o ConnectTimeout=15 -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
 test: smoke
 smoke:
 	@echo "+ ssh -p $(SSH_PORT) $(SSH_USER)@$(SSH_HOST) '*Time'"
-	@ssh -p $(SSH_PORT) -o ConnectTimeout=15 -o StrictHostKeyChecking=no \
-	    -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $(SSH_USER)@$(SSH_HOST) '*Time'
+	@ssh -p $(SSH_PORT) $(SSH_OPTS) $(SSH_USER)@$(SSH_HOST) '*Time'
 	@echo "+ sftp: pwd, ls"
-	@printf 'pwd\nls\n' | sftp -q -P $(SSH_PORT) -o ConnectTimeout=15 -o StrictHostKeyChecking=no \
-	    -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -b - $(SSH_USER)@$(SSH_HOST) | head -6
+	@printf 'pwd\nls\n' | sftp -q -P $(SSH_PORT) $(SSH_OPTS) -b - $(SSH_USER)@$(SSH_HOST) | head -6
 
 # --- host-side unit test -----------------------------------------------------
 # Compiles src/auth.c against the host's libssh (brew install libssh, or

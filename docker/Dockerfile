@@ -7,4 +7,3 @@ RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cmake ca-certificates curl zip \
  && rm -rf /var/lib/apt/lists/*
 # cmake/toolchain-riscos.cmake finds the compiler at /home/riscos/cross/bin.
-WORKDIR /work
