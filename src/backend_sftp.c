@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* SFTP backend: libssh's built-in SFTP server (sftpserver.c) running on
  * the channel.  It works on POSIX file calls, which UnixLib maps onto
  * RISC OS: "/dir/file.ext" is "dir.file/ext" on the current disc, and the

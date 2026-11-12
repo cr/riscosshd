@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Wimp front end for sshd: icon-bar icon with a menu (Info, Help..., Log
  * window, Verbose, Keys..., Choices..., Quit), an Info window, a tail-style log
  * window drawn with the desktop font, and a Keys window where public keys

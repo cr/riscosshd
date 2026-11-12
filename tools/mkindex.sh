@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
 # Build a PackMan package index from package zips.
 #
 #   tools/mkindex.sh <site dir> <base url> <zip>...

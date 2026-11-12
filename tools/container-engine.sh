@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
 # Pick a container engine able to run the linux/amd64 GCCSDK image.
 # Prints "docker" or "podman" on stdout and exits 0, or explains on
 # stderr and exits 1.  The Makefile sources tools/docker-env.sh for the

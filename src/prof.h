@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Optional timing of the server loop, for finding where transfer time
  * goes.  Built only with -DSSHD_PROFILE (make PROFILE=1); otherwise every
  * macro is empty.  The clock is OS_ReadMonotonicTime, in centiseconds:

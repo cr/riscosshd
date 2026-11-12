@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
 # Locate a local RPCEmu installation's HostFS directory for "make install".
 # Honours RPCEMU_HOSTFS; otherwise picks, among ~/Documents/RPCEmu/*/hostfs,
 # ~/Documents/RPCEmu/hostfs and ~/RPCEmu/hostfs, the one next to the most

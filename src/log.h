@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 #ifndef SSHD_LOG_H
 #define SSHD_LOG_H
 #include <stddef.h>

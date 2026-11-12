@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Session backends.
  *
  * A backend owns what happens on one SSH channel once the client has asked

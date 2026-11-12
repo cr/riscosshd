@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Host-side stand-ins for src/riscos.c, enough to unit-test auth.c. */
 #include <stdio.h>
 #include <stdlib.h>

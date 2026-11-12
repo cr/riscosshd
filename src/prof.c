@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* See prof.h.  Compiles to nothing without SSHD_PROFILE. */
 #ifdef SSHD_PROFILE
 #include <kernel.h>

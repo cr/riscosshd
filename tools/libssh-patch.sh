@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
 # Work on deps/patches/libssh-riscos.patch in a git tree.
 #
 #   tools/libssh-patch.sh edit   unpack the pinned libssh into deps/patchwork,

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* A public key as people compare it: "ED25519 SHA256:..." in the form
  * OpenSSH prints on a first connection and ssh-keygen -l shows. */
 #ifndef SSHD_KEYFP_H

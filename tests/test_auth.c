@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Unit test for src/auth.c: parsing, duplicates, comments, add, remove.
  * Usage: test_auth <ed25519.pub> <rsa.pub> <workfile>
  * Built natively against the host's libssh by "make check". */

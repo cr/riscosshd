@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* RISC OS filetypes for SFTP follow the HostFS/LanManFS convention, and
  * UnixLib implements it once __riscosify_control has __RISCOSIFY_FILETYPE_EXT
  * (set in main.c): "name,xxx" names the file without the suffix and types a

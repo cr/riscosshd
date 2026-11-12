@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* TaskWindow backend: exec commands and interactive sessions in a
  * TaskWindow child task, relayed through Wimp messages.  Only usable when
  * the server is a Wimp task; wimp.c registers the task handle and forwards

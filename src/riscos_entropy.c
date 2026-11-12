@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* mbedTLS hardware entropy hook backed by the RISC OS CryptRandom module.
  * Enabled by MBEDTLS_ENTROPY_HARDWARE_ALT in deps/mbedtls_riscos_config.h.
  */

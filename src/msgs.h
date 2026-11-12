@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Desktop texts from <SSHd$Dir>.Messages through MessageTrans, so that
  * the menu, windows and interactive help can be translated without a
  * rebuild.  Log lines stay in English, as they are what gets reported. */

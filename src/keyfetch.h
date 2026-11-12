@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Fetch public keys from another machine over SSH (reverse ssh-copy-id):
  * connect as a client, confirm the remote host key fingerprint, log in
  * with a password, print ~/.ssh/id_ed25519.pub, id_ecdsa.pub and

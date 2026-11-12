@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* shell backend: a minimal line-mode "*" prompt.  Each line is run through
  * OS_CLI with output captured, exactly like exec.  With a pty the client
  * terminal is in raw mode, so we echo and handle backspace ourselves.

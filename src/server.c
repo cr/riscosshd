@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* libssh server core: a single cooperative poll loop handling every
  * connection.  No fork, no threads: each connection is a session_ctx in a
  * list, driven by one ssh_event.

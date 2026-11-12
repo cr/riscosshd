@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
 # Assemble RiscPkg/Copyright for the package: SSHd's licence followed by
 # those of the statically linked libraries.   mkcopyright.sh SRCDIR OUTFILE
 set -e

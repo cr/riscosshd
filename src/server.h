@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 #ifndef SSHD_SERVER_H
 #define SSHD_SERVER_H
 #include <libssh/libssh.h>

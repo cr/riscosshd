@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 #ifndef SSHD_RISCOS_ENTROPY_H
 #define SSHD_RISCOS_ENTROPY_H
 #include <stddef.h>

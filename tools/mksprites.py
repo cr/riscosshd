@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """Generate the !SSHd icon sprites (RISC OS sprite file format, 16 colours).
 
 Writes riscos/!SSHd/!Sprites22,ff9 (mode 20, square pixels, 34x34) and

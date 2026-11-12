@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* RISC OS helpers: file access through OS_File, GSTrans, and running a
  * command through OS_CLI with its VDU output captured to a buffer.
  * Everything here talks to the OS directly through SWIs so that no UnixLib

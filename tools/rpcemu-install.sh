@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
 # Copy the built !SSHd into an RPCEmu HostFS tree and authorise a public key.
 #   tools/rpcemu-install.sh [hostfs-dir] [pubkey-file]
 # Defaults: the HostFS tools/find-rpcemu.sh finds, and ~/.ssh/id_ed25519.pub.

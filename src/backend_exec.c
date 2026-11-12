@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* exec backend: one command through OS_CLI, output captured, channel closed.
  * Also hosts backend_run_cli(), the capture mechanism the shell backend
  * reuses.

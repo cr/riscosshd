@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
 # Source this before using the docker CLI.  With Colima it points the CLI
 # at Colima's socket and at a config without the Docker Desktop credential
 # helper; with Docker Desktop, Podman or a CI runner it changes nothing.

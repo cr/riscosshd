@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
 # Zip a directory reproducibly: entries in sorted order, every file and
 # directory dated SOURCE_DATE_EPOCH (default: now), fixed permissions, no
 # extra attributes.  The same tree and epoch give the same bytes.

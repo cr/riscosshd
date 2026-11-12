@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* sshd for RISC OS: entry point.
  *
  * By default this is a Wimp task with an icon-bar icon (src/wimp.c); the

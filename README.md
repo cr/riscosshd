@@ -232,7 +232,8 @@ a release show their `git describe` in the Info window.
 
 ## Licence
 
-MIT for this repository.  The binary statically links libssh (LGPL 2.1),
+MIT for this repository, except `deps/patches/libssh-riscos.patch`,
+which as a change to libssh is under libssh's LGPL 2.1.  The binary statically links libssh (LGPL 2.1),
 mbedTLS (Apache 2.0) and GCCSDK's UnixLib (LGPL with exceptions); the
 package's `RiscPkg/Copyright` carries all their licence texts (libssh's BSD notice included), and the build
 scripts here let anyone relink against a modified libssh or UnixLib as the

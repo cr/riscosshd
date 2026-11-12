@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* TaskWindow backend.
  *
  * RISC OS has no pty, but the TaskWindow module gives a command-line

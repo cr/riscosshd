@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 #ifndef SSHD_CONFIG_H
 #define SSHD_CONFIG_H
 /* Runtime configuration: defaults in main.c, then the Options file in the

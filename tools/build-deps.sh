@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
 # Cross-build mbedTLS and libssh as static libraries for RISC OS into
 # deps/sysroot.  Runs inside the GCCSDK container.  See docs/toolchain.md.
 set -e

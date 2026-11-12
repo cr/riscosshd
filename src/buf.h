@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* A growable byte queue: append at the end, consume from the front.
  * Consuming only moves an offset; the bytes are moved down once, when an
  * append would otherwise have to grow the buffer, so draining a large
