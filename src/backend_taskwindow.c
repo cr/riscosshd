@@ -70,7 +70,7 @@ struct tw_state {
     int awaiting_output;       /* a chunk is out and nothing came back yet */
     int esc;                   /* pty: inside a terminal escape sequence (ESC_*) */
     int cr_pending;            /* the last packet ended in CR: skip a leading LF */
-    int quitting;              /* *Quit queued for an exit: drop later input */
+    int quitting;              /* exit after a paste: drop later input */
     unsigned char vdu[10];     /* output: a VDU code and its parameters so far */
     int vdu_have, vdu_need;
     char line[16];             /* shell: start of the line being typed, for 'exit' */
@@ -371,13 +371,16 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
                     chan_finish(c, 0);
                     break;
                 }
-                /* Pasted lines before it have not reached the shell yet:
-                 * swap the typed word for *Quit so the shell runs them
-                 * first and then ends.  Anything after it is dropped, as
-                 * it would be once a Unix shell has exited. */
+                /* Pasted lines before it have not reached the shell yet.
+                 * A TaskWindow ignores *Quit, so clear the typed word and
+                 * end as a piped shell does at EOF: once that input has
+                 * gone in and the shell has gone quiet.  Anything after
+                 * it is dropped, as it would be once a Unix shell exits. */
                 queue_input(s, out, n);
-                queue_input(s, "\025Quit\r", 6);
+                queue_input(s, "\025", 1);
                 s->quitting = 1;
+                s->eof_pending = 1;
+                s->last_activity = ro_now_cs();
                 n = 0;
                 break;
             }
@@ -548,7 +551,7 @@ static void relay_output(struct tw_state *s, const char *d, size_t n)
 
 /* The exit status of a child: for exec, SSHd$Rc<id> is 1 until the
  * command finished without error, so an error, an Escape or a kill all
- * give 1; a shell that exits (*Quit) gives 0. */
+ * give 1; a shell gives 0. */
 static int exit_status(struct tw_state *s)
 {
     char val[16];
