@@ -725,6 +725,14 @@ int server_poll(int timeout_ms)
     return nsessions;
 }
 
+int server_logged_in(void)
+{
+    int n = 0;
+    for (struct session_ctx *s = sessions; s; s = s->next)
+        n += s->authenticated;
+    return n;
+}
+
 void server_shutdown(void)
 {
     while (sessions) {

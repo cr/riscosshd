@@ -776,7 +776,13 @@ static void menu_selection(int *items)
             reportf("Cannot open the help file");
         break;
     case MENU_OPTIONS: open_options(); break;
-    case MENU_QUIT:    running = 0; break;
+    case MENU_QUIT: {
+        int n = server_logged_in();
+        if (n == 0 || ask("Quit", "%d SSH session%s open. Quitting SSHd ends %s.",
+                          n, n == 1 ? " is" : "s are", n == 1 ? "it" : "them"))
+            running = 0;
+        break;
+    }
     }
     /* Adjust keeps the menu open. */
     if (_swix(Wimp_GetPointerInfo, _IN(1), ptr) == NULL && (ptr[2] & 1))

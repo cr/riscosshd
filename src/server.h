@@ -9,4 +9,6 @@ int server_init(ssh_key hostkey);
  * again for a few centiseconds more.  Returns the number of live sessions. */
 int server_poll(int timeout_ms);
 void server_shutdown(void);
+/* Connections that have logged in. */
+int server_logged_in(void);
 #endif
