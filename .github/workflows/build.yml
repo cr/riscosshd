@@ -23,6 +23,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0              # tags, for git describe and the version check
+      - name: Warn when the Control version is already released
+        if: github.ref == 'refs/heads/main'
+        run: |
+          v=$(sed -n 's/^Version: *//p' riscos/RiscPkg/Control)
+          if t=$(git rev-parse -q --verify "refs/tags/v$v^{commit}") && [ "$t" != "$GITHUB_SHA" ]; then
+            echo "::warning::Control says $v, which is already released as v$v: bump the version before the next release"
+          fi
       - name: Check that a release tag matches the Control file
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -72,17 +80,25 @@ jobs:
         with:
           name: SSHd
           path: dist
-      - name: Package index, GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Release notes from CHANGELOG.md, package index
         run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '$0 ~ "^## " v "( |$)" {f=1; next} /^## / {f=0} f' CHANGELOG.md > notes.md
+          grep -q . notes.md || { echo "CHANGELOG.md has no section for $v"; exit 1; }
           site="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          printf '\nPackMan source (add under Sources): %s/pkg/index\n' "$site" >> notes.md
           sh tools/mkindex.sh site "$site" dist/SSHd_*.zip
-          gh release create "${GITHUB_REF_NAME}" dist/SSHd_*.zip \
-              --title "SSHd ${GITHUB_REF_NAME#v}" \
-              --notes "PackMan source (add under Sources): $site/pkg/index"
+      # Pages first: the index is self-contained, and the release step below
+      # can then be re-run on its own if it fails.
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
       - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 ||
+            gh release create "${GITHUB_REF_NAME}" dist/SSHd_*.zip --verify-tag \
+                --title "SSHd ${GITHUB_REF_NAME#v}" --notes-file notes.md

@@ -26,6 +26,9 @@ PROFILE    ?= 0
 # The build date in the binary and the times in the zip: the last commit's.
 SOURCE_DATE_EPOCH ?= $(shell git log -1 --format=%ct 2>/dev/null || date +%s)
 export SOURCE_DATE_EPOCH
+# Which commit this is, for the Info window and the log: a build from main
+# after a release is told apart from the release itself.
+GIT_DESC   := $(shell git describe --tags --always --dirty 2>/dev/null || echo unknown)
 WERROR     ?= 0
 SYSROOT    := deps/sysroot
 BINARY     := build/!SSHd/sshd,ff8
@@ -84,7 +87,7 @@ $(PROFILE_STAMP):
 
 $(BINARY): $(SYSROOT)/lib/libssh.a $(SRC) $(PROFILE_STAMP)
 	$(RUN) sh -c 'cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscos.cmake \
-	    -DCMAKE_BUILD_TYPE=Release -DSSHD_PROFILE=$(PROFILE) -DSSHD_WERROR=$(WERROR) >/dev/null && cmake --build build -j$$(nproc) && \
+	    -DCMAKE_BUILD_TYPE=Release -DSSHD_PROFILE=$(PROFILE) -DSSHD_WERROR=$(WERROR) -DSSHD_GIT=$(GIT_DESC) >/dev/null && cmake --build build -j$$(nproc) && \
 	    cp -R "riscos/!SSHd/." "build/!SSHd/" && touch "$(BINARY)"'
 	@# the app files are copied in the same container run: it owns build/ on CI
 

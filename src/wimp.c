@@ -674,6 +674,10 @@ static void info_version(void)
 {
     snprintf(info_values[II_VERSION], sizeof info_values[II_VERSION], "%s (%s)",
              SSHD_VERSION, SSHD_BUILD_DATE);
+    /* a build that is not the release itself says which commit it is */
+    if (strcmp(SSHD_GIT, "v" SSHD_VERSION) != 0)
+        snprintf(info_values[II_VERSION] + strlen(info_values[II_VERSION]),
+                 sizeof info_values[II_VERSION] - strlen(info_values[II_VERSION]), ", %s", SSHD_GIT);
 }
 static char prompt_text[128];
 static char group_dummy[] = "";

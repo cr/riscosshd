@@ -6,6 +6,9 @@
 #ifndef SSHD_VERSION
 #define SSHD_VERSION "dev"            /* the build passes the Control version */
 #endif
+#ifndef SSHD_GIT
+#define SSHD_GIT "unknown"            /* git describe of the source, from the build */
+#endif
 
 #define DEFAULT_MAX_SESSIONS 8
 #define DEFAULT_FILETYPE 0xffd        /* Data */

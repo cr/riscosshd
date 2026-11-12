@@ -388,7 +388,7 @@ int main(int argc, char **argv)
     }
 
     log_set_stderr(text_mode);
-    log_msg("SSHd %s starting", SSHD_VERSION);
+    log_msg("SSHd %s (%s) starting", SSHD_VERSION, SSHD_GIT);
     /* Every key and nonce comes from CryptRandom.  libssh is patched to
      * fail without it too; this check comes first with a clear message. */
     if (riscos_entropy_check() < 0)

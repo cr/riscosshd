@@ -215,8 +215,14 @@ the component flags `(Movable LookAt Run)` let PackMan offer to run
 `!SSHd` at boot.
 
 A tag `v<version>` matching that field publishes a release: the same
-workflow attaches the zip to a GitHub release and republishes the
-PackMan index on GitHub Pages (`tools/mkindex.sh`).
+workflow republishes the PackMan index on GitHub Pages
+(`tools/mkindex.sh`) and attaches the zip to a GitHub release whose notes
+are that version's section of `CHANGELOG.md`.  To release: move the
+"Unreleased" notes under a new version heading, set `Version:` to it,
+commit, tag `v<version>` and push the tag.  If the tag's build fails,
+nothing is published: delete the tag (`git push --delete origin
+v<version>`), fix, and tag the same version again.  Builds that are not
+a release show their `git describe` in the Info window.
 
 ## Roadmap
 

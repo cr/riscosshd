@@ -44,8 +44,11 @@ string(REGEX REPLACE "^Version: *" "" SSHD_VERSION "${CONTROL_VERSION}")
 # Build date for the Info window: SOURCE_DATE_EPOCH when set (the Makefile
 # sets the last commit's time), so the same commit builds the same binary.
 string(TIMESTAMP SSHD_BUILD_DATE "%d %b %Y" UTC)
+if(NOT SSHD_GIT)
+  set(SSHD_GIT unknown)
+endif()
 target_compile_definitions(sshd PRIVATE WITH_SERVER=1 SSHD_VERSION="${SSHD_VERSION}"
-                           SSHD_BUILD_DATE="${SSHD_BUILD_DATE}")
+                           SSHD_BUILD_DATE="${SSHD_BUILD_DATE}" SSHD_GIT="${SSHD_GIT}")
 # make WERROR=1 (CI): warnings in our own code fail the build
 option(SSHD_WERROR "Treat warnings in src/ as errors" OFF)
 if(SSHD_WERROR)
