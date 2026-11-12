@@ -30,6 +30,9 @@ void sftp_server_close_handles(sftp_session sftp);
 /* Largest reply the patched server sends: a 32 KB read plus headers. */
 #define REPLY_MAX (32768 + 64)
 #define QUEUE_MAX (1024 * 1024)
+/* Requests handled per poll: a queue of small requests from one client
+ * must not hold up the other sessions and the desktop. */
+#define REQUESTS_PER_POLL 16
 
 struct sftp_state {
     sftp_session sftp;
@@ -83,8 +86,9 @@ static void sftp_poll(struct chan_ctx *c)
 {
     struct sftp_state *st = c->backend_data;
     size_t n;
+    int done = 0;
 
-    while (!c->finished && (n = packet_len(&st->q)) > 0) {
+    while (!c->finished && done++ < REQUESTS_PER_POLL && (n = packet_len(&st->q)) > 0) {
         int rc;
         if (ssh_channel_window_size(c->channel) < REPLY_MAX)
             return;                                   /* let the client catch up */
