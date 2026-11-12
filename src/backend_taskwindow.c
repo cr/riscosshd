@@ -435,12 +435,15 @@ const struct backend_ops backend_taskwindow = {
 
 /* ---- Wimp messages ------------------------------------------------------- */
 
-/* The exit status of an exec child: SSHd$Rc<id> is 1 until the command
- * finished without error, so an error, an Escape or a kill all give 1. */
-static int exec_status(struct tw_state *s)
+/* The exit status of a child: for exec, SSHd$Rc<id> is 1 until the
+ * command finished without error, so an error, an Escape or a kill all
+ * give 1; a shell that exits (*Quit) gives 0. */
+static int exit_status(struct tw_state *s)
 {
     char val[16];
-    if (!s->is_exec || ro_read_var(s->rcvar, val, sizeof val) < 0)
+    if (!s->is_exec)
+        return 0;
+    if (ro_read_var(s->rcvar, val, sizeof val) < 0)
         return 1;
     return atoi(val) == 0 ? 0 : 1;
 }
@@ -452,7 +455,8 @@ static void child_gone(struct tw_state *s, const char *how)
 {
     s->dead = 1;
     log_debug("task window %08x %s", (unsigned)s->txt, how);
-    chan_finish(s->chan, exec_status(s));
+    if (!s->chan->finished)              /* Ctrl-D or exit already set the status */
+        chan_finish(s->chan, exit_status(s));
 }
 
 int tw_message(int reason, int *block)
