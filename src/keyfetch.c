@@ -4,6 +4,7 @@
 #include <libssh/libssh.h>
 
 #include "keyfetch.h"
+#include "keyfp.h"
 #include "auth.h"
 #include "config.h"
 #include "log.h"
@@ -55,7 +56,7 @@ int keyfetch_run(const char *userhost, const char *password,
     ssh_key key = NULL;
     unsigned char *hash = NULL;
     size_t hlen = 0, olen = 0;
-    char *fp, *out = NULL;
+    char *out = NULL;
     int rc, ok, added = 0, dup = 0, bad = 0, result = -1;
 
     if (!crypto_ready) {
@@ -105,9 +106,11 @@ int keyfetch_run(const char *userhost, const char *password,
         fail(msg, msglen, "Cannot read the remote host key", s);
         goto out;
     }
-    fp = ssh_get_fingerprint_hash(SSH_PUBLICKEY_HASH_SHA256, hash, hlen);
-    ok = confirm(fp ? fp : "(unknown)", host, port);
-    ssh_string_free_char(fp);
+    {
+        char fpr[128];                     /* "ED25519 SHA256:...", as ssh-keygen -l shows */
+        key_fingerprint(key, fpr, sizeof fpr);
+        ok = confirm(fpr, host, port);
+    }
     if (!ok) {
         snprintf(msg, msglen, "Cancelled: host key not accepted");
         goto out;

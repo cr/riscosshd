@@ -531,9 +531,10 @@ static int fetch_confirm(const char *fingerprint, const char *host, unsigned por
 {
     int ok;
     _swix(Hourglass_Off, 0);
-    ok = ask("Continue", "%s port %u reports the host key fingerprint %s. "
-                       "Continue only if that matches what it shows (ssh-keygen -lf).",
-                       host, port, fingerprint);
+    /* the fingerprint first, so that a long host name cannot cut it off */
+    ok = ask("Continue", "Host key %s from %s port %u. Continue only if it matches "
+                         "'ssh-keygen -lf' of /etc/ssh/ssh_host_*_key.pub on that machine.",
+             fingerprint, host, port);
     wimp_pump();
     _swix(Hourglass_On, 0);
     return ok;
