@@ -129,6 +129,9 @@ until you delete it.
 
 ## Using it
 
+`!Help` inside the application is the user's guide: the desktop, the
+Keys window, every setting and the command line options.  In short:
+
 **Commands and sessions** run in a TaskWindow child, so they behave as in
 Edit's task windows: line input, no Wimp applications.  A command is one
 line of an Obey file: control characters other than tab and more than
@@ -142,39 +145,25 @@ show in the Task Manager as "SSH" followed by the client's address and
 user name; quit them there.
 
 **Connections** that do not log in within 60 s, or sit logged in without
-a session for 120 s, are dropped; at most 8 are held at once, and one
-address may hold at most two that have not logged in yet.  The first
-three numbers are settings.
+a session for 120 s, are dropped; at most 8 are held at once.  One
+address may hold at most two that have not logged in yet and open at
+most ten in any ten seconds.  The first three numbers are settings.
 
 **SFTP and scp** use libssh's SFTP server, so `sftp` and modern `scp`
 (OpenSSH 9 and later, which transfers over SFTP) both work; the legacy
 `scp -O` protocol does not.  Paths are what UnixLib makes of RISC OS
 names: the boot disc root is `/HostFS::HostFS.$/` on RPCEmu, and
-`dir.file/ext` appears as `/dir/file.ext`.  Clients start in the `root`
-setting's directory, by default the boot disc.  Permissions, owners and
+`dir.file/ext` appears as `/dir/file.ext`.  Permissions, owners and
 timestamps are accepted and ignored, as RISC OS has nothing to map them
-to.  Files above 2 GB cannot be read or written past that point.
-
-**Filetypes** follow the HostFS/LanManFS convention.  A name ending in
-`,xxx` (three hex digits) refers to the file without that suffix and, on
-upload or rename, gives it filetype `xxx`: `put prog prog,ffb` stores a
-BASIC file called `prog`.  Otherwise the extension is looked up through
-MimeMap, so `notes.txt` becomes Text and `pic.png` a PNG; a name MimeMap
-does not know gets the `filetype` setting, Data by default.  Listings show
-`,xxx` on files whose type the extension does not already imply, and a
-client may use either spelling: `get prog,ffb` and `get prog` are the same
-file.
-
-**The desktop**: SELECT on the icon opens the log window, ADJUST the Keys
-window, and the menu offers Info, Help..., Log window, a Verbose tick,
-Keys..., Choices... (the settings file in your text editor) and Quit.  `!Help`
-describes each part, and interactive help covers every icon and menu item.
+to; files cannot be read or written past 2 GB.  Filetypes follow the
+HostFS convention: a `,xxx` suffix sets the type, other names are typed
+through MimeMap, and listings show `,xxx` where the extension does not
+imply the type (`!Help` has the details).
 
 **Settings** live in `Choices:SSHd.Options`, written on first run with
-every setting commented out at its default, and survive package upgrades.
-`!Help` lists them all.  They take effect at the next start; command line
-options (`-p`, `-b`, `-r`, `-d`, `-t` for text mode in a TaskWindow, `-v`)
-override them.
+every setting commented out at its default, and survive package
+upgrades; Choices... on the icon bar menu opens it.  They take effect at
+the next start.
 
 ## Building
 
@@ -221,8 +210,9 @@ release and the PackMan index on GitHub Pages; "Releasing" in
 ## Licence
 
 MIT for this repository, except `deps/patches/libssh-riscos.patch`,
-which as a change to libssh is under libssh's LGPL 2.1.  The binary statically links libssh (LGPL 2.1),
-mbedTLS (Apache 2.0) and GCCSDK's UnixLib (LGPL with exceptions); the
-package's `RiscPkg/Copyright` carries all their licence texts (libssh's BSD notice included), and the build
-scripts here let anyone relink against a modified libssh or UnixLib as the
-LGPL requires.
+which as a change to libssh is under libssh's LGPL 2.1.  The binary
+statically links libssh (LGPL 2.1), mbedTLS (Apache 2.0) and GCCSDK's
+UnixLib (LGPL with exceptions); the package's `RiscPkg/Copyright` carries
+all their licence texts (libssh's BSD notice included), and the build
+scripts here let anyone relink against a modified libssh or UnixLib as
+the LGPL requires.
