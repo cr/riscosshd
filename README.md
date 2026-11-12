@@ -89,10 +89,27 @@ inside the emulator with PackMan.
    with what your client prints on its first connection.
 
 ```bash
-ssh riscos@riscos-host '*Cat'   # run a command, output streams back
+ssh riscos@riscos-host Cat      # run a command, output streams back
 ssh riscos@riscos-host          # interactive * command line; Ctrl-D ends it
 sftp riscos@riscos-host         # or scp; paths look like /HostFS::HostFS.$/Public
 ```
+
+**Which address.**  The log window shows the command to connect with,
+for example `connect with: ssh riscos@192.168.1.20`, and the Keys window
+repeats it; `*Ifconfig -a` or your router's list of devices also tell you
+the machine's address.
+
+**Quoting `*`.**  The leading `*` of a command is optional.  If you type
+it, quote the command (`'*Cat'`): a Unix shell would otherwise try to
+expand `*Cat` as a file name, and zsh stops with "no matches found".
+
+**The post-quantum warning.**  OpenSSH 10.1 and later warns on every
+connection that the key exchange "is not using a post-quantum key
+exchange algorithm": libssh 0.11 offers none.  To silence it for this
+machine, add to `~/.ssh/config`:
+
+    Host riscos-host
+        WarnWeakCrypto no-pq-kex
 
 ### If it does not start
 
