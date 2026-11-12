@@ -82,9 +82,9 @@ int ro_append_file(const char *path, const void *data, size_t len, size_t limit)
 {
     int fh = 0, extent = 0, unwritten = 0, created = 0;
     _kernel_oserror *e;
-    /* 0xc3: open for update, must not be a directory, handle 0 when the
-     * file does not exist (only "output", 0x83, creates it); bit 2 would
-     * stop "Boot:" style path prefixes from being expanded */
+    /* 0xc3: open for update with no path search (bits 0-1 = 3, so the name
+     * is used as given); the handle is 0 when the file does not exist, as
+     * only open-for-output (0x83) creates one. */
     e = _swix(OS_Find, _INR(0, 1) | _OUT(0), 0xc3, path, &fh);
     if (!e && fh == 0) {
         e = _swix(OS_Find, _INR(0, 1) | _OUT(0), 0x83, path, &fh);
