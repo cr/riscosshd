@@ -7,7 +7,7 @@ if(NOT CMAKE_C_COMPILER MATCHES "arm-unknown-riscos")
 endif()
 
 set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wformat=2 -Wundef -Wwrite-strings -Wold-style-definition -ffunction-sections -fdata-sections")   # optimisation comes from CMAKE_BUILD_TYPE
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wformat=2 -Wundef -Wwrite-strings -Wold-style-definition -ffunction-sections -fdata-sections")   # -O2: Release flags in the toolchain file
 
 # (find_* REQUIRED needs CMake 3.18; the container has 3.16, so check by hand.)
 find_path(LIBSSH_INCLUDE_DIR libssh/libssh.h)

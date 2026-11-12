@@ -32,3 +32,8 @@ set(ENV{PKG_CONFIG_LIBDIR} ${RISCOS_SYSROOT}/lib/pkgconfig)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-static")
+
+# Release means -O2, for the server and libssh alike (CMake's default is -O3;
+# mbedTLS sets its own -O2).  A cache entry, as CMake would otherwise set its
+# own default there; _INIT is overridden by the projects' language setup.
+set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG" CACHE STRING "" FORCE)
