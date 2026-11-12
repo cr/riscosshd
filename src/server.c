@@ -530,6 +530,10 @@ int server_init(ssh_key hostkey)
     ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_KEY_EXCHANGE,
                          "curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,"
                          "diffie-hellman-group14-sha256");
+    /* Login signatures: no SHA-1 (ssh-rsa); RSA keys sign with SHA-2. */
+    ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_PUBKEY_ACCEPTED_KEY_TYPES,
+                         "ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,"
+                         "rsa-sha2-512,rsa-sha2-256");
     if (ssh_bind_listen(bind_handle) < 0) {
         log_msg("listen on %s:%d failed: %s", cfg.bind_addr, cfg.port, ssh_get_error(bind_handle));
         return -1;
