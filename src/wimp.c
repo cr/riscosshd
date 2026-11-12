@@ -850,32 +850,36 @@ static void open_menu(int x)
     show_menu(&menu);
 }
 
+/* Open path as a double-click in the Filer would, so that the user's own
+ * editor or browser shows it.  On failure, report fail, or RISC OS's own
+ * error when fail is NULL. */
+static int filer_run(const char *path, const char *fail)
+{
+    char cmd[320];
+    _kernel_oserror *e;
+    snprintf(cmd, sizeof cmd, "Filer_Run %s", path);
+    e = _swix(OS_CLI, _IN(0), cmd);
+    if (e)
+        reportf("%s", fail ? fail : e->errmess);
+    return e ? -1 : 0;
+}
+
 static void open_options(void)
 {
     /* The settings are a text file: hand it to the user's editor.  It is
      * written on first run, and again here if it has gone. */
-    char cmd[320];
-    _kernel_oserror *e;
     options_ensure_file();
-    snprintf(cmd, sizeof cmd, "Filer_Run %s", options_path());
-    e = _swix(OS_CLI, _IN(0), cmd);
-    if (e)
-        reportf("%s", e->errmess);
-    else
+    if (filer_run(options_path(), NULL) == 0)
         log_msg("editing %s: changes apply when SSHd is next started", options_path());
 }
 
 static void log_menu_selection(int *items)
 {
     if (items[0] == LMENU_OPEN) {
-        char cmd[320];
         if (!log_file_name())
             reportf("No log file is written (the log setting is off)");
-        else {
-            snprintf(cmd, sizeof cmd, "Filer_Run %s", log_file_name());
-            if (_swix(OS_CLI, _IN(0), cmd) != NULL)
-                reportf("Cannot open the log file");
-        }
+        else
+            filer_run(log_file_name(), "Cannot open the log file");
     } else if (items[0] == LMENU_CLEAR) {
         log_clear();
         log_update(1);
@@ -900,8 +904,7 @@ static void iconbar_menu_selection(int *items)
         break;
     case MENU_KEYS:    wimp_open_keys_window(); break;
     case MENU_HELP:
-        if (_swix(OS_CLI, _IN(0), "Filer_Run <SSHd$Dir>.!Help") != NULL)
-            reportf("Cannot open the help file");
+        filer_run("<SSHd$Dir>.!Help", "Cannot open the help file");
         break;
     case MENU_OPTIONS: open_options(); break;
     case MENU_QUIT: {
