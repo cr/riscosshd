@@ -44,10 +44,10 @@
 /* Group boxes come first so that the icons inside draw over them. */
 enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
        KI_HOSTLABEL, KI_HOST, KI_HOST2,
-       KI_PROMPT, KI_INPUT, KI_ADD, KI_CLOSE,
-       KI_FETCHLABEL, KI_FHOST, KI_FPASS, KI_FETCH,
+       KI_PROMPT, KI_INPUT, KI_ADD,
+       KI_FETCHLABEL, KI_ACCLABEL, KI_PASSLABEL, KI_FHOST, KI_FPASS, KI_FETCH,
        KI_LISTLABEL, KI_COUNT };
-#define ROW_TOP   (-592)          /* work-area y of the first row's top edge */
+#define ROW_TOP   (-640)          /* work-area y of the first row's top edge */
 #define ROW_H     44
 #define KEYS_W    1200
 #define KEYS_MIN_EXTENT (-800)    /* keys window height with few rows */
@@ -612,10 +612,11 @@ static char info_values[II_COUNT][96] = {
     __DATE__ " " __TIME__, "GCC " __VERSION__ " (GCCSDK, UnixLib)", "",
     "mbedTLS " MBEDTLS_VERSION_STRING ", CryptRandom entropy", "MIT, LGPL 2.1, Apache 2.0: see !Help"
 };
-static char prompt_text[] = "Add a public key (type, paste, or drop file, then Add):";
+static char prompt_text[] = "Add a public key: paste the line from your id_ed25519.pub, or drop the .pub file on this window";
 static char group_dummy[] = "";
-static char add_text[] = "Add", close_text[] = "Close", fetch_btn_text[] = "Import";
-static char fetch_text[] = "Import from ssh server (user@host, password):";
+static char add_text[] = "Add", fetch_btn_text[] = "Import";
+static char fetch_text[] = "Import the public keys of an account on another machine:";
+static char acc_text[] = "Account (user@host)", pass_text[] = "Password";
 
 static void create_windows(void)
 {
@@ -650,18 +651,20 @@ static void create_windows(void)
      * password fields reaches key_pressed and acts. */
     icon(&w.icon[KI_INPUT], 40, -308, KEYS_W - 40, -256, box_flags | ICON_BUTTON(15), key_input, sizeof key_input,
          "Kta;Pptr_write");
-    icon(&w.icon[KI_ADD], 40, -356, 220, -316, button_flags, add_text, sizeof add_text, "R5,3");
-    icon(&w.icon[KI_CLOSE], KEYS_W - 220, -356, KEYS_W - 40, -316, button_flags, close_text, sizeof close_text, "R5,3");
+    /* R6: the default action button, as Return in the field does Add */
+    icon(&w.icon[KI_ADD], 40, -360, 220, -312, button_flags, add_text, sizeof add_text, "R6,3");
     /* Section 3: import from another machine. */
-    icon(&w.icon[KI_BOX_IMPORT], 16, -512, KEYS_W - 16, -412, ICON_BORDER, group_dummy, sizeof group_dummy, "R4");
+    icon(&w.icon[KI_BOX_IMPORT], 16, -560, KEYS_W - 16, -412, ICON_BORDER, group_dummy, sizeof group_dummy, "R4");
     icon(&w.icon[KI_FETCHLABEL], 40, -432, KEYS_W - 40, -392, title_flags, fetch_text, sizeof fetch_text, NULL);
-    icon(&w.icon[KI_FHOST], 40, -500, 620, -448, box_flags | ICON_BUTTON(15), fetch_host, sizeof fetch_host,
+    icon(&w.icon[KI_ACCLABEL], 40, -488, 620, -448, text_flags, acc_text, sizeof acc_text, NULL);
+    icon(&w.icon[KI_PASSLABEL], 640, -488, 980, -448, text_flags, pass_text, sizeof pass_text, NULL);
+    icon(&w.icon[KI_FHOST], 40, -544, 620, -492, box_flags | ICON_BUTTON(15), fetch_host, sizeof fetch_host,
          "Ktar;Pptr_write");
-    icon(&w.icon[KI_FPASS], 640, -500, 980, -448, box_flags | ICON_BUTTON(15), fetch_pass, sizeof fetch_pass,
+    icon(&w.icon[KI_FPASS], 640, -544, 980, -492, box_flags | ICON_BUTTON(15), fetch_pass, sizeof fetch_pass,
          "Kta;D*;Pptr_write");
-    icon(&w.icon[KI_FETCH], 1000, -500, KEYS_W - 40, -448, button_flags, fetch_btn_text, sizeof fetch_btn_text, "R5,3");
+    icon(&w.icon[KI_FETCH], 1000, -544, KEYS_W - 40, -492, button_flags, fetch_btn_text, sizeof fetch_btn_text, "R5,3");
     /* Section 4: the list, growing downwards. */
-    icon(&w.icon[KI_LISTLABEL], 16, -588, KEYS_W - 16, -548, text_flags, list_label, sizeof list_label, NULL);
+    icon(&w.icon[KI_LISTLABEL], 16, -636, KEYS_W - 16, -596, text_flags, list_label, sizeof list_label, NULL);
     keys_win = create_window(&w);
 
     /* Info window: the usual label/value box, icons only; it is the Info
@@ -787,8 +790,6 @@ static void mouse_click(int *b)
     } else if (win == keys_win) {
         if (ic == KI_ADD)
             keys_add_from_input();
-        else if (ic == KI_CLOSE)
-            _swix(Wimp_CloseWindow, _IN(1), &keys_win);
         else if (ic == KI_FETCH)
             keys_fetch();
         else if (row_of_delete_icon(ic) >= 0)
@@ -799,6 +800,10 @@ static void mouse_click(int *b)
 static void key_pressed(int *b)
 {
     int win = b[0], ic = b[1], key = b[6];
+    if (win == keys_win && key == 0x1b) {  /* Escape closes the window */
+        _swix(Wimp_CloseWindow, _IN(1), &keys_win);
+        return;
+    }
     if (win == keys_win && key == 13) {
         if (ic == KI_INPUT) {
             keys_add_from_input();
@@ -830,7 +835,6 @@ static const char *keys_help(int ic)
     switch (ic) {
     case KI_INPUT: return "Type or paste a public key here (the content of an id_*.pub file), then press RETURN or click Add.";
     case KI_ADD:   return "Click SELECT to add the key in the field to the authorized keys.";
-    case KI_CLOSE: return "Click SELECT to close this window.";
     case KI_FHOST: return "The account on another machine whose public keys you want to allow, as user@host or user@host:port.";
     case KI_FPASS: return "That account's password. It is used once to log in and read its id_ed25519, id_ecdsa and id_rsa public keys, then forgotten.";
     case KI_FETCH: return "Click SELECT to log in to the machine named on the left and import its public keys.";
