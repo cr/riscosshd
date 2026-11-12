@@ -46,11 +46,11 @@ static int sftp_start(struct chan_ctx *c, const char *command)
     (void)command;
     st = calloc(1, sizeof *st);
     if (!st)
-        return -1;
+        return BACKEND_UNAVAILABLE;
     if (sftp_channel_default_subsystem_request(c->session, c->channel, "sftp", &st->sftp) != SSH_OK) {
         log_msg("%s: cannot start the SFTP server", c->owner_name);
         free(st);
-        return -1;
+        return BACKEND_UNAVAILABLE;
     }
     c->backend_data = st;
     return 0;
@@ -92,12 +92,10 @@ static void sftp_poll(struct chan_ctx *c)
         int rc;
         if (ssh_channel_window_size(c->channel) < REPLY_MAX)
             return;                                   /* let the client catch up */
-        {
-            PROF_START(t);
-            rc = sftp_channel_default_data_callback(c->session, c->channel, buf_data(&st->q),
-                                                    (uint32_t)n, 0, &st->sftp);
-            PROF_STOP(PROF_SFTP, t);
-        }
+        PROF_START(t);
+        rc = sftp_channel_default_data_callback(c->session, c->channel, buf_data(&st->q),
+                                                (uint32_t)n, 0, &st->sftp);
+        PROF_STOP(PROF_SFTP, t);
         if (rc < 0) {
             /* A malformed packet, or the server stopped: end the session.
              * libssh closes the channel itself in some of these cases;

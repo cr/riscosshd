@@ -97,13 +97,16 @@ static struct tw_state *find_by_txt(int txt)
 
 static struct tw_state *find_by_child(int child)
 {
+    if (child == 0)                      /* states before their Ego have child 0 */
+        return NULL;
     for (struct tw_state *s = states; s; s = s->next)
-        if (s->child == child && child != 0)
+        if (s->child == child)
             return s;
     return NULL;
 }
 
-static void unlink_state(struct tw_state *s)
+/* Unlink s if it is linked, and free it with its scrap file and variable. */
+static void free_state(struct tw_state *s)
 {
     for (struct tw_state **pp = &states; *pp; pp = &(*pp)->next) {
         if (*pp == s) {
@@ -206,7 +209,7 @@ static int write_wrapper(struct tw_state *s, const char *command)
 static int refuse(struct chan_ctx *c, struct tw_state *s, const char *msg)
 {
     if (s)
-        unlink_state(s);
+        free_state(s);
     chan_refuse(c, msg);
     return BACKEND_REFUSED;
 }
@@ -440,7 +443,7 @@ static void tw_stop(struct chan_ctx *c)
     struct tw_state *s = c->backend_data;
     if (s->child) {
         kill_child(s);
-        unlink_state(s);
+        free_state(s);
     } else {
         /* The child has not said Ego yet; keep the record, with no channel,
          * so that it can be killed when it does instead of living on
@@ -491,7 +494,7 @@ int tw_message(int reason, int *block)
             s->child = sender;
             if (!s->chan) {                  /* its channel went before it started */
                 kill_child(s);
-                unlink_state(s);
+                free_state(s);
             } else {
                 log_debug("task window ready for %s", s->chan->owner_name);
                 flush_pending(s);
@@ -520,14 +523,10 @@ int tw_message(int reason, int *block)
         }
         return 1;
     case Message_TaskWindow_Morio:
-        s = find_by_child(sender);
-        if (s)
-            child_gone(s, "exited");
-        return 1;
     case Message_TaskCloseDown:              /* killed from the Task Manager, say */
         s = find_by_child(sender);
         if (s)
-            child_gone(s, "closed down");
+            child_gone(s, action == Message_TaskCloseDown ? "closed down" : "exited");
         return 1;
     default:
         return 0;
