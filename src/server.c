@@ -2,6 +2,7 @@
  * connection.  No fork, no threads: each connection is a session_ctx in a
  * list, driven by one ssh_event.
  */
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -512,6 +513,13 @@ int server_init(ssh_key hostkey)
     event = ssh_event_new();
     if (!bind_handle || !event)
         return -1;
+    {
+        /* No libssh_server_config: libssh would read it from /etc/ssh on
+         * the current disc, which is the SFTP root, so any client could
+         * change the server's algorithms or host key for the next start. */
+        bool no = false;
+        ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_PROCESS_CONFIG, &no);
+    }
     ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_BINDADDR, cfg.bind_addr);
     ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_BINDPORT, &cfg.port);
     ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_IMPORT_KEY, hostkey);
