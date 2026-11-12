@@ -43,6 +43,7 @@ struct session_ctx {
     int auth_tries;
     int authenticated;
     int banner_sent;
+    int drop;                   /* close from the main loop, not from a callback */
     char refusal[160];          /* why the last login attempt was refused */
     unsigned long addr;         /* peer IPv4 address, 0 if unknown */
     char user[64];
@@ -362,7 +363,9 @@ static int cb_auth_pubkey(ssh_session session, const char *user, struct ssh_key_
     if (++s->auth_tries >= MAX_AUTH_TRIES) {
         log_msg("%s from %s: too many auth failures", user, s->peer);
         ssh_session_set_disconnect_message(s->session, "Too many failed login attempts");
-        ssh_disconnect(s->session);
+        /* not ssh_disconnect here: it would free libssh's crypto state
+         * while its packet handler, our caller, is still running */
+        s->drop = 1;
     }
     return SSH_AUTH_DENIED;
 }
@@ -623,8 +626,9 @@ static void service_sessions(time_t now)
         next = s->next;
         if (s->state != SESS_RUNNING || past_deadline(s, now))
             continue;
-        if (!ssh_is_connected(s->session)) {
-            log_msg("%s disconnected (%s)", s->peer, s->user[0] ? s->user : "not authenticated");
+        if (s->drop || !ssh_is_connected(s->session)) {
+            if (!s->drop)
+                log_msg("%s disconnected (%s)", s->peer, s->user[0] ? s->user : "not authenticated");
             session_destroy(s);
             continue;
         }
