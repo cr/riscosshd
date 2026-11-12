@@ -113,6 +113,26 @@ GCC/UnixLib ABI would be frozen in the repository.
 
 Pinned versions: mbedTLS 3.6.7, libssh 0.11.5.
 
+## Updating mbedTLS or libssh
+
+1. In `tools/build-deps.sh`, set the new `*_VER` and `*_SHA256`.  Take the
+   checksum from the project's published hashes or signed release, not
+   from a download of your own.
+2. libssh: `make deps` fetches the tarball; then `tools/libssh-patch.sh
+   edit` unpacks it into `deps/patchwork`, commits it as pristine and
+   applies the old patch with `--merge`.  Resolve any conflicts, check that
+   every RISC OS change still makes sense, and `tools/libssh-patch.sh save`
+   writes `deps/patches/libssh-riscos.patch` back.  The build applies it
+   with `--fuzz=0`, so a hunk that no longer fits fails instead of landing
+   somewhere else.
+3. mbedTLS: compare `deps/mbedtls_riscos_config.h` with the new
+   `include/mbedtls/mbedtls_config.h` (options renamed or added).
+4. Compare the licence texts with `riscos/RiscPkg/licences/`
+   (`COPYING` and `BSD` for libssh, `LICENSE` for mbedTLS) and update them.
+5. `make distclean && make && make check`, then `make install` and the
+   checks in `docs/rpcemu.md` against the emulator.
+6. Add a line to the "Unreleased" section of `CHANGELOG.md`.
+
 ## Porting notes (what actually broke, and the fix in this repo)
 
 | symptom on RISC OS | cause | fix |

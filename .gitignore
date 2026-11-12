@@ -6,3 +6,4 @@ deps/src/
 deps/sysroot/
 .image-built
 deps/*.log
+deps/patchwork/

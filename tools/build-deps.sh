@@ -55,7 +55,9 @@ fi
 rm -rf "$SRC/libssh-$LIBSSH_VER"
 tar -xJf "$DL/libssh-$LIBSSH_VER.tar.xz" -C "$SRC"
 cd "$SRC/libssh-$LIBSSH_VER"
-patch -p1 < "$TOP/deps/patches/libssh-riscos.patch"
+# --fuzz=0: after a version bump a hunk must fail rather than land in the
+# wrong place (tools/libssh-patch.sh regenerates the patch)
+patch -p1 --fuzz=0 --forward --no-backup-if-mismatch < "$TOP/deps/patches/libssh-riscos.patch"
 cmake -S . -B build-riscos -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$SYSROOT" \
     -DBUILD_SHARED_LIBS=OFF -DWITH_MBEDTLS=ON -DMBEDTLS_ROOT_DIR="$SYSROOT" \
