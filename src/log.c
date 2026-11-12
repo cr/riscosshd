@@ -51,31 +51,27 @@ int log_to_stderr(void)
     return to_stderr;
 }
 
-static int append_line(const char *line)
+static const char *append_line(const char *line)
 {
     char buf[LOG_COLS + 1];
     int n = snprintf(buf, sizeof buf, "%s\n", line);
     return ro_append_file(log_file, buf, (size_t)n, log_file_limit);
 }
 
-int log_set_file(const char *path, size_t limit, const char **why)
+const char *log_set_file(const char *path, size_t limit)
 {
-    int i;
     log_file = path;
     log_file_limit = limit;
-    for (i = 0; i < count; i++) {          /* what was logged before the file was known */
-        if (append_line(log_line(i)) < 0) {
-            *why = ro_append_error;
+    /* What was logged before the file was known.  main.c has logged its
+     * start by now, so this also tells whether the file can be written. */
+    for (int i = 0; i < count; i++) {
+        const char *why = append_line(log_line(i));
+        if (why) {
             log_file = NULL;
-            return -1;
+            return why;
         }
     }
-    if (count == 0 && ro_append_file(path, "", 0, limit) < 0) {
-        *why = ro_append_error;
-        log_file = NULL;
-        return -1;
-    }
-    return 0;
+    return NULL;
 }
 
 /* Length of a valid UTF-8 sequence starting at s, or 0. */

@@ -29,10 +29,9 @@ void log_set_notify(void (*fn)(void));
 void log_set_stderr(int on);
 int log_to_stderr(void);
 /* Append every line to this RISC OS file from now on, starting with the
- * lines already held; past limit it moves to <path>-old and restarts
- * bytes.  Returns 0, or -1 with the reason in *why if it cannot be
- * written. */
-int log_set_file(const char *path, size_t limit, const char **why);
+ * lines already held; past limit bytes it moves to <path>-old and
+ * restarts.  Returns NULL, or why the file cannot be written. */
+const char *log_set_file(const char *path, size_t limit);
 /* Replace control characters in s with '?' (user-supplied text); valid
  * UTF-8 sequences are kept. */
 void log_sanitise(char *s);

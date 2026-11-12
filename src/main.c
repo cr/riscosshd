@@ -429,8 +429,9 @@ int main(int argc, char **argv)
     }
     if (logfile) {
         char *logpath = join(cfg.config_dir, "log");
-        const char *why = "out of memory";
-        if (!logpath || log_set_file(logpath, (size_t)cfg.log_size_kb * 1024, &why) < 0)
+        const char *why = logpath ? log_set_file(logpath, (size_t)cfg.log_size_kb * 1024)
+                                  : "out of memory";
+        if (why)
             log_msg("cannot write log file %s: %s", logpath ? logpath : "", why);
     }
     log_msg("configuration in %s", cfg.config_dir);

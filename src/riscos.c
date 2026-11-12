@@ -78,8 +78,6 @@ const char *ro_mkdir(const char *path)
     return e ? e->errmess : NULL;
 }
 
-const char *ro_append_error = "";
-
 long ro_file_size(const char *path)
 {
     int type = 0, len = 0;
@@ -88,7 +86,7 @@ long ro_file_size(const char *path)
     return len;
 }
 
-int ro_append_file(const char *path, const void *data, size_t len, size_t limit)
+const char *ro_append_file(const char *path, const void *data, size_t len, size_t limit)
 {
     int fh = 0, extent = 0, unwritten = 0, created = 0;
     _kernel_oserror *e;
@@ -100,10 +98,8 @@ int ro_append_file(const char *path, const void *data, size_t len, size_t limit)
         e = _swix(OS_Find, _INR(0, 1) | _OUT(0), 0x83, path, &fh);
         created = 1;
     }
-    if (e || fh == 0) {
-        ro_append_error = e ? e->errmess : "handle 0";
-        return -1;
-    }
+    if (e || fh == 0)
+        return e ? e->errmess : "handle 0";
     _swix(OS_Args, _INR(0, 1) | _OUT(2), 2, fh, &extent);
     if (limit && (size_t)extent > limit) {
         /* Past the limit the file becomes <path>-old (replacing an older
@@ -117,23 +113,20 @@ int ro_append_file(const char *path, const void *data, size_t len, size_t limit)
             _swix(OS_FSControl, _INR(0, 2), 25, path, old);   /* rename */
         }
         e = _swix(OS_Find, _INR(0, 1) | _OUT(0), 0x83, path, &fh);
-        if (e || fh == 0) {
-            ro_append_error = e ? e->errmess : "handle 0";
-            return -1;
-        }
+        if (e || fh == 0)
+            return e ? e->errmess : "handle 0";
         created = 1;
         extent = 0;
     }
     _swix(OS_Args, _INR(0, 2), 1, fh, extent);              /* pointer to the end */
     if (_swix(OS_GBPB, _INR(0, 3) | _OUT(3), 2, fh, data, len, &unwritten) || unwritten) {
         _swix(OS_Find, _INR(0, 1), 0, fh);
-        ro_append_error = "write failed";
-        return -1;
+        return "write failed";
     }
     _swix(OS_Find, _INR(0, 1), 0, fh);
     if (created)
         _swix(OS_File, _INR(0, 2), 18, path, FILETYPE_TEXT);
-    return 0;
+    return NULL;
 }
 
 void ro_delete(const char *path)
