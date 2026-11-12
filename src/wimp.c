@@ -56,7 +56,7 @@ enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
 enum { MENU_INFO = 0, MENU_HELP, MENU_LOG, MENU_VERBOSE, MENU_KEYS, MENU_OPTIONS, MENU_QUIT, MENU_ITEMS };
 #define MENU_DOTTED 2             /* item flag: dotted line below */
 /* Info window icons: label/value pairs */
-enum { II_NAME = 0, II_PURPOSE, II_WEBSITE, II_VERSION, II_BUILT, II_COMPILER, II_LIBSSH, II_CRYPTO,
+enum { II_NAME = 0, II_PURPOSE, II_AUTHOR, II_VERSION, II_WEBSITE, II_COMPILER, II_LIBSSH, II_CRYPTO,
        II_LICENCE, II_COUNT };
 #define MAX_FIXED_ICONS 20        /* largest icon count of any window defined here */
 
@@ -652,13 +652,22 @@ static int create_window(struct wimp_window *w)
 static char info_title[40];
 static char info_labels[II_COUNT][24];
 static const char *const info_tokens[II_COUNT] = {
-    "IName", "IPurpose", "IWebsite", "IVersion", "IBuilt", "ICompiler", "ILibssh", "ICrypto", "ILicences"
+    "IName", "IPurpose", "IAuthor", "IVersion", "IWebsite", "ICompiler", "ILibssh", "ICrypto", "ILicences"
 };
 static char info_values[II_COUNT][96] = {
-    "SSHd", "", "https://github.com/cr/riscosshd", SSHD_VERSION,
-    __DATE__ " " __TIME__, "GCC " __VERSION__ " (GCCSDK, UnixLib)", "",
+    "SSHd", "", "\xa9 2026 Christiane Ruetten", "", "https://github.com/cr/riscosshd",
+    "GCC " __VERSION__ " (GCCSDK, UnixLib)", "",
     "mbedTLS " MBEDTLS_VERSION_STRING ", CryptRandom entropy", "MIT, LGPL 2.1, Apache 2.0: see !Help"
 };
+
+/* "0.1.0-3 (12 Nov 2026)": the Style Guide's version line, the build date
+ * from __DATE__ ("Nov 12 2026") put in day-month-year order. */
+static void info_version(void)
+{
+    static const char d[] = __DATE__;
+    snprintf(info_values[II_VERSION], sizeof info_values[II_VERSION], "%s (%.2s %.3s %.4s)",
+             SSHD_VERSION, d[4] == ' ' ? d + 5 : d + 4, d, d + 7);
+}
 static char prompt_text[128];
 static char group_dummy[] = "";
 static char add_text[16], fetch_btn_text[16];
@@ -693,6 +702,7 @@ static void load_texts(void)
     for (int i = 0; i < II_COUNT; i++)
         msgs_get(info_tokens[i], info_labels[i], sizeof info_labels[i], NULL);
     msgs_get("IPurposeV", info_values[II_PURPOSE], sizeof info_values[II_PURPOSE], NULL);
+    info_version();
 }
 
 static void create_windows(void)
@@ -750,6 +760,7 @@ static void create_windows(void)
     snprintf(info_values[II_LIBSSH], sizeof info_values[II_LIBSSH], "%s", ssh_version(0));
     window_def(&w, 300, 360, 1240, 780, WIN_AUTOREDRAW, 1, -(16 + II_COUNT * 44), 940,
                info_title, sizeof info_title);
+    w.flags &= ~(WIN_BACK | WIN_CLOSE);  /* an Info box has a title bar only */
     w.nicons = II_COUNT * 2;
     for (int i = 0; i < II_COUNT; i++) {
         int top = -16 - i * 44;

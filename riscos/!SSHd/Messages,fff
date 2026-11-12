@@ -20,7 +20,7 @@ LMClear:Clear
 TLog:SSHd Server Log
 TLogStatus:SSHd log: port %0, %1 logged in
 TKeys:SSHd Authorised Keys
-TInfo:About SSHd
+TInfo:About this program
 
 # Keys window
 LHost:This server's host key fingerprint:
@@ -41,7 +41,7 @@ IName:Name
 IPurpose:Purpose
 IWebsite:Website
 IVersion:Version
-IBuilt:Built
+IAuthor:Author
 ICompiler:Compiler
 ILibssh:libssh
 ICrypto:Crypto
