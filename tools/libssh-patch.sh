@@ -5,8 +5,8 @@
 #                                commit it as "pristine", apply the patch
 #   tools/libssh-patch.sh save   write the tree's changes back to the patch
 #
-# After a libssh version bump, edit applies the old patch with --merge, so
-# conflicts show as markers to resolve before save.  The tarball must be in
+# After a libssh version bump, hunks of the old patch that no longer fit
+# are left as .rej files to merge by hand before save.  The tarball must be in
 # deps/dl (make deps fetches it).
 set -e
 cd "$(dirname "$0")/.."
@@ -22,7 +22,10 @@ edit)
     git -C "$TREE" init -q
     git -C "$TREE" add -A
     git -C "$TREE" -c user.name=pristine -c user.email=pristine@localhost commit -q -m pristine
-    (cd "$TREE" && patch -p1 --merge < "../../../$PATCH") || echo "resolve the conflicts in $TREE" >&2
+    # git apply works the same on every host (BSD patch has no --merge);
+    # hunks that no longer fit are left in .rej files next to their files
+    git -C "$TREE" apply --reject --whitespace=nowarn "$PWD/$PATCH" ||
+        echo "some hunks did not apply: merge the .rej files in $TREE by hand" >&2
     echo "edit $TREE, then: tools/libssh-patch.sh save"
     ;;
 save)

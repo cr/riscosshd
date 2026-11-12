@@ -1,6 +1,8 @@
---- a/cmake/Modules/DefineCMakeDefaults.cmake	2026-06-12 13:53:41
-+++ b/cmake/Modules/DefineCMakeDefaults.cmake	2026-11-12 12:00:00
-@@ -17,5 +17,5 @@
+diff --git a/cmake/Modules/DefineCMakeDefaults.cmake b/cmake/Modules/DefineCMakeDefaults.cmake
+index 6f369fa..44fdd49 100644
+--- a/cmake/Modules/DefineCMakeDefaults.cmake
++++ b/cmake/Modules/DefineCMakeDefaults.cmake
+@@ -17,5 +17,5 @@ set(CMAKE_COLOR_MAKEFILE ON)
  # Create the compile command database for clang by default
  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
  
@@ -8,9 +10,11 @@
 -set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 +# No -fPIC: GCCSDK's PIC code needs the shared object manager at run time,
 +# which a static AIF binary lacks.
---- a/src/libmbedcrypto.c	2026-06-12 13:53:41
-+++ b/src/libmbedcrypto.c	2026-11-12 12:00:00
-@@ -1078,7 +1078,11 @@
+diff --git a/src/libmbedcrypto.c b/src/libmbedcrypto.c
+index e328245..5475e86 100644
+--- a/src/libmbedcrypto.c
++++ b/src/libmbedcrypto.c
+@@ -1078,7 +1078,11 @@ int ssh_crypto_init(void)
      rc = mbedtls_ctr_drbg_seed(&ssh_mbedtls_ctr_drbg, mbedtls_entropy_func,
              &ssh_mbedtls_entropy, NULL, 0);
      if (rc != 0) {
@@ -22,9 +26,11 @@
      }
  
  #if !(defined(MBEDTLS_CHACHA20_C) && defined(MBEDTLS_POLY1305_C))
---- a/src/messages.c	2026-06-12 13:53:41
-+++ b/src/messages.c	2026-11-12 12:00:00
-@@ -963,7 +963,11 @@
+diff --git a/src/messages.c b/src/messages.c
+index 658458b..19882dc 100644
+--- a/src/messages.c
++++ b/src/messages.c
+@@ -963,7 +963,11 @@ SSH_PACKET_CALLBACK(ssh_packet_userauth_request){
                      SSH_LOG_PACKET,
                      "Received an invalid signature from peer");
              msg->auth_request.signature_state = SSH_PUBLICKEY_STATE_WRONG;
@@ -37,8 +43,10 @@
          }
  
          SSH_LOG(SSH_LOG_PACKET, "Valid signature received");
---- a/src/misc.c	2026-06-12 13:53:41
-+++ b/src/misc.c	2026-11-12 12:00:00
+diff --git a/src/misc.c b/src/misc.c
+index 7528902..3b29a94 100644
+--- a/src/misc.c
++++ b/src/misc.c
 @@ -71,6 +71,15 @@
  
  #include "libssh/priv.h"
@@ -55,9 +63,11 @@
  #include "libssh/session.h"
  
  #ifdef HAVE_LIBGCRYPT
---- a/src/pki_mbedcrypto.c	2026-06-12 13:53:41
-+++ b/src/pki_mbedcrypto.c	2026-11-12 12:00:00
-@@ -340,6 +340,14 @@
+diff --git a/src/pki_mbedcrypto.c b/src/pki_mbedcrypto.c
+index 748aa3c..17804ea 100644
+--- a/src/pki_mbedcrypto.c
++++ b/src/pki_mbedcrypto.c
+@@ -340,6 +340,14 @@ int pki_pubkey_build_rsa(ssh_key key, ssh_string e, ssh_string n)
      }
  
  #if MBEDTLS_VERSION_MAJOR > 2
@@ -72,8 +82,10 @@
      rc = mbedtls_rsa_import(rsa, &N, NULL, NULL, NULL, &E);
      if (rc != 0) {
          goto fail;
---- a/src/sftpserver.c	2026-06-12 13:53:41
-+++ b/src/sftpserver.c	2026-11-12 12:00:00
+diff --git a/src/sftpserver.c b/src/sftpserver.c
+index 3a4aa6e..6f55413 100644
+--- a/src/sftpserver.c
++++ b/src/sftpserver.c
 @@ -42,6 +42,7 @@
  #include <errno.h>
  #include <fcntl.h>
@@ -82,7 +94,7 @@
  #include <sys/stat.h>
  #include <sys/types.h>
  #include <time.h>
-@@ -849,7 +850,33 @@
+@@ -849,7 +850,33 @@ struct sftp_handle
      char *name;
  };
  
@@ -117,7 +129,7 @@
  SSH_SFTP_CALLBACK(process_open);
  SSH_SFTP_CALLBACK(process_read);
  SSH_SFTP_CALLBACK(process_write);
-@@ -866,6 +893,10 @@
+@@ -866,6 +893,10 @@ SSH_SFTP_CALLBACK(process_symlink);
  SSH_SFTP_CALLBACK(process_remove);
  SSH_SFTP_CALLBACK(process_extended_statvfs);
  SSH_SFTP_CALLBACK(process_setstat);
@@ -128,7 +140,7 @@
  
  const struct sftp_message_handler message_handlers[] = {
      {"open", NULL, SSH_FXP_OPEN, process_open},
-@@ -873,9 +904,9 @@
+@@ -873,9 +904,9 @@ const struct sftp_message_handler message_handlers[] = {
      {"read", NULL, SSH_FXP_READ, process_read},
      {"write", NULL, SSH_FXP_WRITE, process_write},
      {"lstat", NULL, SSH_FXP_LSTAT, process_lstat},
@@ -140,7 +152,7 @@
      {"opendir", NULL, SSH_FXP_OPENDIR, process_opendir},
      {"readdir", NULL, SSH_FXP_READDIR, process_readdir},
      {"remove", NULL, SSH_FXP_REMOVE, process_remove},
-@@ -883,7 +914,7 @@
+@@ -883,7 +914,7 @@ const struct sftp_message_handler message_handlers[] = {
      {"rmdir", NULL, SSH_FXP_RMDIR, process_rmdir},
      {"realpath", NULL, SSH_FXP_REALPATH, process_realpath},
      {"stat", NULL, SSH_FXP_STAT, process_stat},
@@ -149,7 +161,7 @@
      {"readlink", NULL, SSH_FXP_READLINK, process_readlink},
      {"symlink", NULL, SSH_FXP_SYMLINK, process_symlink},
      {"init", NULL, SSH_FXP_INIT, sftp_reply_version},
-@@ -893,6 +924,7 @@
+@@ -893,6 +924,7 @@ const struct sftp_message_handler message_handlers[] = {
  const struct sftp_message_handler extended_handlers[] = {
      /* here are some extended type handlers */
      {"statvfs", "statvfs@openssh.com", 0, process_extended_statvfs},
@@ -157,7 +169,7 @@
      {NULL, NULL, 0, NULL},
  };
  
-@@ -936,7 +968,19 @@
+@@ -936,7 +968,19 @@ process_open(sftp_client_message client_msg)
          return SSH_ERROR;
      }
  
@@ -178,7 +190,7 @@
      if (fd == -1) {
          int saved_errno = errno;
          SSH_LOG(SSH_LOG_PROTOCOL, "error open file with error: %s",
-@@ -996,6 +1040,20 @@
+@@ -996,6 +1040,20 @@ process_read(sftp_client_message client_msg)
          SSH_LOG(SSH_LOG_PROTOCOL, "invalid fd (%d) received from handle", fd);
          return SSH_ERROR;
      }
@@ -199,7 +211,7 @@
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1005,6 +1063,10 @@
+@@ -1005,6 +1063,10 @@ process_read(sftp_client_message client_msg)
          return SSH_OK;
      }
  
@@ -210,7 +222,7 @@
      buffer = malloc(client_msg->len);
      if (buffer == NULL) {
          ssh_set_error_oom(sftp->session);
-@@ -1057,6 +1119,10 @@
+@@ -1057,6 +1119,10 @@ process_write(sftp_client_message client_msg)
      msg_data = ssh_string_get_char(client_msg->data);
      len = ssh_string_len(client_msg->data);
  
@@ -221,7 +233,7 @@
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1327,7 +1393,7 @@
+@@ -1327,7 +1393,7 @@ process_readdir(sftp_client_message client_msg)
              if (readdir_long_name(dentry->d_name, &st, long_name) == 0) {
                  sftp_reply_names_add(client_msg, dentry->d_name, long_name, &attr);
              } else {
@@ -230,7 +242,7 @@
              }
  
              entries++;
-@@ -1428,7 +1494,7 @@
+@@ -1428,7 +1494,7 @@ process_realpath(sftp_client_message client_msg)
  
          SSH_LOG(SSH_LOG_PROTOCOL, "realpath failed: %s", strerror(saved_errno));
          sftp_reply_status(client_msg, status, err_msg);
@@ -239,21 +251,17 @@
      }
      sftp_reply_name(client_msg, path, NULL);
      free(path);
-@@ -1493,11 +1559,137 @@
-         stat_to_filexfer_attrib(&st, &attr);
-         sftp_reply_attr(client_msg, &attr);
-     }
-+
-+    return SSH_OK;
-+}
+@@ -1497,6 +1563,132 @@ process_stat(sftp_client_message client_msg)
+     return SSH_OK;
+ }
  
 +static int
 +reply_errno(sftp_client_message client_msg, int e)
 +{
 +    sftp_reply_status(client_msg, unix_errno_to_ssh_stat(e), strerror(e));
-     return SSH_OK;
- }
- 
++    return SSH_OK;
++}
++
 +/* libssh leaves both rename requests unimplemented.  SSH_FXP_RENAME
 + * (filexfer v3) must fail when the target exists; posix-rename@openssh.com
 + * must replace it.  rename() through UnixLib does the work either way.
@@ -263,7 +271,7 @@
 + * "readme" and "README", "a" and "./a".  Nothing is deleted before the
 + * rename has worked: a target to be replaced is moved aside first and
 + * restored if the rename fails, so whatever the names, no file is lost. */
- static int
++static int
 +do_rename(sftp_client_message client_msg, int replace)
 +{
 +    const char *oldpath = sftp_client_message_get_filename(client_msg);
@@ -373,11 +381,10 @@
 +    return SSH_OK;
 +}
 +
-+static int
+ static int
  process_setstat(sftp_client_message client_msg)
  {
-     int rv;
-@@ -1526,6 +1718,9 @@
+@@ -1526,6 +1718,9 @@ process_setstat(sftp_client_message client_msg)
          }
      }
  
@@ -387,10 +394,11 @@
      if (msg_flags & SSH_FILEXFER_ATTR_PERMISSIONS) {
          rv = chmod(filename, client_msg->attr->permissions);
          if (rv < 0) {
-@@ -1689,16 +1884,6 @@
+@@ -1688,16 +1883,6 @@ process_remove(sftp_client_message client_msg)
+     return SSH_OK;
  }
  
- static int
+-static int
 -process_unsupposed(sftp_client_message client_msg)
 -{
 -    sftp_reply_status(client_msg, SSH_FX_OP_UNSUPPORTED,
@@ -400,13 +408,14 @@
 -    return SSH_OK;
 -}
 -
--static int
+ static int
  process_extended_statvfs(sftp_client_message client_msg)
  {
-     const char *path = sftp_client_message_get_filename(client_msg);
---- a/src/ttyopts.c	2026-06-12 13:53:41
-+++ b/src/ttyopts.c	2026-11-12 12:00:00
-@@ -176,8 +176,10 @@
+diff --git a/src/ttyopts.c b/src/ttyopts.c
+index a1ab31f..4acb851 100644
+--- a/src/ttyopts.c
++++ b/src/ttyopts.c
+@@ -176,8 +176,10 @@ baud2speed(int baudrate)
          return 57600;
      case B115200:
          return 115200;
