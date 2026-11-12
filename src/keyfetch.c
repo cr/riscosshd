@@ -37,11 +37,9 @@ static int parse_target(const char *in, char *user, size_t ul, char *host, size_
         end++;
     } else {
         end = strchr(h, ':');
-        if (end && strchr(end + 1, ':'))   /* a bare IPv6 address: no port */
-            end = NULL;
-        n = end ? (size_t)(end - h) : strlen(h);
-        if (!end)
-            end = h + n;
+        if (!end || strchr(end + 1, ':'))  /* no port, or a bare IPv6 address */
+            end = h + strlen(h);
+        n = (size_t)(end - h);
     }
     if (n == 0 || n >= hl)
         return -1;
@@ -61,7 +59,7 @@ static int parse_target(const char *in, char *user, size_t ul, char *host, size_
 
 static int fail(char *msg, size_t len, const char *what, ssh_session s)
 {
-    snprintf(msg, len, "%s: %s", what, s ? ssh_get_error(s) : "error");
+    snprintf(msg, len, "%s: %s", what, ssh_get_error(s));
     log_msg("key fetch: %s", msg);
     return -1;
 }
@@ -100,10 +98,9 @@ int keyfetch_run(const char *userhost, const char *password,
     ssh_session s;
     ssh_channel ch = NULL;
     ssh_key key = NULL;
-    unsigned char *hash = NULL;
-    size_t hlen = 0, olen = 0;
+    size_t olen = 0;
     char *out = NULL;
-    int rc, ok, added = 0, dup = 0, bad = 0, result = -1;
+    int rc, added = 0, dup = 0, bad = 0, result = -1;
 
     if (!crypto_ready) {
         /* after a failed start libssh may hold a freed, unseeded random
@@ -136,19 +133,17 @@ int keyfetch_run(const char *userhost, const char *password,
 
     /* Trust-on-first-use with an explicit prompt: the keys we are about to
      * import grant login here, so the user must vouch for the peer. */
-    if (ssh_get_server_publickey(s, &key) != SSH_OK ||
-        ssh_get_publickey_hash(key, SSH_PUBLICKEY_HASH_SHA256, &hash, &hlen) != 0) {
+    if (ssh_get_server_publickey(s, &key) != SSH_OK) {
         fail(msg, msglen, "Cannot read the remote host key", s);
         goto out;
     }
     {
         char fpr[128];                     /* "ED25519 SHA256:...", as ssh-keygen -l shows */
         key_fingerprint(key, fpr, sizeof fpr);
-        ok = confirm(fpr, host, port);
-    }
-    if (!ok) {
-        snprintf(msg, msglen, "Cancelled: host key not accepted");
-        goto out;
+        if (!confirm(fpr, host, port)) {
+            snprintf(msg, msglen, "Cancelled: host key not accepted");
+            goto out;
+        }
     }
 
     /* Ask which methods the server offers and use exactly one, so a wrong
@@ -203,7 +198,6 @@ int keyfetch_run(const char *userhost, const char *password,
     result = added;
 out:
     free(out);
-    ssh_clean_pubkey_hash(&hash);
     ssh_key_free(key);
     if (ch)
         ssh_channel_free(ch);
