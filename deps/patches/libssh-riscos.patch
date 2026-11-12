@@ -42,7 +42,15 @@
  #ifdef HAVE_LIBGCRYPT
 --- a/src/sftpserver.c	2026-06-12 13:53:41
 +++ b/src/sftpserver.c	2026-11-12 12:00:00
-@@ -849,6 +849,33 @@
+@@ -42,6 +42,7 @@
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <stdio.h>
++#include <strings.h>
+ #include <sys/stat.h>
+ #include <sys/types.h>
+ #include <time.h>
+@@ -849,6 +850,33 @@
      char *name;
  };
  
@@ -76,7 +84,7 @@
  SSH_SFTP_CALLBACK(process_unsupposed);
  SSH_SFTP_CALLBACK(process_open);
  SSH_SFTP_CALLBACK(process_read);
-@@ -866,6 +893,10 @@
+@@ -866,6 +894,10 @@
  SSH_SFTP_CALLBACK(process_remove);
  SSH_SFTP_CALLBACK(process_extended_statvfs);
  SSH_SFTP_CALLBACK(process_setstat);
@@ -87,7 +95,7 @@
  
  const struct sftp_message_handler message_handlers[] = {
      {"open", NULL, SSH_FXP_OPEN, process_open},
-@@ -873,9 +904,9 @@
+@@ -873,9 +905,9 @@
      {"read", NULL, SSH_FXP_READ, process_read},
      {"write", NULL, SSH_FXP_WRITE, process_write},
      {"lstat", NULL, SSH_FXP_LSTAT, process_lstat},
@@ -99,7 +107,7 @@
      {"opendir", NULL, SSH_FXP_OPENDIR, process_opendir},
      {"readdir", NULL, SSH_FXP_READDIR, process_readdir},
      {"remove", NULL, SSH_FXP_REMOVE, process_remove},
-@@ -883,7 +914,7 @@
+@@ -883,7 +915,7 @@
      {"rmdir", NULL, SSH_FXP_RMDIR, process_rmdir},
      {"realpath", NULL, SSH_FXP_REALPATH, process_realpath},
      {"stat", NULL, SSH_FXP_STAT, process_stat},
@@ -108,7 +116,7 @@
      {"readlink", NULL, SSH_FXP_READLINK, process_readlink},
      {"symlink", NULL, SSH_FXP_SYMLINK, process_symlink},
      {"init", NULL, SSH_FXP_INIT, sftp_reply_version},
-@@ -893,6 +924,7 @@
+@@ -893,6 +925,7 @@
  const struct sftp_message_handler extended_handlers[] = {
      /* here are some extended type handlers */
      {"statvfs", "statvfs@openssh.com", 0, process_extended_statvfs},
@@ -116,7 +124,7 @@
      {NULL, NULL, 0, NULL},
  };
  
-@@ -936,7 +968,19 @@
+@@ -936,7 +969,19 @@
          return SSH_ERROR;
      }
  
@@ -137,7 +145,7 @@
      if (fd == -1) {
          int saved_errno = errno;
          SSH_LOG(SSH_LOG_PROTOCOL, "error open file with error: %s",
-@@ -996,6 +1040,16 @@
+@@ -996,6 +1041,16 @@
          SSH_LOG(SSH_LOG_PROTOCOL, "invalid fd (%d) received from handle", fd);
          return SSH_ERROR;
      }
@@ -154,7 +162,7 @@
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1005,6 +1059,10 @@
+@@ -1005,6 +1060,10 @@
          return SSH_OK;
      }
  
@@ -165,7 +173,7 @@
      buffer = malloc(client_msg->len);
      if (buffer == NULL) {
          ssh_set_error_oom(sftp->session);
-@@ -1057,6 +1115,10 @@
+@@ -1057,6 +1116,10 @@
      msg_data = ssh_string_get_char(client_msg->data);
      len = ssh_string_len(client_msg->data);
  
@@ -176,7 +184,7 @@
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1327,7 +1389,7 @@
+@@ -1327,7 +1390,7 @@
              if (readdir_long_name(dentry->d_name, &st, long_name) == 0) {
                  sftp_reply_names_add(client_msg, dentry->d_name, long_name, &attr);
              } else {
@@ -185,7 +193,7 @@
              }
  
              entries++;
-@@ -1428,7 +1490,7 @@
+@@ -1428,7 +1491,7 @@
  
          SSH_LOG(SSH_LOG_PROTOCOL, "realpath failed: %s", strerror(saved_errno));
          sftp_reply_status(client_msg, status, err_msg);
@@ -194,7 +202,7 @@
      }
      sftp_reply_name(client_msg, path, NULL);
      free(path);
-@@ -1492,8 +1554,113 @@
+@@ -1492,8 +1555,134 @@
      } else {
          stat_to_filexfer_attrib(&st, &attr);
          sftp_reply_attr(client_msg, &attr);
@@ -203,53 +211,74 @@
 +    return SSH_OK;
 +}
 +
++static int
++reply_errno(sftp_client_message client_msg, int e)
++{
++    sftp_reply_status(client_msg, unix_errno_to_ssh_stat(e), strerror(e));
++    return SSH_OK;
++}
++
 +/* libssh leaves both rename requests unimplemented.  SSH_FXP_RENAME
 + * (filexfer v3) must fail when the target exists; posix-rename@openssh.com
-+ * must replace it.  rename() through UnixLib does the work either way. */
++ * must replace it.  rename() through UnixLib does the work either way.
++ *
++ * RISC OS names ignore case, and listings show typed files as "name,xxx",
++ * so two different strings can name one file: "rt,ffb" and "rt,fff",
++ * "readme" and "README", "a" and "./a".  Nothing is deleted before the
++ * rename has worked: a target to be replaced is moved aside first and
++ * restored if the rename fails, so whatever the names, no file is lost. */
 +static int
 +do_rename(sftp_client_message client_msg, int replace)
 +{
 +    const char *oldpath = sftp_client_message_get_filename(client_msg);
 +    const char *newpath_in = sftp_client_message_get_data(client_msg);
-+    char newpath[PATH_MAX], oldbare[PATH_MAX];
++    char newpath[PATH_MAX], oldbare[PATH_MAX], aside[PATH_MAX];
 +    struct stat st;
 +    int newtype;
 +    if (oldpath == NULL || newpath_in == NULL) {
 +        sftp_reply_status(client_msg, SSH_FX_FAILURE, "File name error");
 +        return SSH_OK;
-+    }
+     }
++    if (lstat(oldpath, &st) < 0)
++        return reply_errno(client_msg, errno);
 +    snprintf(newpath, sizeof newpath, "%s", newpath_in);
 +    newtype = riscos_sftp_strip_suffix(newpath);      /* "name,ffb" also retypes */
-+    /* Listings show typed files as "name,xxx", so the old name may carry
-+     * a suffix too; compare without them, or "rt,ffb" -> "rt,fff" would
-+     * unlink the very file it is about to rename. */
 +    snprintf(oldbare, sizeof oldbare, "%s", oldpath);
 +    riscos_sftp_strip_suffix(oldbare);
-+    if (strcmp(oldbare, newpath) == 0) {              /* same name: only the type changes */
++    if (strcasecmp(oldbare, newpath) == 0) {          /* one file: case and type only */
++        if (strcmp(oldbare, newpath) != 0 && rename(oldpath, newpath) < 0)
++            return reply_errno(client_msg, errno);
 +        if (newtype >= 0)
 +            riscos_sftp_set_type(newpath, newtype);
 +        sftp_reply_status(client_msg, SSH_FX_OK, NULL);
 +        return SSH_OK;
 +    }
++    aside[0] = '\0';
 +    if (lstat(newpath, &st) == 0) {
 +        if (!replace) {
 +            sftp_reply_status(client_msg, SSH_FX_FAILURE, "Target exists");
 +            return SSH_OK;
 +        }
-+        if (!S_ISDIR(st.st_mode))
-+            unlink(newpath);
++        if (snprintf(aside, sizeof aside, "%s~sshd", newpath) >= (int)sizeof aside ||
++            rename(newpath, aside) < 0) {
++            sftp_reply_status(client_msg, SSH_FX_FAILURE, "Cannot replace the target");
++            return SSH_OK;
++        }
 +    }
 +    if (rename(oldpath, newpath) < 0) {
 +        int saved_errno = errno;
-+        sftp_reply_status(client_msg, unix_errno_to_ssh_stat(saved_errno), strerror(saved_errno));
-+        return SSH_OK;
++        if (aside[0])
++            rename(aside, newpath);                   /* put the target back */
++        return reply_errno(client_msg, saved_errno);
 +    }
++    if (aside[0])
++        remove(aside);
 +    if (newtype >= 0)
 +        riscos_sftp_set_type(newpath, newtype);
 +    sftp_reply_status(client_msg, SSH_FX_OK, NULL);
 +    return SSH_OK;
 +}
-+
+ 
 +static int
 +process_rename_riscos(sftp_client_message client_msg)
 +{
@@ -272,7 +301,7 @@
 +    if (h == NULL || h->type != SFTP_FILE_HANDLE || h->fd < 0) {
 +        sftp_reply_status(client_msg, SSH_FX_INVALID_HANDLE, NULL);
 +        return SSH_OK;
-     }
++    }
 +    if (fstat(h->fd, &st) < 0) {
 +        int saved_errno = errno;
 +        sftp_reply_status(client_msg, unix_errno_to_ssh_stat(saved_errno), NULL);
@@ -282,7 +311,7 @@
 +    sftp_reply_attr(client_msg, &attr);
 +    return SSH_OK;
 +}
- 
++
 +static int
 +process_fsetstat_riscos(sftp_client_message client_msg)
 +{
@@ -308,7 +337,7 @@
      return SSH_OK;
  }
  
-@@ -1526,6 +1693,9 @@
+@@ -1526,6 +1715,9 @@
          }
      }
  
