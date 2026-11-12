@@ -12,6 +12,51 @@
 #define REMOTE_CMD "cat ~/.ssh/id_ed25519.pub ~/.ssh/id_ecdsa.pub ~/.ssh/id_rsa.pub 2>/dev/null"
 #define MAX_OUTPUT 16384
 
+/* "user@host", "user@host:port" or "user@[v6addr]:port"; the user name
+ * ends at the last '@', as in OpenSSH.  Returns 0, or -1 if malformed or
+ * too long. */
+static int parse_target(const char *in, char *user, size_t ul, char *host, size_t hl,
+                        unsigned *port)
+{
+    const char *at = strrchr(in, '@'), *h, *end;
+    size_t n;
+    *port = 22;
+    if (!at || at == in || (size_t)(at - in) >= ul)
+        return -1;
+    memcpy(user, in, (size_t)(at - in));
+    user[at - in] = '\0';
+    h = at + 1;
+    if (*h == '[') {                       /* [IPv6 address] */
+        end = strchr(h, ']');
+        if (!end)
+            return -1;
+        h++;
+        n = (size_t)(end - h);
+        end++;
+    } else {
+        end = strchr(h, ':');
+        if (end && strchr(end + 1, ':'))   /* a bare IPv6 address: no port */
+            end = NULL;
+        n = end ? (size_t)(end - h) : strlen(h);
+        if (!end)
+            end = h + n;
+    }
+    if (n == 0 || n >= hl)
+        return -1;
+    memcpy(host, h, n);
+    host[n] = '\0';
+    if (*end == ':') {
+        char *e;
+        unsigned long p = strtoul(end + 1, &e, 10);
+        if (!end[1] || *e || p == 0 || p > 65535)
+            return -1;
+        *port = (unsigned)p;
+    } else if (*end) {
+        return -1;
+    }
+    return 0;
+}
+
 static int fail(char *msg, size_t len, const char *what, ssh_session s)
 {
     snprintf(msg, len, "%s: %s", what, s ? ssh_get_error(s) : "error");
@@ -47,7 +92,6 @@ int keyfetch_run(const char *userhost, const char *password,
                  char *msg, size_t msglen)
 {
     char user[64] = "", host[256] = "", err[160];
-    const char *at = strchr(userhost, '@'), *colon;
     unsigned port = 22;
     long timeout = 15;
     int no = 0;
@@ -65,18 +109,7 @@ int keyfetch_run(const char *userhost, const char *password,
         snprintf(msg, msglen, "Import is unavailable: the server did not start (see the log)");
         return -1;
     }
-    if (!at || at == userhost) {
-        snprintf(msg, msglen, "Enter the account as user@host");
-        return -1;
-    }
-    snprintf(user, sizeof user, "%.*s", (int)(at - userhost), userhost);
-    snprintf(host, sizeof host, "%s", at + 1);
-    colon = strrchr(host, ':');
-    if (colon && colon[1]) {
-        port = (unsigned)atoi(colon + 1);
-        host[colon - host] = '\0';
-    }
-    if (host[0] == '\0' || port == 0 || port > 65535) {
+    if (parse_target(userhost, user, sizeof user, host, sizeof host, &port) < 0) {
         snprintf(msg, msglen, "Enter the account as user@host or user@host:port");
         return -1;
     }
