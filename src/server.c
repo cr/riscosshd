@@ -556,16 +556,24 @@ int server_init(ssh_key hostkey)
                          "rsa-sha2-512,rsa-sha2-256");
     if (ssh_bind_listen(bind_handle) < 0) {
         log_msg("listen on %s:%d failed: %s", cfg.bind_addr, cfg.port, ssh_get_error(bind_handle));
-        return -1;
+        goto fail;
     }
     ssh_bind_set_blocking(bind_handle, 0);
     fd = ssh_bind_get_fd(bind_handle);
     if (ssh_event_add_fd(event, fd, POLLIN, cb_listen_fd, NULL) != SSH_OK) {
         log_msg("cannot watch listening socket");
-        return -1;
+        goto fail;
     }
     log_msg("listening on %s:%d", cfg.bind_addr, cfg.port);
     return 0;
+fail:
+    /* no event left behind: server_poll then does nothing in the desktop
+     * loop that shows why the start failed, instead of failing each poll */
+    ssh_event_free(event);
+    event = NULL;
+    ssh_bind_free(bind_handle);
+    bind_handle = NULL;
+    return -1;
 }
 
 static int past_deadline(struct session_ctx *s, time_t now)
