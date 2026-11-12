@@ -66,7 +66,7 @@ tests/                host-side unit test of auth.c (make check)
 riscos/!SSHd          !Run, !Boot, !Help, sprites (the binary is added by the build)
 riscos/RiscPkg        Control file and licence texts for the PackMan package
 cmake/                GCCSDK toolchain file
-deps/                 mbedTLS config, libssh patch, statvfs header (sources and sysroot git-ignored)
+deps/                 mbedTLS config, libssh patch, riscos-compat headers (sources and sysroot git-ignored)
 docker/               the GCCSDK container
 tools/                dependency build, container engine, RPCEmu install, sprites,
                       Copyright file and PackMan index generators
