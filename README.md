@@ -138,7 +138,8 @@ same file.
 ## Desktop front end
 
 `!SSHd` is a Wimp task.  The icon-bar menu offers **Info...**, a
-tail-style **Log Window**, a **Keys...** window and **Quit**.  The Keys
+tail-style **Log Window**, a **Keys...** window, **Options...** (opens the
+settings file in your text editor) and **Quit**.  The Keys
 window shows the server's host key, lists the authorized keys with a
 Delete button each, and adds keys three ways: a writable field, a text
 file dropped from the Filer or an application, or **Import**, which logs

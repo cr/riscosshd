@@ -20,4 +20,7 @@ struct sshd_config {
     int log_size_kb;            /* restart the log file past this size */
 };
 extern struct sshd_config cfg;
+/* <config dir>.Options and a writer of its commented template (main.c) */
+const char *options_path(void);
+void options_ensure_file(void);
 #endif

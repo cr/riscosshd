@@ -125,6 +125,21 @@ static const char options_template[] =
     "#log on               off stops writing <Choices$Write>.SSHd.log\n"
     "#log-size 256         start the log file afresh past this many KB\n";
 
+static char *options_file;
+
+const char *options_path(void)
+{
+    return options_file ? options_file : "";
+}
+
+void options_ensure_file(void)
+{
+    char *data = options_file ? ro_load_file(options_file, NULL) : NULL;
+    if (!data && options_file)
+        ro_save_file(options_file, 0xfff, options_template, strlen(options_template));
+    free(data);
+}
+
 static int on_off(const char *val, const char *key)
 {
     if (strcmp(val, "on") == 0 || strcmp(val, "yes") == 0 || strcmp(val, "1") == 0)
@@ -140,16 +155,15 @@ static int on_off(const char *val, const char *key)
 static void read_options(const char *dir, const char **root_arg, int *logfile,
                          int *banner, int *motd)
 {
-    char *path = join(dir, "Options"), *data, *p, *nl;
-    if (!path)
+    char *data, *p, *nl;
+    options_file = join(dir, "Options");
+    if (!options_file)
         return;
-    data = ro_load_file(path, NULL);
+    data = ro_load_file(options_file, NULL);
     if (!data) {
-        ro_save_file(path, 0xfff, options_template, strlen(options_template));
-        free(path);
+        options_ensure_file();
         return;
     }
-    free(path);
     for (p = data; p && *p; p = nl) {
         char key[32], val[256];
         int n;

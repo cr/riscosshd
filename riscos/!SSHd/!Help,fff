@@ -9,7 +9,8 @@ Icon bar
   Select  opens the log window (follows new lines, like tail -f)
   Adjust  opens the Keys window
   Menu    Info... / Log Window / Verbose (tick: more log detail) /
-          Keys... / Quit
+          Keys... / Options... (opens the settings file in your editor) /
+          Quit
   Interactive help (the Help application) describes each icon.
 
 Keys window

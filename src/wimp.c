@@ -42,7 +42,7 @@ enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
 #define ROW_H     44
 #define KEYS_W    1200
 
-enum { MENU_INFO = 0, MENU_LOG, MENU_VERBOSE, MENU_KEYS, MENU_QUIT, MENU_ITEMS };
+enum { MENU_INFO = 0, MENU_LOG, MENU_VERBOSE, MENU_KEYS, MENU_OPTIONS, MENU_QUIT, MENU_ITEMS };
 /* Info window icons: label/value pairs */
 enum { II_NAME = 0, II_PURPOSE, II_WEBSITE, II_VERSION, II_BUILT, II_COMPILER, II_LIBSSH, II_CRYPTO,
        II_LICENCE, II_COUNT };
@@ -147,6 +147,7 @@ static const char menu_info[] = "Info...";
 static const char menu_log[] = "Log Window";
 static const char menu_verbose[] = "Verbose";
 static const char menu_keys[] = "Keys...";
+static const char menu_options[] = "Options...";
 static const char menu_quit[] = "Quit";
 #define MENU_ITEM_FLAGS (ICON_TEXT | ICON_FILLED | ICON_INDIRECTED | ICON_FG(7) | ICON_BG(0))
 static struct wimp_menu menu = {
@@ -155,7 +156,8 @@ static struct wimp_menu menu = {
         { 2,    -1, MENU_ITEM_FLAGS, { .ind = { menu_info, (const char *)-1, sizeof menu_info } } },
         { 0,    -1, MENU_ITEM_FLAGS, { .ind = { menu_log,  (const char *)-1, sizeof menu_log } } },
         { 2,    -1, MENU_ITEM_FLAGS, { .ind = { menu_verbose, (const char *)-1, sizeof menu_verbose } } },
-        { 2,    -1, MENU_ITEM_FLAGS, { .ind = { menu_keys, (const char *)-1, sizeof menu_keys } } },
+        { 0,    -1, MENU_ITEM_FLAGS, { .ind = { menu_keys, (const char *)-1, sizeof menu_keys } } },
+        { 2,    -1, MENU_ITEM_FLAGS, { .ind = { menu_options, (const char *)-1, sizeof menu_options } } },
         { 0x80, -1, MENU_ITEM_FLAGS, { .ind = { menu_quit, (const char *)-1, sizeof menu_quit } } },
     }
 };
@@ -737,6 +739,20 @@ static void menu_selection(int *items)
         log_msg("verbose logging %s", log_verbose ? "on" : "off");
         break;
     case MENU_KEYS: wimp_open_keys_window(); break;
+    case MENU_OPTIONS: {
+        /* The settings are a text file: hand it to the user's editor.  It
+         * is written on first run, and again here if it has gone. */
+        char cmd[320];
+        _kernel_oserror *e;
+        options_ensure_file();
+        snprintf(cmd, sizeof cmd, "Filer_Run %s", options_path());
+        e = _swix(OS_CLI, _IN(0), cmd);
+        if (e)
+            wimp_report_error(e->errmess);
+        else
+            log_msg("editing %s: changes apply when SSHd is next started", options_path());
+        break;
+    }
     case MENU_QUIT: running = 0; break;
     }
     /* Adjust keeps the menu open. */
@@ -795,7 +811,7 @@ static void help_request(int *b)
     int win = b[8], ic = b[9];
     const char *text = NULL;
     if (win == -2) {
-        text = "This is the SSH server. Click SELECT to open its log, ADJUST for the authorized keys, MENU for options.";
+        text = "This is the SSH server. Click SELECT to open its log, ADJUST for the authorized keys, MENU for the settings and more.";
     } else if (win == log_win) {
         text = "The server's log, newest line at the bottom. The same lines go to Choices:SSHd.log.";
     } else if (win == info_win) {
