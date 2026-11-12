@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -94,7 +95,7 @@ int keyfetch_run(const char *userhost, const char *password,
     char user[64] = "", host[256] = "", err[160];
     unsigned port = 22;
     long timeout = 15;
-    int no = 0;
+    bool no = false;
     ssh_session s;
     ssh_channel ch = NULL;
     ssh_key key = NULL;
