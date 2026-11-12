@@ -662,7 +662,7 @@ static void service_sessions(time_t now)
 
 int server_poll(int timeout_ms)
 {
-    int rounds = 0, until;
+    int rounds = 0, until = 0;
     time_t now = time(NULL);
     PROF_START(t_all);
 
@@ -671,7 +671,6 @@ int server_poll(int timeout_ms)
 
     if (drive_key_exchanges(now))
         timeout_ms = 0;         /* those sessions are driven outside the event */
-    until = now_cs() + POLL_BUDGET_CS;
     for (;;) {
         PROF_START(t);
         int rc = ssh_event_dopoll(event, timeout_ms);
@@ -680,6 +679,8 @@ int server_poll(int timeout_ms)
         if (rc == SSH_ERROR)
             log_debug("event poll error");
         service_sessions(time(NULL));
+        if (rounds == 0)        /* the budget starts after a first poll that may wait */
+            until = now_cs() + POLL_BUDGET_CS;
         /* 0 or more: sockets were serviced (libssh may return a leftover
          * count rather than SSH_OK); SSH_AGAIN is the timeout, SSH_ERROR < 0 */
         if (rc < 0 || ++rounds >= POLL_ROUNDS_MAX || now_cs() - until >= 0)
