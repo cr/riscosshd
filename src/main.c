@@ -462,7 +462,7 @@ int main(int argc, char **argv)
          * (someone is at the keyboard) and leave no second icon behind. */
         if (!text_mode && ro_read_var("SSHd$Running", running_ver, sizeof running_ver) == 0) {
             char msg[128];
-            snprintf(msg, sizeof msg, "SSHd %s is already running (port %d in use)", running_ver, cfg.port);
+            snprintf(msg, sizeof msg, "SSHd %s is already running; its icon is on the icon bar.", running_ver);
             wimp_report_error(msg);
             return 1;
         }
