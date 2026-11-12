@@ -26,6 +26,7 @@ void log_set_stderr(int on);
  * bytes.  Returns 0, or -1 with the reason in *why if it cannot be
  * written. */
 int log_set_file(const char *path, size_t limit, const char **why);
-/* Replace control characters in s with '?' (user-supplied text). */
+/* Replace control characters in s with '?' (user-supplied text); valid
+ * UTF-8 sequences are kept. */
 void log_sanitise(char *s);
 #endif

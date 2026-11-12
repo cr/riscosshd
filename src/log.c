@@ -62,13 +62,31 @@ int log_set_file(const char *path, size_t limit, const char **why)
     return 0;
 }
 
+/* Length of a valid UTF-8 sequence starting at s, or 0. */
+static int utf8_len(const unsigned char *s)
+{
+    int n = s[0] >= 0xc2 && s[0] <= 0xdf ? 2 : s[0] >= 0xe0 && s[0] <= 0xef ? 3 :
+            s[0] >= 0xf0 && s[0] <= 0xf4 ? 4 : 0;
+    for (int i = 1; i < n; i++)
+        if (s[i] < 0x80 || s[i] > 0xbf)
+            return 0;
+    return n;
+}
+
 void log_sanitise(char *s)
 {
-    for (; *s; s++) {
+    while (*s) {
         unsigned char ch = (unsigned char)*s;
-        /* C0, DEL and C1 (0x80-0x9f: CSI and friends in a Unix terminal) */
+        int n = ch >= 0x80 ? utf8_len((unsigned char *)s) : 0;
+        if (n) {                           /* UTF-8 text (a key comment, say) stays */
+            s += n;
+            continue;
+        }
+        /* C0, DEL and stray C1 bytes (0x80-0x9f: CSI and friends in a
+         * Unix terminal); other top-bit bytes are Latin-1 text */
         if (ch < 0x20 || (ch >= 0x7f && ch < 0xa0))
             *s = '?';
+        s++;
     }
 }
 
