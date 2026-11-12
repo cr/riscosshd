@@ -29,6 +29,12 @@
 
 #define MAX_AUTH_TRIES 6
 #define PENDING_PER_ADDRESS 2   /* unauthenticated connections one address may hold */
+/* Each new connection costs a key exchange (bignum work in the cooperative
+ * loop) before it can even try to log in, so one address may open at most
+ * RATE_MAX connections in any RATE_SECONDS. */
+#define RATE_MAX 10
+#define RATE_SECONDS 10
+#define RATE_SLOTS 64
 /* libssh reads at most 4 KB per socket per poll, so one poll per desktop
  * null event would cap uploads near 200 KB/s.  Each server_poll therefore
  * polls again while there is work, within this budget. */
@@ -449,6 +455,25 @@ static void session_destroy(struct session_ctx *s)
     nsessions--;
 }
 
+/* Recent accepts, oldest overwritten first. */
+static struct { unsigned long addr; time_t when; } recent[RATE_SLOTS];
+static int recent_next;
+
+static int too_frequent(unsigned long addr)
+{
+    time_t now = time(NULL);
+    int n = 0;
+    for (int i = 0; i < RATE_SLOTS; i++)
+        if (recent[i].when && recent[i].addr == addr && now - recent[i].when < RATE_SECONDS)
+            n++;
+    if (n >= RATE_MAX)
+        return 1;
+    recent[recent_next].addr = addr;
+    recent[recent_next].when = now;
+    recent_next = (recent_next + 1) % RATE_SLOTS;
+    return 0;
+}
+
 static void accept_connection(void)
 {
     struct session_ctx *s, *o;
@@ -474,6 +499,11 @@ static void accept_connection(void)
     }
     /* Refusals close the socket without a DISCONNECT packet: before the
      * version exchange a binary packet only confuses the client. */
+    if (too_frequent(addr)) {
+        log_debug("%s refused: over %d connections in %d s", peer, RATE_MAX, RATE_SECONDS);
+        ssh_free(session);
+        return;
+    }
     if (nsessions >= cfg.max_sessions) {
         log_msg("%s refused: %d sessions already", peer, nsessions);
         ssh_free(session);
