@@ -83,7 +83,7 @@ index 748aa3c..17804ea 100644
      if (rc != 0) {
          goto fail;
 diff --git a/src/sftpserver.c b/src/sftpserver.c
-index 3a4aa6e..6f55413 100644
+index 3a4aa6e..4383357 100644
 --- a/src/sftpserver.c
 +++ b/src/sftpserver.c
 @@ -42,6 +42,7 @@
@@ -190,7 +190,7 @@ index 3a4aa6e..6f55413 100644
      if (fd == -1) {
          int saved_errno = errno;
          SSH_LOG(SSH_LOG_PROTOCOL, "error open file with error: %s",
-@@ -996,6 +1040,20 @@ process_read(sftp_client_message client_msg)
+@@ -996,6 +1040,22 @@ process_read(sftp_client_message client_msg)
          SSH_LOG(SSH_LOG_PROTOCOL, "invalid fd (%d) received from handle", fd);
          return SSH_ERROR;
      }
@@ -199,19 +199,21 @@ index 3a4aa6e..6f55413 100644
 +         * answer reads at or beyond the end from the file size instead.
 +         * This also covers offsets past 2 GB, as off_t is 32-bit. */
 +        struct stat st;
-+        if (fstat(fd, &st) == 0 && st.st_size < 0) {      /* past what off_t holds */
-+            sftp_reply_status(client_msg, SSH_FX_FAILURE, "File larger than 2 GB");
-+            return SSH_OK;
-+        }
-+        if (fstat(fd, &st) == 0 && client_msg->offset >= (uint64_t)st.st_size) {
-+            sftp_reply_status(client_msg, SSH_FX_EOF, NULL);
-+            return SSH_OK;
++        if (fstat(fd, &st) == 0) {
++            if (st.st_size < 0) {                         /* past what off_t holds */
++                sftp_reply_status(client_msg, SSH_FX_FAILURE, "File larger than 2 GB");
++                return SSH_OK;
++            }
++            if (client_msg->offset >= (uint64_t)st.st_size) {
++                sftp_reply_status(client_msg, SSH_FX_EOF, NULL);
++                return SSH_OK;
++            }
 +        }
 +    }
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1005,6 +1063,10 @@ process_read(sftp_client_message client_msg)
+@@ -1005,6 +1065,10 @@ process_read(sftp_client_message client_msg)
          return SSH_OK;
      }
  
@@ -222,7 +224,7 @@ index 3a4aa6e..6f55413 100644
      buffer = malloc(client_msg->len);
      if (buffer == NULL) {
          ssh_set_error_oom(sftp->session);
-@@ -1057,6 +1119,10 @@ process_write(sftp_client_message client_msg)
+@@ -1057,6 +1121,10 @@ process_write(sftp_client_message client_msg)
      msg_data = ssh_string_get_char(client_msg->data);
      len = ssh_string_len(client_msg->data);
  
@@ -233,7 +235,7 @@ index 3a4aa6e..6f55413 100644
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1327,7 +1393,7 @@ process_readdir(sftp_client_message client_msg)
+@@ -1327,7 +1395,7 @@ process_readdir(sftp_client_message client_msg)
              if (readdir_long_name(dentry->d_name, &st, long_name) == 0) {
                  sftp_reply_names_add(client_msg, dentry->d_name, long_name, &attr);
              } else {
@@ -242,7 +244,7 @@ index 3a4aa6e..6f55413 100644
              }
  
              entries++;
-@@ -1428,7 +1494,7 @@ process_realpath(sftp_client_message client_msg)
+@@ -1428,7 +1496,7 @@ process_realpath(sftp_client_message client_msg)
  
          SSH_LOG(SSH_LOG_PROTOCOL, "realpath failed: %s", strerror(saved_errno));
          sftp_reply_status(client_msg, status, err_msg);
@@ -251,7 +253,7 @@ index 3a4aa6e..6f55413 100644
      }
      sftp_reply_name(client_msg, path, NULL);
      free(path);
-@@ -1497,6 +1563,132 @@ process_stat(sftp_client_message client_msg)
+@@ -1497,6 +1565,126 @@ process_stat(sftp_client_message client_msg)
      return SSH_OK;
  }
  
@@ -346,11 +348,8 @@ index 3a4aa6e..6f55413 100644
 +        sftp_reply_status(client_msg, SSH_FX_INVALID_HANDLE, NULL);
 +        return SSH_OK;
 +    }
-+    if (fstat(h->fd, &st) < 0) {
-+        int saved_errno = errno;
-+        sftp_reply_status(client_msg, unix_errno_to_ssh_stat(saved_errno), NULL);
-+        return SSH_OK;
-+    }
++    if (fstat(h->fd, &st) < 0)
++        return reply_errno(client_msg, errno);
 +    stat_to_filexfer_attrib(&st, &attr);
 +    sftp_reply_attr(client_msg, &attr);
 +    return SSH_OK;
@@ -371,11 +370,8 @@ index 3a4aa6e..6f55413 100644
 +            sftp_reply_status(client_msg, SSH_FX_FAILURE, "Size too large");
 +            return SSH_OK;
 +        }
-+        if (ftruncate(h->fd, (off_t)client_msg->attr->size) < 0) {
-+            int saved_errno = errno;
-+            sftp_reply_status(client_msg, unix_errno_to_ssh_stat(saved_errno), strerror(saved_errno));
-+            return SSH_OK;
-+        }
++        if (ftruncate(h->fd, (off_t)client_msg->attr->size) < 0)
++            return reply_errno(client_msg, errno);
 +    }
 +    sftp_reply_status(client_msg, SSH_FX_OK, NULL);
 +    return SSH_OK;
@@ -384,7 +380,7 @@ index 3a4aa6e..6f55413 100644
  static int
  process_setstat(sftp_client_message client_msg)
  {
-@@ -1526,6 +1718,9 @@ process_setstat(sftp_client_message client_msg)
+@@ -1526,6 +1714,9 @@ process_setstat(sftp_client_message client_msg)
          }
      }
  
@@ -394,7 +390,7 @@ index 3a4aa6e..6f55413 100644
      if (msg_flags & SSH_FILEXFER_ATTR_PERMISSIONS) {
          rv = chmod(filename, client_msg->attr->permissions);
          if (rv < 0) {
-@@ -1688,16 +1883,6 @@ process_remove(sftp_client_message client_msg)
+@@ -1688,16 +1879,6 @@ process_remove(sftp_client_message client_msg)
      return SSH_OK;
  }
  
