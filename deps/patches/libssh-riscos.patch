@@ -22,6 +22,21 @@
      }
  
  #if !(defined(MBEDTLS_CHACHA20_C) && defined(MBEDTLS_POLY1305_C))
+--- a/src/messages.c	2026-06-12 13:53:41
++++ b/src/messages.c	2026-11-12 12:00:00
+@@ -963,7 +963,11 @@
+                     SSH_LOG_PACKET,
+                     "Received an invalid signature from peer");
+             msg->auth_request.signature_state = SSH_PUBLICKEY_STATE_WRONG;
+-            goto error;
++            /* RISC OS: pass it to the auth callback, which counts failed
++             * attempts; dropped here, a client could send unlimited
++             * signatures to verify, each a long bignum operation in the
++             * cooperative loop. */
++            goto end;
+         }
+ 
+         SSH_LOG(SSH_LOG_PACKET, "Valid signature received");
 --- a/src/misc.c	2026-06-12 13:53:41
 +++ b/src/misc.c	2026-11-12 12:00:00
 @@ -71,6 +71,15 @@
@@ -40,6 +55,23 @@
  #include "libssh/session.h"
  
  #ifdef HAVE_LIBGCRYPT
+--- a/src/pki_mbedcrypto.c	2026-06-12 13:53:41
++++ b/src/pki_mbedcrypto.c	2026-11-12 12:00:00
+@@ -340,6 +340,14 @@
+     }
+ 
+ #if MBEDTLS_VERSION_MAJOR > 2
++    /* RISC OS: no RSA modulus over 4096 bits and no exponent over 64 bits.
++     * Real keys use 65537; a huge exponent or modulus makes each signature
++     * check, which any unauthenticated client can ask for, take seconds
++     * of the cooperative desktop's time. */
++    if (mbedtls_mpi_bitlen(&N) > 4096 || mbedtls_mpi_bitlen(&E) > 64) {
++        SSH_LOG(SSH_LOG_WARNING, "RSA key refused: modulus or exponent too large");
++        goto fail;
++    }
+     rc = mbedtls_rsa_import(rsa, &N, NULL, NULL, NULL, &E);
+     if (rc != 0) {
+         goto fail;
 --- a/src/sftpserver.c	2026-06-12 13:53:41
 +++ b/src/sftpserver.c	2026-11-12 12:00:00
 @@ -42,6 +42,7 @@
