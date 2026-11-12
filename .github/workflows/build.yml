@@ -36,7 +36,7 @@ jobs:
           touch .image-built
           test -d deps/sysroot && find deps/sysroot -exec touch {} + || true
       - name: Build (dependencies, server, package)
-        run: make ENGINE=docker
+        run: make ENGINE=docker WERROR=1
       - uses: actions/upload-artifact@v4
         with:
           name: SSHd

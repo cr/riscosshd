@@ -11,8 +11,9 @@
 #define LOG_TIME_AT 11            /* offset of the time: "YYYY-MM-DD " */
 
 extern int log_verbose;
-void log_msg(const char *fmt, ...);
-void log_debug(const char *fmt, ...);     /* only when log_verbose */
+#define PRINTF_LIKE(f, a) __attribute__((format(printf, f, a)))
+void log_msg(const char *fmt, ...) PRINTF_LIKE(1, 2);
+void log_debug(const char *fmt, ...) PRINTF_LIKE(1, 2);   /* only when log_verbose */
 
 /* Lines held (up to LOG_LINES) and line i of them, 0 the oldest. */
 int log_count(void);

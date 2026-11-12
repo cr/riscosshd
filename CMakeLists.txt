@@ -7,7 +7,7 @@ if(NOT CMAKE_C_COMPILER MATCHES "arm-unknown-riscos")
 endif()
 
 set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -ffunction-sections -fdata-sections")   # optimisation comes from CMAKE_BUILD_TYPE
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wformat=2 -Wundef -Wwrite-strings -Wold-style-definition -ffunction-sections -fdata-sections")   # optimisation comes from CMAKE_BUILD_TYPE
 
 # (find_* REQUIRED needs CMake 3.18; the container has 3.16, so check by hand.)
 find_path(LIBSSH_INCLUDE_DIR libssh/libssh.h)
@@ -37,11 +37,16 @@ add_executable(sshd
   src/backend_taskwindow.c
   src/backend_sftp.c
   src/riscos_sftp.c)
-target_include_directories(sshd PRIVATE ${LIBSSH_INCLUDE_DIR})
+target_include_directories(sshd SYSTEM PRIVATE ${LIBSSH_INCLUDE_DIR})   # their warnings are not ours
 # Package version from the RiscPkg Control file, shown in the Info window.
 file(STRINGS ${CMAKE_SOURCE_DIR}/riscos/RiscPkg/Control CONTROL_VERSION REGEX "^Version:")
 string(REGEX REPLACE "^Version: *" "" SSHD_VERSION "${CONTROL_VERSION}")
 target_compile_definitions(sshd PRIVATE WITH_SERVER=1 SSHD_VERSION="${SSHD_VERSION}")
+# make WERROR=1 (CI): warnings in our own code fail the build
+option(SSHD_WERROR "Treat warnings in src/ as errors" OFF)
+if(SSHD_WERROR)
+  target_compile_options(sshd PRIVATE -Werror)
+endif()
 # make PROFILE=1: time the server loop and log the totals (src/prof.h)
 option(SSHD_PROFILE "Log timing of the server loop" OFF)
 if(SSHD_PROFILE)

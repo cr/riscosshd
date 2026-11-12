@@ -103,6 +103,7 @@ static void usage(void)
  * log it, open the log window and keep the icon on the bar so the reason
  * can be read and the task quit, instead of a modal box that would stall
  * a boot sequence running !SSHd from Tasks. */
+static int fatal(const char *fmt, ...) PRINTF_LIKE(1, 2);
 static int fatal(const char *fmt, ...)
 {
     char msg[300];

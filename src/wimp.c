@@ -200,6 +200,7 @@ static struct wimp_menu menu = {
 #define BOX_ERROR     (2 << 9)
 #define BOX_QUESTION  (4 << 9)
 
+static int box(unsigned flags, const char *buttons, const char *fmt, va_list ap) __attribute__((format(printf, 3, 0)));
 static int box(unsigned flags, const char *buttons, const char *fmt, va_list ap)
 {
     struct { int num; char text[252]; } b;
@@ -215,6 +216,7 @@ static int box(unsigned flags, const char *buttons, const char *fmt, va_list ap)
 }
 
 /* An error box with OK; works before wimp_init too. */
+static void reportf(const char *fmt, ...) PRINTF_LIKE(1, 2);
 static void reportf(const char *fmt, ...)
 {
     va_list ap;
@@ -224,6 +226,7 @@ static void reportf(const char *fmt, ...)
 }
 
 /* A message box with OK, for news that is not an error. */
+static void tellf(const char *fmt, ...) PRINTF_LIKE(1, 2);
 static void tellf(const char *fmt, ...)
 {
     va_list ap;
@@ -238,6 +241,7 @@ void wimp_report_error(const char *msg)
 }
 
 /* A question with an action button and Cancel; returns 1 for the action. */
+static int ask(const char *action, const char *fmt, ...) PRINTF_LIKE(2, 3);
 static int ask(const char *action, const char *fmt, ...)
 {
     int answer;
@@ -277,9 +281,9 @@ static int create_icon(int win, struct wimp_icon *ic, const char *what)
 }
 
 /* Redraw an indirected icon after its text buffer changed. */
-static void redraw_icon(int win, int icon)
+static void redraw_icon(int win, int ic)
 {
-    int block[4] = { win, icon, 0, 0 };
+    int block[4] = { win, ic, 0, 0 };
     _swix(Wimp_SetIconState, _IN(1), block);
 }
 

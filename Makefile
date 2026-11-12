@@ -11,7 +11,8 @@
 #
 # Variables you may override: ENGINE (docker|podman), IMAGE, RPCEMU_HOSTFS,
 # PUBKEY (default ~/.ssh/id_ed25519.pub), SSH_PORT (2222), SSH_HOST, SSH_USER,
-# PROFILE (1: log timing of the server loop, see src/prof.h).
+# PROFILE (1: log timing of the server loop, see src/prof.h), WERROR (1: our
+# warnings are errors, as in CI).
 
 IMAGE      ?= riscosshd-gccsdk
 ENGINE     ?= $(shell tools/container-engine.sh 2>/dev/null)
@@ -22,6 +23,7 @@ SSH_USER   ?= riscos
 VERSION    := $(shell sed -n 's/^Version: *//p' riscos/RiscPkg/Control)
 PACKAGE    := dist/SSHd_$(VERSION).zip
 PROFILE    ?= 0
+WERROR     ?= 0
 SYSROOT    := deps/sysroot
 BINARY     := build/!SSHd/sshd,ff8
 
@@ -79,7 +81,7 @@ $(PROFILE_STAMP):
 
 $(BINARY): $(SYSROOT)/lib/libssh.a $(SRC) $(PROFILE_STAMP)
 	$(RUN) sh -c 'cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscos.cmake \
-	    -DCMAKE_BUILD_TYPE=Release -DSSHD_PROFILE=$(PROFILE) >/dev/null && cmake --build build -j$$(nproc) && \
+	    -DCMAKE_BUILD_TYPE=Release -DSSHD_PROFILE=$(PROFILE) -DSSHD_WERROR=$(WERROR) >/dev/null && cmake --build build -j$$(nproc) && \
 	    cp -R "riscos/!SSHd/." "build/!SSHd/" && touch "$(BINARY)"'
 	@# the app files are copied in the same container run: it owns build/ on CI
 
