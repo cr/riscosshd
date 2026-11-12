@@ -18,6 +18,7 @@ when that section is missing.
   ssh prints them; Return adds a key; the import fields are labelled.
 - Interactive sessions: cursor keys no longer type junk, `exit` and Ctrl-D
   end the session, RISC OS screen codes are translated for the terminal.
+  A pasted block ending in `exit` runs in full before the session ends.
 - Desktop: Style Guide menu (Help..., Choices...), Info box, message
   boxes, Quit confirmation, a log window menu, centred windows, a greyed
   icon after a failed start, texts in a Messages file.
