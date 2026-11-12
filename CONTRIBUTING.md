@@ -5,7 +5,8 @@
 - Docker, Podman or Colima: the build runs in the GCCSDK container
   (`make engine` says which engine is used and starts Colima if needed).
 - For `make check`, libssh on the host (`brew install libssh`, or
-  `apt install libssh-dev pkg-config`); CI runs it on every push.
+  `apt install libssh-dev pkg-config`); CI runs it on every push to main
+  and every pull request.
 - For trying changes, RPCEmu with RISC OS 5 and the port forward from
   `docs/rpcemu.md`.
 
@@ -18,7 +19,8 @@ make smoke      # *Time and an sftp listing against localhost:2222
 make check      # host-side unit test of the key parser
 ```
 
-Restart `!SSHd` in the emulator after `make install`.  `make PROFILE=1`
+Restart `!SSHd` in the emulator after `make install`.  The header of the
+`Makefile` lists the other targets and the variables.  `make PROFILE=1`
 builds a server that logs where its time goes; `make WERROR=1` builds as
 CI does, with warnings as errors.
 

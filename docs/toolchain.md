@@ -99,19 +99,19 @@ binary blobs in git, the CI job and the local Colima build run the exact
 same script.  Vendoring prebuilt `.a` files was rejected because the
 GCC/UnixLib ABI would be frozen in the repository.
 
-- The `Makefile` drives everything: `make image` builds the container
-  from `docker/Dockerfile`, `make deps` runs `tools/build-deps.sh` inside
-  it, `make build` configures and builds the server with
-  `cmake/toolchain-riscos.cmake`, and `make package` produces
-  `dist/SSHd_<version>.zip`.  `tools/container-engine.sh` picks Docker,
-  Podman or Colima.
+- The `Makefile` drives everything (its header lists the targets): it
+  builds the container from `docker/Dockerfile`, runs
+  `tools/build-deps.sh` inside it, builds the server with
+  `cmake/toolchain-riscos.cmake` and zips the package.
+  `tools/container-engine.sh` picks Docker, Podman or Colima.
 - `.github/workflows/build.yml` runs `make check` and `make ENGINE=docker`
   on an amd64 GitHub runner, where the image needs no emulation, caches
   `deps/sysroot`, and uploads the package as an artifact;
   on a `v<version>` tag it also publishes the release and the PackMan
   index.
 
-Pinned versions: mbedTLS 3.6.7, libssh 0.11.5.
+The pinned versions and their checksums are at the top of
+`tools/build-deps.sh`.
 
 ## Updating mbedTLS or libssh
 

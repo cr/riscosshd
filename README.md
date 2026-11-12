@@ -191,20 +191,13 @@ make smoke      # run *Time and an sftp listing against localhost:2222
 make check      # host-side unit test of the key parser (needs libssh on the host)
 ```
 
-Other targets: `make image` rebuilds the toolchain container from
-`docker/Dockerfile`; `make deps` cross-builds mbedTLS and libssh into
-`deps/sysroot`; `make build` stops after the binary; `make package` makes
-the PackMan zip; `make sprites` regenerates the icon from
-`tools/mksprites.py`; `make clean` / `make distclean`.  Variables:
-`ENGINE`, `IMAGE`, `RPCEMU_HOSTFS`, `PUBKEY`, `SSH_PORT`, `SSH_HOST`,
-`SSH_USER`, and `PROFILE=1` for a server that logs where its time goes.  `make install` finds the RPCEmu data directory with the most
-recent `rpclog.txt` under `~/Documents/RPCEmu` or `~/RPCEmu`; set
-`RPCEMU_HOSTFS` to override.
+The header of the `Makefile` lists every target and variable;
+`docs/rpcemu.md` says how `make install` finds the emulator.
 
 GitHub Actions (`.github/workflows/build.yml`) runs `make check` and
-`make` on every push and pull request.  `docs/design.md` explains the
-design and the source layout, `docs/toolchain.md` the toolchain and why
-build.riscos.online is not used.
+`make` on every push to main and every pull request.  `docs/design.md`
+explains the design and the source layout, `docs/toolchain.md` the
+toolchain and why build.riscos.online is not used.
 
 ## Package and publishing
 
@@ -214,15 +207,10 @@ version comes from the `Version:` field in `riscos/RiscPkg/Control`, and
 the component flags `(Movable LookAt Run)` let PackMan offer to run
 `!SSHd` at boot.
 
-A tag `v<version>` matching that field publishes a release: the same
-workflow republishes the PackMan index on GitHub Pages
-(`tools/mkindex.sh`) and attaches the zip to a GitHub release whose notes
-are that version's section of `CHANGELOG.md`.  To release: move the
-"Unreleased" notes under a new version heading, set `Version:` to it,
-commit, tag `v<version>` and push the tag.  If the tag's build fails,
-nothing is published: delete the tag (`git push --delete origin
-v<version>`), fix, and tag the same version again.  Builds that are not
-a release show their `git describe` in the Info window.
+A tag `v<version>` matching that field publishes the zip as a GitHub
+release and the PackMan index on GitHub Pages; "Releasing" in
+`CONTRIBUTING.md` has the steps.  Builds that are not a release show their
+`git describe` in the Info window.
 
 ## Roadmap
 

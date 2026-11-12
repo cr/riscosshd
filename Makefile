@@ -4,16 +4,21 @@
 #                   !SSHd application and the PackMan package in dist/
 #   make image      build the GCCSDK cross-compiler container image
 #   make engine     show the container engine in use (starts Colima if needed)
+#   make deps       cross-build mbedTLS and libssh into deps/sysroot
+#   make build      stop after the binary and build/!SSHd
+#   make package    the PackMan zip in dist/ (what plain make ends with)
+#   make sprites    regenerate the icons with tools/mksprites.py
 #   make install    copy !SSHd into a local RPCEmu HostFS and authorise your key
 #   make smoke      run a command and an sftp listing against the server
 #                   (make test is the same)
 #   make check      host-side unit test of the key parser (needs libssh on the host)
 #   make clean      remove the build tree;  make distclean  also the dependencies
 #
-# Variables you may override: ENGINE (docker|podman), IMAGE, RPCEMU_HOSTFS,
-# PUBKEY (default ~/.ssh/id_ed25519.pub), SSH_PORT (2222), SSH_HOST, SSH_USER,
-# PROFILE (1: log timing of the server loop, see src/prof.h), WERROR (1: our
-# warnings are errors, as in CI).
+# Variables you may override: ENGINE (docker|podman), IMAGE, RPCEMU_HOSTFS
+# (default: found as docs/rpcemu.md says), PUBKEY (default
+# ~/.ssh/id_ed25519.pub), SSH_PORT (2222), SSH_HOST, SSH_USER, PROFILE (1: log
+# timing of the server loop, see src/prof.h), WERROR (1: our warnings are
+# errors, as in CI), QUIET (empty: show CMake's configure output).
 
 IMAGE      ?= riscosshd-gccsdk
 ENGINE     ?= $(shell tools/container-engine.sh 2>/dev/null)
