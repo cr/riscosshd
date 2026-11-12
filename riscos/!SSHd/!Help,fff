@@ -27,7 +27,10 @@ to add an authorized key:
     there over SSH, shows the machine's host key fingerprint for you to
     confirm, reads ~/.ssh/id_ed25519.pub, id_ecdsa.pub and id_rsa.pub and
     imports them.  The password is used once and not stored.  The desktop
-    pauses while this runs.
+    pauses while this runs.  Import needs an SSH server on that machine
+    (macOS: Sharing > Remote Login; Linux: openssh-server); without one,
+    copy its ~/.ssh/id_ed25519.pub here some other way and drop it on the
+    window.  ssh-copy-id does not work: SSHd has no password logins.
 Below that is the list of authorized keys, each with a Delete button.
 Keys are stored in <Choices$Write>.SSHd.authkeys, one per line, and a key
 that is already listed is not added twice.  The window opens by itself

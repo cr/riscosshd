@@ -79,6 +79,12 @@ inside the emulator with PackMan.
    there as an SSH client, shows that machine's host key fingerprint for
    confirmation, and imports `~/.ssh/id_ed25519.pub`, `id_ecdsa.pub` and
    `id_rsa.pub`.  Keys live in `Choices:SSHd.authkeys`.
+
+   Import needs an SSH server on the other machine (macOS: System
+   Settings > General > Sharing > Remote Login; Linux: the openssh-server
+   package).  Without one, copy `~/.ssh/id_ed25519.pub` to a disc, a
+   network share or RPCEmu's HostFS folder and drop it on the Keys
+   window.  `ssh-copy-id` does not work, as SSHd has no password logins.
 3. The window's top line shows this server's own host key.  Compare it
    with what your client prints on its first connection.
 
