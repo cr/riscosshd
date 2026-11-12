@@ -101,7 +101,8 @@ when SSHd is next started.
                      match (ffd Data, fff Text)
   verbose 0          1 for more log lines, 2 for SSH protocol detail
   log on             off stops writing <Choices$Write>.SSHd.log
-  log-size 256       start the log file afresh past this many KB
+  log-size 256       past this many KB the log becomes log-old (replacing
+                     the previous one) and a new log starts
 The log file keeps the same lines as the log window; it is where to look
 after a crash.
 

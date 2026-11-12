@@ -154,8 +154,8 @@ static const char options_template[] =
     "# 1 for more log lines, 2 for SSH protocol detail\n"
     "#verbose 0\n"
     "\n"
-    "# off stops writing <Choices$Write>.SSHd.log; the file is started afresh\n"
-    "# past log-size KB\n"
+    "# off stops writing <Choices$Write>.SSHd.log; past log-size KB it becomes\n"
+    "# log-old and a new log starts\n"
     "#log on\n"
     "#log-size 256\n";
 

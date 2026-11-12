@@ -96,9 +96,22 @@ int ro_append_file(const char *path, const void *data, size_t len, size_t limit)
     }
     _swix(OS_Args, _INR(0, 1) | _OUT(2), 2, fh, &extent);
     if (limit && (size_t)extent > limit) {
-        /* past the limit the file starts afresh, so a flood of lines
-         * cannot fill the disc; truncating keeps its filetype */
-        _swix(OS_Args, _INR(0, 2), 3, fh, 0);
+        /* Past the limit the file becomes <path>-old (replacing an older
+         * one) and a new file starts, so a flood of lines can neither fill
+         * the disc nor wipe out the record just before it. */
+        char old[300];
+        _swix(OS_Find, _INR(0, 1), 0, fh);
+        fh = 0;
+        if ((size_t)snprintf(old, sizeof old, "%s-old", path) < sizeof old) {
+            _swix(OS_File, _INR(0, 1), 6, old);
+            _swix(OS_FSControl, _INR(0, 2), 25, path, old);   /* rename */
+        }
+        e = _swix(OS_Find, _INR(0, 1) | _OUT(0), 0x83, path, &fh);
+        if (e || fh == 0) {
+            ro_append_error = e ? e->errmess : "handle 0";
+            return -1;
+        }
+        created = 1;
         extent = 0;
     }
     _swix(OS_Args, _INR(0, 2), 1, fh, extent);              /* pointer to the end */

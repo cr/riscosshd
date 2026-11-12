@@ -22,7 +22,7 @@ void log_set_notify(void (*fn)(void));
 /* Print lines to stderr as well (text mode). */
 void log_set_stderr(int on);
 /* Append every line to this RISC OS file from now on, starting with the
- * lines already held; the file starts afresh once it grows past limit
+ * lines already held; past limit it moves to <path>-old and restarts
  * bytes.  Returns 0, or -1 with the reason in *why if it cannot be
  * written. */
 int log_set_file(const char *path, size_t limit, const char **why);

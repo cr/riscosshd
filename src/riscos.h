@@ -23,7 +23,8 @@ const char *ro_save_file(const char *path, int filetype, const void *data, size_
 const char *ro_mkdir(const char *path);
 
 /* Append bytes to a file, created as Text if missing.  A file already
- * longer than limit bytes (0: no limit) is emptied first.  Returns 0, or
+ * longer than limit bytes (0: no limit) is first renamed to <path>-old,
+ * replacing the previous one, and a new file started.  Returns 0, or
  * -1 with the reason in ro_append_error. */
 int ro_append_file(const char *path, const void *data, size_t len, size_t limit);
 extern const char *ro_append_error;
