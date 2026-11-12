@@ -67,6 +67,8 @@ static int parse_line(const char *src, char *err, size_t errlen)
         src++;
     if (*src == '\0' || *src == '#')
         return LINE_EMPTY;
+    /* Tokenised in a copy, so that a refused line in the Keys window
+     * stays as the user typed it. */
     line = strdup(src);
     if (!line) {
         snprintf(err, errlen, "out of memory");
@@ -103,20 +105,63 @@ static int parse_line(const char *src, char *err, size_t errlen)
     return rc;
 }
 
-int auth_load_keys(const char *path)
+/* Add the key on each line of text, which is split in place; blank lines
+ * and # comments are skipped.  err keeps the reason the last refused line
+ * was refused.  A file being loaded logs the lines it skips, an import
+ * the keys it adds. */
+static void add_lines(char *text, int importing, int *added, int *duplicate, int *invalid,
+                      char *err, size_t errlen)
 {
-    char err[128];
-    char *data = ro_load_file(path, NULL), *p, *nl;
-    keys_path = path;
-    if (!data)
-        return -1;
-    for (p = data; p && *p; p = nl) {
+    char *p, *nl;
+    *added = *duplicate = *invalid = 0;
+    for (p = text; p && *p; p = nl) {
         nl = strchr(p, '\n');
         if (nl)
             *nl++ = '\0';
-        if (parse_line(p, err, sizeof err) < 0)
+        switch (parse_line(p, err, errlen)) {
+        case LINE_ADDED:
+            if (importing)
+                log_msg("added %s key %s", keys[nkeys - 1].type, keys[nkeys - 1].comment);
+            (*added)++;
+            continue;
+        case LINE_DUPLICATE: (*duplicate)++; break;
+        case LINE_INVALID:   (*invalid)++; break;
+        default: continue;
+        }
+        if (!importing)
             log_msg("authkeys: skipped line: %s", err);
     }
+}
+
+/* keys[from] onwards as authorized_keys lines in one malloc'd buffer of
+ * *len bytes, or NULL if out of memory.  Sized in a first pass so that
+ * one allocation does. */
+static char *format_keys(int from, size_t *len)
+{
+    size_t n = 0;
+    char *data;
+    int i;
+    for (i = from; i < nkeys; i++)
+        n += strlen(keys[i].type) + strlen(keys[i].b64) + strlen(keys[i].comment) + 3;
+    data = malloc(n + 1);
+    if (!data)
+        return NULL;
+    *len = 0;
+    for (i = from; i < nkeys; i++)
+        *len += (size_t)snprintf(data + *len, n + 1 - *len, "%s %s%s%s\n", keys[i].type,
+                                 keys[i].b64, keys[i].comment[0] ? " " : "", keys[i].comment);
+    return data;
+}
+
+int auth_load_keys(const char *path)
+{
+    char err[128];
+    char *data = ro_load_file(path, NULL);
+    int added, duplicate, invalid;
+    keys_path = path;
+    if (!data)
+        return -1;
+    add_lines(data, 0, &added, &duplicate, &invalid, err, sizeof err);
     free(data);
     return nkeys;
 }
@@ -153,60 +198,22 @@ static int append_to_file(const char *text, size_t n, char *err, size_t errlen)
     return 0;
 }
 
-int auth_add_key_line(const char *line, char *err, size_t errlen)
-{
-    char buf[1400];
-    int rc = parse_line(line, err, errlen), n;
-    if (rc == LINE_EMPTY)
-        snprintf(err, errlen, "no key on that line");
-    if (rc != LINE_ADDED)
-        return -1;
-    log_msg("added %s key %s", keys[nkeys - 1].type, keys[nkeys - 1].comment);
-    n = snprintf(buf, sizeof buf, "%s\n", line);
-    if (n < 0 || (size_t)n >= sizeof buf) {
-        snprintf(err, errlen, "added for this session only: line too long to save");
-        return -1;
-    }
-    return append_to_file(buf, (size_t)n, err, errlen);
-}
-
-int auth_add_keys(const char *text, int *added, int *duplicate, int *invalid,
+int auth_add_keys(char *text, int *added, int *duplicate, int *invalid,
                   char *err, size_t errlen)
 {
-    char *copy = strdup(text), *p, *nl, *out;
-    size_t olen = 0;
-    int rc = 0;
-    *added = *duplicate = *invalid = 0;
-    out = malloc(strlen(text) + 2);
-    if (!copy || !out) {
-        free(copy);
-        free(out);
-        snprintf(err, errlen, "out of memory");
+    int first = nkeys, rc;
+    size_t len = 0;
+    char *out;
+    snprintf(err, errlen, "no key on that line");
+    add_lines(text, 1, added, duplicate, invalid, err, errlen);
+    if (*added == 0)
+        return 0;
+    out = format_keys(first, &len);
+    if (!out) {
+        snprintf(err, errlen, "added for this session only: out of memory saving it");
         return -1;
     }
-    for (p = copy; p && *p; p = nl) {
-        char why[128];
-        size_t l;
-        nl = strchr(p, '\n');
-        if (nl)
-            *nl++ = '\0';
-        l = strlen(p);
-        if (l && p[l - 1] == '\r')         /* CRLF files */
-            p[l - 1] = '\0';
-        switch (parse_line(p, why, sizeof why)) {
-        case LINE_ADDED:
-            log_msg("added %s key %s", keys[nkeys - 1].type, keys[nkeys - 1].comment);
-            olen += (size_t)sprintf(out + olen, "%s\n", p);
-            (*added)++;
-            break;
-        case LINE_DUPLICATE: (*duplicate)++; break;
-        case LINE_INVALID:   (*invalid)++; break;
-        default: break;
-        }
-    }
-    if (olen)
-        rc = append_to_file(out, olen, err, errlen);
-    free(copy);
+    rc = append_to_file(out, len, err, errlen);
     free(out);
     return rc;
 }
@@ -229,28 +236,11 @@ void auth_describe_one(int i, char *buf, size_t len)
 
 static const char *save_all(void)
 {
-    size_t len = 0, cap = 256;
-    char *data = malloc(cap);
+    size_t len = 0;
+    char *data = format_keys(0, &len);
     const char *e;
     if (!data)
         return "out of memory";
-    data[0] = '\0';
-    for (int i = 0; i < nkeys; i++) {
-        size_t need = strlen(keys[i].type) + strlen(keys[i].b64) + strlen(keys[i].comment) + 4;
-        if (len + need > cap) {
-            char *n;
-            while (len + need > cap)
-                cap *= 2;
-            n = realloc(data, cap);
-            if (!n) {
-                free(data);
-                return "out of memory";
-            }
-            data = n;
-        }
-        len += (size_t)snprintf(data + len, cap - len, "%s %s%s%s\n", keys[i].type, keys[i].b64,
-                                keys[i].comment[0] ? " " : "", keys[i].comment);
-    }
     e = ro_save_file(keys_path, FILETYPE_TEXT, data, len);
     free(data);
     return e;

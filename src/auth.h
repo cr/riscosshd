@@ -11,14 +11,13 @@
 int auth_load_keys(const char *path);
 /* Returns 1 if pubkey matches one of the loaded keys. */
 int auth_key_allowed(ssh_key pubkey);
-/* Add the key on one line and append it to the file.  A key that is
- * already authorised is refused.  Returns 0, or -1 with a message in err. */
-int auth_add_key_line(const char *line, char *err, size_t errlen);
-/* Add every key in text (blank lines and # comments are skipped) and
- * append the new ones to the file in one write.  Counts go to *added,
- * *duplicate and *invalid.  Returns 0, or -1 with a message in err if the
- * file could not be written (the keys still apply until the next start). */
-int auth_add_keys(const char *text, int *added, int *duplicate, int *invalid,
+/* Add every key in text, which is split into lines in place (blank lines
+ * and # comments are skipped), and append the new ones to the file in
+ * one write.  Counts go to *added, *duplicate and *invalid; when nothing
+ * was added, err says why the last refused line was refused.  Returns 0,
+ * or -1 with a message in err if the file could not be written (the keys
+ * still apply until the next start). */
+int auth_add_keys(char *text, int *added, int *duplicate, int *invalid,
                   char *err, size_t errlen);
 int auth_count(void);
 /* One-line description of key i: "ED25519 SHA256:... comment", the

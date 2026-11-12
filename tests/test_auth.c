@@ -27,6 +27,16 @@ static const char *slurp(const char *path)
     return buf;
 }
 
+/* One line through auth_add_keys, as the Keys window adds it: 0, or -1
+ * with the reason in err. */
+static int add_line(const char *line, char *err, size_t errlen)
+{
+    char buf[2048];
+    int added, dup, bad;
+    snprintf(buf, sizeof buf, "%s", line);
+    return auth_add_keys(buf, &added, &dup, &bad, err, errlen) < 0 || added == 0 ? -1 : 0;
+}
+
 int main(int argc, char **argv)
 {
     char key1[2048], key2[2048], err[128], desc[160];
@@ -47,10 +57,10 @@ int main(int argc, char **argv)
     n = auth_load_keys(argv[3]);
     CHECK(n == 1, "load: one key from a file with junk and a duplicate");
 
-    CHECK(auth_add_key_line(key1, err, sizeof err) < 0 && strstr(err, "already"),
+    CHECK(add_line(key1, err, sizeof err) < 0 && strstr(err, "already"),
           "add: duplicate refused");
-    CHECK(auth_add_key_line("ssh-ed25519 AAAA", err, sizeof err) < 0, "add: garbage refused");
-    CHECK(auth_add_key_line(key2, err, sizeof err) == 0 && auth_count() == 2, "add: second key accepted");
+    CHECK(add_line("ssh-ed25519 AAAA", err, sizeof err) < 0, "add: garbage refused");
+    CHECK(add_line(key2, err, sizeof err) == 0 && auth_count() == 2, "add: second key accepted");
 
     auth_describe_one(1, desc, sizeof desc);
     CHECK(strstr(desc, "  ") == NULL && desc[0] != ' ', "describe: no doubled or leading space");

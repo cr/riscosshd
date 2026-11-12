@@ -539,9 +539,10 @@ void wimp_open_keys_window(void)
 static void keys_add_from_input(void)
 {
     char err[128];
+    int added, dup, bad;
     if (key_input[0] == '\0')
         return;
-    if (auth_add_key_line(key_input, err, sizeof err) < 0) {
+    if (auth_add_keys(key_input, &added, &dup, &bad, err, sizeof err) < 0 || added == 0) {
         reportf("Key not added: %s", err);
         refresh_keys_list();               /* it may apply for this session */
         return;
