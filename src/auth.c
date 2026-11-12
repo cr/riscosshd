@@ -125,10 +125,14 @@ static int append_to_file(const char *text, size_t n, char *err, size_t errlen)
         return -1;
     }
     data = ro_load_file(keys_path, &len);
-    data = realloc(data, len + n + 2);
-    if (!data) {
-        snprintf(err, errlen, "added for this session only: out of memory saving it");
-        return -1;
+    {
+        char *grown = realloc(data, len + n + 2);
+        if (!grown) {
+            free(data);
+            snprintf(err, errlen, "added for this session only: out of memory saving it");
+            return -1;
+        }
+        data = grown;
     }
     if (len > 0 && data[len - 1] != '\n')
         data[len++] = '\n';
