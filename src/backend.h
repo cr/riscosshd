@@ -51,6 +51,7 @@ struct chan_ctx {
     const char *owner_name;  /* user name, for log lines */
 
     int pty;                 /* client requested a pty: raw mode, CRLF output */
+    int vdu_after_lf;        /* the last VDU byte sent was a LF (see chan_output_vdu) */
 
     const struct backend_ops *backend;
     void *backend_data;
@@ -67,8 +68,9 @@ int chan_output(struct chan_ctx *c, const char *data, size_t len);
 int chan_output_str(struct chan_ctx *c, const char *s);
 /* Queue text for the client's stderr (refusals, RISC OS errors). */
 int chan_output_err(struct chan_ctx *c, const char *s);
-/* Queue captured RISC OS VDU output: drops CRs, and in pty mode turns each
- * LF into CRLF. */
+/* Queue RISC OS VDU output.  RISC OS ends lines with LF CR: the CR after
+ * a LF is dropped, and in pty mode each LF becomes CRLF while any other CR
+ * (a line redrawing itself) passes through; in pipe mode every CR goes. */
 int chan_output_vdu(struct chan_ctx *c, const char *data, size_t len);
 /* Mark the session finished with the given exit status. */
 void chan_finish(struct chan_ctx *c, int status);

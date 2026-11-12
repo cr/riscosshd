@@ -97,10 +97,15 @@ int chan_output_vdu(struct chan_ctx *c, const char *data, size_t len)
 {
     size_t i, start = 0;
     for (i = 0; i < len; i++) {
-        if (data[i] == '\r' || (data[i] == '\n' && c->pty)) {
+        char ch = data[i];
+        int after_lf = c->vdu_after_lf;
+        c->vdu_after_lf = ch == '\n';
+        if (ch == '\r' && c->pty && !after_lf)
+            continue;                    /* a lone CR: pass it on */
+        if (ch == '\r' || (ch == '\n' && c->pty)) {
             if (i > start && chan_output(c, data + start, i - start) < 0)
                 return -1;
-            if (data[i] == '\n' && chan_output(c, "\r\n", 2) < 0)
+            if (ch == '\n' && chan_output(c, "\r\n", 2) < 0)
                 return -1;
             start = i + 1;
         }
