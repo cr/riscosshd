@@ -5,6 +5,7 @@
  * ed25519 key and save it there if the file does not exist.  Returns NULL
  * on failure. */
 ssh_key hostkey_load_or_create(const char *path);
-/* "ssh-ed25519 AAAA..." of the loaded host key, for display. */
-const char *hostkey_public_line(void);
+/* "ED25519 SHA256:..." of the loaded host key, as clients show it; "" if
+ * none is loaded. */
+const char *hostkey_fingerprint(void);
 #endif

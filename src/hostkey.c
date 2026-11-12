@@ -4,23 +4,21 @@
 #include <libssh/libssh.h>
 
 #include "hostkey.h"
+#include "keyfp.h"
 #include "riscos.h"
 #include "log.h"
 
-static char public_line[512] = "(none)";
+static char fingerprint[128] = "";
 
-const char *hostkey_public_line(void)
+const char *hostkey_fingerprint(void)
 {
-    return public_line;
+    return fingerprint;
 }
 
 static void remember_public(ssh_key key)
 {
-    char *pub = NULL;
-    if (ssh_pki_export_pubkey_base64(key, &pub) == SSH_OK) {
-        snprintf(public_line, sizeof public_line, "%s %s", ssh_key_type_to_char(ssh_key_type(key)), pub);
-        ssh_string_free_char(pub);
-    }
+    key_fingerprint(key, fingerprint, sizeof fingerprint);
+    log_msg("host key %s: clients show this on their first connection", fingerprint);
 }
 
 ssh_key hostkey_load_or_create(const char *path)
@@ -58,7 +56,7 @@ ssh_key hostkey_load_or_create(const char *path)
             return NULL;
         }
     }
+    log_msg("new host key generated");
     remember_public(key);
-    log_msg("new host key: %s", public_line);
     return key;
 }

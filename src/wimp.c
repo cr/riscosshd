@@ -147,8 +147,9 @@ static char (*row_text)[160];
 static char list_label[96];
 static char key_input[1200];
 static char fetch_host[256], fetch_pass[128];
-static char host_line[560], host_line2[560];   /* base64 split over two lines */
-static char host_label[80];
+static char host_line[128];
+static char host_line2[] = "ssh shows this the first time you connect; it should match exactly.";
+static char host_label[] = "This server's host key fingerprint:";
 static char log_title[40] = "SSHd Server Log";
 static char keys_title[40] = "SSHd Authorized Keys";
 
@@ -430,17 +431,12 @@ void wimp_open_log_window(void)
 
 void wimp_open_keys_window(void)
 {
-    const char *pub = hostkey_public_line(), *sp = strchr(pub, ' ');
     if (keys_win < 0)
         return;
     refresh_keys_list();
-    snprintf(host_label, sizeof host_label, "Server host key (%.*s):", sp ? (int)(sp - pub) : 0, pub);
-    /* the desktop font needs ~18 units per character; 40 fit comfortably */
-    snprintf(host_line, sizeof host_line, "%.40s", sp ? sp + 1 : pub);
-    snprintf(host_line2, sizeof host_line2, "%s", (sp && strlen(sp + 1) > 40) ? sp + 41 : "");
-    redraw_icon(keys_win, KI_HOSTLABEL);
+    snprintf(host_line, sizeof host_line, "%s",
+             hostkey_fingerprint()[0] ? hostkey_fingerprint() : "(not loaded: the server did not start)");
     redraw_icon(keys_win, KI_HOST);
-    redraw_icon(keys_win, KI_HOST2);
     open_on_top(keys_win);
     set_caret(keys_win, KI_INPUT, key_input);
 }
@@ -793,7 +789,7 @@ static const char *keys_help(int ic)
     case KI_FPASS: return "That account's password. It is used once to log in and read its id_ed25519, id_ecdsa and id_rsa public keys, then forgotten.";
     case KI_FETCH: return "Click SELECT to log in to the machine named on the left and import its public keys.";
     case KI_HOST: case KI_HOST2: case KI_HOSTLABEL:
-                   return "This server's own public host key, which clients see on their first connection.";
+                   return "This server's host key fingerprint. On your first connection ssh prints the same text; answer yes only if they match.";
     default:
         return row_of_delete_icon(ic) >= 0
              ? "Click SELECT to remove this key; it will no longer be able to log in."

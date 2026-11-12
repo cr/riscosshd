@@ -20,7 +20,8 @@ int auth_add_key_line(const char *line, char *err, size_t errlen);
 int auth_add_keys(const char *text, int *added, int *duplicate, int *invalid,
                   char *err, size_t errlen);
 int auth_count(void);
-/* One-line description of key i: "type comment ...last chars of key" */
+/* One-line description of key i: "ED25519 SHA256:... comment", the
+ * fingerprint as ssh-keygen -l shows it. */
 void auth_describe_one(int i, char *buf, size_t len);
 /* Remove key i and rewrite the authorized keys file (comment lines in the
  * file are not preserved).  Returns 0, or -1 with a message in err. */

@@ -5,6 +5,7 @@
 #include <libssh/libssh.h>
 
 #include "auth.h"
+#include "keyfp.h"
 #include "riscos.h"
 #include "log.h"
 
@@ -206,15 +207,13 @@ int auth_count(void)
 
 void auth_describe_one(int i, char *buf, size_t len)
 {
-    size_t bl;
+    char fp[128];
     if (i < 0 || i >= nkeys) {
         buf[0] = '\0';
         return;
     }
-    bl = strlen(keys[i].b64);
-    snprintf(buf, len, "%s %.100s ...%s", keys[i].type,
-             keys[i].comment[0] ? keys[i].comment : "(no comment)",
-             keys[i].b64 + (bl > 12 ? bl - 12 : 0));
+    key_fingerprint(keys[i].key, fp, sizeof fp);
+    snprintf(buf, len, "%s %s", fp, keys[i].comment[0] ? keys[i].comment : "(no comment)");
 }
 
 static const char *save_all(void)
