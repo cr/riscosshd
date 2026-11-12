@@ -598,8 +598,11 @@ static void create_windows(void)
     /* Section 2: add a key by hand. */
     icon(&w.icon[KI_BOX_ADD], 16, -368, KEYS_W - 16, -212, ICON_BORDER, group_dummy, sizeof group_dummy, "R4");
     icon(&w.icon[KI_PROMPT], 40, -232, KEYS_W - 40, -192, title_flags, prompt_text, sizeof prompt_text, NULL);
+    /* Validation K: t Tab and a arrows move between fields; r (account
+     * field only) makes Return move on too, so Return in the key and
+     * password fields reaches key_pressed and acts. */
     icon(&w.icon[KI_INPUT], 40, -308, KEYS_W - 40, -256, box_flags | ICON_BUTTON(15), key_input, sizeof key_input,
-         "Ktar;Pptr_write");
+         "Kta;Pptr_write");
     icon(&w.icon[KI_ADD], 40, -356, 220, -316, button_flags, add_text, sizeof add_text, "R5,3");
     icon(&w.icon[KI_CLOSE], KEYS_W - 220, -356, KEYS_W - 40, -316, button_flags, close_text, sizeof close_text, "R5,3");
     /* Section 3: import from another machine. */
@@ -608,7 +611,7 @@ static void create_windows(void)
     icon(&w.icon[KI_FHOST], 40, -500, 620, -448, box_flags | ICON_BUTTON(15), fetch_host, sizeof fetch_host,
          "Ktar;Pptr_write");
     icon(&w.icon[KI_FPASS], 640, -500, 980, -448, box_flags | ICON_BUTTON(15), fetch_pass, sizeof fetch_pass,
-         "Ktar;D*;Pptr_write");
+         "Kta;D*;Pptr_write");
     icon(&w.icon[KI_FETCH], 1000, -500, KEYS_W - 40, -448, button_flags, fetch_btn_text, sizeof fetch_btn_text, "R5,3");
     /* Section 4: the list, growing downwards. */
     icon(&w.icon[KI_LISTLABEL], 16, -588, KEYS_W - 16, -548, text_flags, list_label, sizeof list_label, NULL);
@@ -752,10 +755,6 @@ static void key_pressed(int *b)
     if (win == keys_win && key == 13) {
         if (ic == KI_INPUT) {
             keys_add_from_input();
-            return;
-        }
-        if (ic == KI_FHOST) {
-            set_caret(keys_win, KI_FPASS, fetch_pass);
             return;
         }
         if (ic == KI_FPASS) {
