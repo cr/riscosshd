@@ -12,10 +12,11 @@ src="$1"; out="$2"
     echo "scripts at $(sed -n 's/^Homepage: *//p' "$src/riscos/RiscPkg/Control")"
     echo "rebuild it from source, which lets anyone relink against a modified"
     echo "libssh or UnixLib as the LGPL requires."
-    for f in libssh-lgpl-2.1 mbedtls-apache-2.0 unixlib; do
+    for f in libssh-lgpl-2.1 libssh-bsd mbedtls-apache-2.0 unixlib; do
         echo
         echo "=================================================================="
         case $f in
+            libssh-bsd) echo "libssh (https://www.libssh.org/): the parts under the BSD licence" ;;
             libssh-*)  echo "libssh (https://www.libssh.org/), GNU Lesser General Public License 2.1" ;;
             mbedtls-*) echo "mbedTLS (https://github.com/Mbed-TLS/mbedtls), Apache License 2.0" ;;
             unixlib)   echo "UnixLib (GCCSDK, https://www.riscos.info/)" ;;

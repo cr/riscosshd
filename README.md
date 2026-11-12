@@ -204,6 +204,6 @@ PackMan index on GitHub Pages (`tools/mkindex.sh`).
 
 MIT for this repository.  The binary statically links libssh (LGPL 2.1),
 mbedTLS (Apache 2.0) and GCCSDK's UnixLib (LGPL with exceptions); the
-package's `RiscPkg/Copyright` carries all four texts, and the build
+package's `RiscPkg/Copyright` carries all their licence texts (libssh's BSD notice included), and the build
 scripts here let anyone relink against a modified libssh or UnixLib as the
 LGPL requires.
