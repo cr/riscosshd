@@ -148,8 +148,8 @@ client may use either spelling: `get prog,ffb` and `get prog` are the same
 file.
 
 **The desktop**: SELECT on the icon opens the log window, ADJUST the Keys
-window, and the menu offers Info, Log Window, a Verbose tick, Keys...,
-Options... (the settings file in your text editor) and Quit.  `!Help`
+window, and the menu offers Info, Help..., Log window, a Verbose tick,
+Keys..., Choices... (the settings file in your text editor) and Quit.  `!Help`
 describes each part, and interactive help covers every icon and menu item.
 
 **Settings** live in `Choices:SSHd.Options`, written on first run with

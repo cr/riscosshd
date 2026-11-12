@@ -8,8 +8,8 @@ Icon bar
 --------
   Select  opens the log window (follows new lines, like tail -f)
   Adjust  opens the Keys window
-  Menu    Info / Log Window / Verbose (tick: more log detail) /
-          Keys... / Options... (opens the settings file in your editor) /
+  Menu    Info / Help... / Log window / Verbose (tick: more log detail) /
+          Keys... / Choices... (opens the settings file in your editor) /
           Quit
   Interactive help (the Help application) describes each icon and
   menu item.
@@ -79,7 +79,7 @@ anyone relink against a modified libssh or UnixLib as the LGPL requires.
 
 Settings
 --------
-The first run writes <Choices$Write>.SSHd.Options (Options... on the icon
+The first run writes <Choices$Write>.SSHd.Options (Choices... on the icon
 bar menu opens it), a text file with every setting as a comment showing
 its default; remove the # in front of a setting to change it.  A line is
 "name value"; anything from # to the end of the line is a comment.  The

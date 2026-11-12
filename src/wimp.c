@@ -1,5 +1,5 @@
-/* Wimp front end for sshd: icon-bar icon with a menu (Info, Log Window,
- * Verbose, Keys..., Options..., Quit), an Info window, a tail-style log
+/* Wimp front end for sshd: icon-bar icon with a menu (Info, Help..., Log
+ * window, Verbose, Keys..., Choices..., Quit), an Info window, a tail-style log
  * window drawn with the desktop font, and a Keys window where public keys
  * can be typed, pasted, dropped as a file, imported from another machine,
  * and deleted.  Windows and the menu are built in code, so there is no
@@ -52,7 +52,7 @@ enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
 #define KEYS_W    1200
 #define KEYS_MIN_EXTENT (-800)    /* keys window height with few rows */
 
-enum { MENU_INFO = 0, MENU_LOG, MENU_VERBOSE, MENU_KEYS, MENU_OPTIONS, MENU_QUIT, MENU_ITEMS };
+enum { MENU_INFO = 0, MENU_HELP, MENU_LOG, MENU_VERBOSE, MENU_KEYS, MENU_OPTIONS, MENU_QUIT, MENU_ITEMS };
 #define MENU_DOTTED 2             /* item flag: dotted line below */
 /* Info window icons: label/value pairs */
 enum { II_NAME = 0, II_PURPOSE, II_WEBSITE, II_VERSION, II_BUILT, II_COMPILER, II_LIBSSH, II_CRYPTO,
@@ -155,16 +155,18 @@ static char keys_title[40] = "SSHd Authorized Keys";
 
 /* Menu entries are indirected, so they may be longer than 12 characters. */
 static const char menu_info[] = "Info";
-static const char menu_log[] = "Log Window";
+static const char menu_help_text[] = "Help...";
+static const char menu_log[] = "Log window";
 static const char menu_verbose[] = "Verbose";
 static const char menu_keys[] = "Keys...";
-static const char menu_options[] = "Options...";
+static const char menu_options[] = "Choices...";
 static const char menu_quit[] = "Quit";
 #define MENU_ITEM_FLAGS (ICON_TEXT | ICON_FILLED | ICON_INDIRECTED | ICON_FG(7) | ICON_BG(0))
 static struct wimp_menu menu = {
     "SSHd", 7, 2, 7, 0, 220, 44, 0,
     {
-        { MENU_DOTTED, -1, MENU_ITEM_FLAGS, { .ind = { menu_info, (const char *)-1, sizeof menu_info } } },
+        { 0,           -1, MENU_ITEM_FLAGS, { .ind = { menu_info, (const char *)-1, sizeof menu_info } } },
+        { MENU_DOTTED, -1, MENU_ITEM_FLAGS, { .ind = { menu_help_text, (const char *)-1, sizeof menu_help_text } } },
         { 0,           -1, MENU_ITEM_FLAGS, { .ind = { menu_log,  (const char *)-1, sizeof menu_log } } },
         { MENU_DOTTED, -1, MENU_ITEM_FLAGS, { .ind = { menu_verbose, (const char *)-1, sizeof menu_verbose } } },
         { 0,           -1, MENU_ITEM_FLAGS, { .ind = { menu_keys, (const char *)-1, sizeof menu_keys } } },
@@ -769,6 +771,10 @@ static void menu_selection(int *items)
         log_msg("verbose logging %s", log_verbose ? "on" : "off");
         break;
     case MENU_KEYS:    wimp_open_keys_window(); break;
+    case MENU_HELP:
+        if (_swix(OS_CLI, _IN(0), "Filer_Run <SSHd$Dir>.!Help") != NULL)
+            reportf("Cannot open the help file");
+        break;
     case MENU_OPTIONS: open_options(); break;
     case MENU_QUIT:    running = 0; break;
     }
@@ -820,12 +826,13 @@ static void key_pressed(int *b)
 static const char *menu_help(int item)
 {
     switch (item) {
-    case MENU_INFO:    return "Shows this program's version and how it was built.";
-    case MENU_LOG:     return "Opens the log window, which follows the server's activity.";
-    case MENU_VERBOSE: return "Ticked, the log carries more detail about each connection.";
-    case MENU_KEYS:    return "Opens the window of keys that may log in.";
-    case MENU_OPTIONS: return "Opens the settings file in your text editor; changes apply at the next start.";
-    case MENU_QUIT:    return "Stops the SSH server and removes it from the icon bar.";
+    case MENU_INFO:    return "Move right to see information about this version of SSHd.";
+    case MENU_HELP:    return "Click SELECT to read the help for SSHd.";
+    case MENU_LOG:     return "Click SELECT to open the log window, which follows the server's activity.";
+    case MENU_VERBOSE: return "Click SELECT to turn detailed logging on or off. This lasts until SSHd quits; set 'verbose' in Choices to keep it.";
+    case MENU_KEYS:    return "Click SELECT to open the window of keys that may log in.";
+    case MENU_OPTIONS: return "Click SELECT to edit the settings in your text editor; they apply when SSHd is next started.";
+    case MENU_QUIT:    return "Click SELECT to stop the SSH server and remove it from the icon bar.";
     default:           return NULL;
     }
 }
