@@ -1,26 +1,43 @@
 !SSHd - an SSH server for RISC OS 5
 ====================================
 
-Double-click !SSHd: it puts an icon on the icon bar and listens on TCP
-port 22, accepting public-key logins only.
+SSHd lets you use this machine from another computer with ssh: run
+*commands, work at an interactive command line, and copy files with sftp
+or scp.  Logins use public keys only.
 
-Icon bar
---------
-  Select  opens the log window (follows new lines, like tail -f)
+Its files live in the SSHd directory inside !Boot.Choices (Shift-double-
+click !Boot to open it): the host key, the authorised keys (authkeys),
+the settings (Options), the log, and the optional Banner and Motd texts.
+
+Quick start
+-----------
+1. Double-click !SSHd.  An icon appears on the icon bar.  The first start
+   creates the host key and the Options file.
+2. The Keys window opens by itself.  Add your public key: paste the line
+   from your id_ed25519.pub into the field and press Return, or drop the
+   .pub file on the window, or use Import (below).
+3. The log window (Select on the icon) shows the command to connect with,
+   for example:  ssh riscos@192.168.1.20
+4. On the first connection ssh prints "ED25519 key fingerprint is
+   SHA256:...".  Answer yes only if it matches the fingerprint at the top
+   of the Keys window.
+5. Type *commands.  Ctrl-D, or exit, ends the session.
+
+Desktop
+-------
+  Select  opens the log window (follows new lines, like tail -f); Menu
+          over it opens the log file in your editor or clears the window
   Adjust  opens the Keys window
   Menu    Info / Help... / Log window / Verbose (tick: more log detail) /
           Keys... / Choices... (opens the settings file in your editor) /
-          Quit
-  Interactive help (the Help application) describes each icon and
-  menu item.
+          Quit (asks first while sessions are open)
+  Interactive help (the Help application) describes each icon and menu
+  item.
 
-Keys window
------------
-Shows the server's own host key at the top (generated on first run with
-the CryptRandom module and kept in Choices:SSHd.hostkey), then three ways
-to add an authorised key:
-  - type or paste it into the field (the format ssh-keygen writes to
-    id_ed25519.pub or id_rsa.pub), then Add or Return;
+The Keys window shows the command to connect with and this server's host
+key fingerprint, then three ways to add a key:
+  - paste it into the field (the line ssh-keygen writes to
+    id_ed25519.pub), then Add or Return;
   - drop such a file onto the window;
   - Import: enter the account (user@host, or user@host:port) and the
     password of the machine whose keys you want to allow.  SSHd logs in
@@ -31,26 +48,28 @@ to add an authorised key:
     (macOS: Sharing > Remote Login; Linux: openssh-server); without one,
     copy its ~/.ssh/id_ed25519.pub here some other way and drop it on the
     window.  ssh-copy-id does not work: SSHd has no password logins.
-Below that is the list of authorised keys, each with a Delete button.
-Keys are stored in <Choices$Write>.SSHd.authkeys, one per line, and a key
-that is already listed is not added twice.  The window opens by itself
-when no key is configured yet.
+Below that is the list of authorised keys by fingerprint and comment,
+each with a Delete button.  A key that is already listed is not added
+twice.
 
 Any authorised key has full control of the machine: every *command, and
 over SFTP every filing system.  Only the user name "riscos" is accepted
-(the "user" setting below); it is a filter, not a password: the key decides.
+(the user setting); it is a filter, not a password: the key decides.
 
-Use
----
-  ssh riscos@riscos-host '*Cat'    run one command, output comes back
+Connecting
+----------
+  ssh riscos@riscos-host Cat       run one command, output comes back
   ssh riscos@riscos-host           interactive * command line in a
-                                   TaskWindow; Ctrl-D ends the session
+                                   TaskWindow
 
-Both single commands and interactive sessions run in a TaskWindow child
-task (as used by Edit), so they behave like a task window: line input,
-output as it is produced, Escape via Ctrl-C in an interactive session,
-and the same limits for Wimp applications.  A command is run from a small
-Obey file, so it may contain quotes and be up to 1000 characters (control
+The leading * is optional; if you type it, quote the command
+('*Cat'), as Unix shells expand a bare *.  Both single commands and
+interactive sessions run in a TaskWindow child task (as used by Edit):
+line input, output as it is produced, and the same limits for Wimp
+applications.  In an interactive session Ctrl-C is Escape, Ctrl-D on an
+empty line or exit ends the session, and the cursor keys do nothing
+(there is no command history).  A command is run from a small Obey file,
+so it may contain quotes and be up to 1000 characters (control
 characters other than tab are refused), and Obey replaces %0..%9 with
 nothing and %% with % before it runs; its exit status is 0 if it
 completed and 1 if it raised a RISC OS error (printed in the output) or
@@ -62,7 +81,10 @@ sftp and scp work (scp in its modern SFTP mode; the old scp -O protocol
 does not).  Clients start in the directory of the root setting, by
 default the boot disc, and see RISC OS paths the UnixLib way:
 HostFS::HostFS.$.Public is /HostFS::HostFS.$/Public, and dir.file/txt is
-/dir/file.txt.  Files cannot be read or written beyond 2 GB.
+/dir/file.txt.  Other filing systems are reached the same way, for
+example cd /ADFS::HardDisc4.$ in sftp.  Files cannot be read or written
+beyond 2 GB.
+
 Filetypes follow the HostFS convention: a name ending in ,xxx names the
 file without the suffix and sets type xxx on upload or rename (put prog
 prog,ffb stores a BASIC file "prog"); otherwise the extension is looked up
@@ -70,52 +92,56 @@ with MimeMap (notes.txt becomes Text), and a name MimeMap does not know
 gets the filetype setting.  Listings show ,xxx on files whose type the
 extension does not imply, and get prog,ffb fetches prog.
 
-Licences
---------
-SSHd is MIT licensed.  The binary statically links libssh (LGPL 2.1),
-mbedTLS (Apache 2.0) and GCCSDK's UnixLib; their licence texts are in the
-package's RiscPkg.Copyright, and the build scripts at the website let
-anyone relink against a modified libssh or UnixLib as the LGPL requires.
-
 Settings
 --------
-The first run writes <Choices$Write>.SSHd.Options (Choices... on the icon
-bar menu opens it), a text file with every setting as a comment showing
-its default; remove the # in front of a setting to change it.  A line is
-"name value"; anything from # to the end of the line is a comment.  The
-file survives package upgrades, which replace !Run.  Settings take effect
-when SSHd is next started.
+Choices... on the icon bar menu opens the Options file, written on first
+run with every setting as a comment showing its default; remove the # in
+front of a setting to change it.  A line is "name value"; anything from #
+to the end of the line is a comment.  The file survives package upgrades.
+Settings take effect when SSHd is next started.
   port 22            TCP port to listen on
   bind 0.0.0.0       address to listen on (all interfaces)
   root <Boot$Dir>.^  directory SFTP clients start in
   user riscos        the one user name that may log in; empty for any
   shell on           off refuses interactive sessions
-  exec on            off refuses single commands (ssh host '*cmd')
+  exec on            off refuses single commands (ssh host Cat)
   sftp on            off refuses SFTP and scp
   auth-timeout 60    seconds a connection has to log in; 0 unlimited
   idle-timeout 120   seconds a logged-in connection may sit with no
                      session open; 0 unlimited
   max-sessions 8     connections held at once (one address may hold at
-                     most two that have not logged in yet)
-  banner on          send <Choices$Write>.SSHd.Banner (a text file you
-                     create) to clients before they log in
-  motd on            print <Choices$Write>.SSHd.Motd when a shell starts
+                     most two that have not logged in yet, and open at
+                     most ten in any ten seconds)
+  banner on          send the text file Banner (one you create) to
+                     clients before they log in
+  motd on            show the text file Motd when a shell starts
   filetype ffd       type for uploads with no ,xxx suffix and no MimeMap
                      match (ffd Data, fff Text)
   verbose 0          1 for more log lines, 2 for SSH protocol detail
-  log on             off stops writing <Choices$Write>.SSHd.log
+  log on             off stops writing the log file
   log-size 256       past this many KB the log becomes log-old (replacing
                      the previous one) and a new log starts
-The log file keeps the same lines as the log window; it is where to look
-after a crash.
 
 Command line options override the file (run sshd by hand in a TaskWindow
-with -t for text mode): -p port, -d config-dir, -r sftp-dir, -b address,
+with -t for text mode): -p port, -b address, -r sftp-dir, -d config-dir,
 -t, -v.
 
-If the server cannot start (no CryptRandom module, port in use), the icon
-stays on the bar, the log window opens with the reason, and Quit removes
-it; nothing blocks a boot sequence that runs !SSHd.
+Troubleshooting
+---------------
+The log window says what happened; the log file keeps the same lines and
+is where to look after a crash.  If the server cannot start (no
+CryptRandom module, port in use), the icon stays on the bar, the log
+window opens with the reason, and Quit removes it; nothing blocks a boot
+sequence that runs !SSHd.  A refused login is logged with its reason
+(wrong user name, or a key that is not authorised).
 
 After upgrading the package, Quit the running !SSHd and run the new one;
 the Info window shows which version is running.
+
+Licences
+--------
+SSHd is MIT licensed.  The binary statically links libssh (LGPL 2.1, some
+parts BSD), mbedTLS (Apache 2.0) and GCCSDK's UnixLib; their licence
+texts are in the package's RiscPkg.Copyright, and the build scripts at
+the website let anyone relink against a modified libssh or UnixLib as
+the LGPL requires.
