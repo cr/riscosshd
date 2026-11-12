@@ -37,10 +37,10 @@ server normally leans on:
 - **Entropy** comes from the CryptRandom module, wired into mbedTLS through
   `mbedtls_hardware_poll()`; the server refuses to start without it.
 
-libssh's protocol code is used as it is.  `deps/patches/libssh-riscos.patch`
-adds build fixes, a hard failure when there is no entropy, and the SFTP
-server changes listed in `docs/toolchain.md`.  Everything else RISC OS
-specific is in `src/riscos*.c` and the backends.
+libssh's protocol code is used as it is, apart from the changes in
+`deps/patches/libssh-riscos.patch`, listed under "The libssh patch" in
+`docs/toolchain.md`.  Everything else RISC OS specific is in
+`src/riscos*.c` and the backends.
 
 ## Source layout
 

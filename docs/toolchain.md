@@ -120,10 +120,12 @@ Pinned versions: mbedTLS 3.6.7, libssh 0.11.5.
    from a download of your own.
 2. libssh: `make deps` fetches the tarball; then `tools/libssh-patch.sh
    edit` unpacks it into `deps/patchwork`, commits it as pristine and
-   applies the old patch with `--merge`.  Resolve any conflicts, check that
-   every RISC OS change still makes sense, and `tools/libssh-patch.sh save`
-   writes `deps/patches/libssh-riscos.patch` back.  The build applies it
-   with `--fuzz=0`, so a hunk that no longer fits fails instead of landing
+   applies the old patch with `git apply --reject`, which leaves each hunk
+   that no longer fits in a `.rej` file next to its file.  Merge those by
+   hand and delete them, check that every RISC OS change (see "The libssh
+   patch") still makes sense, and `tools/libssh-patch.sh save` writes
+   `deps/patches/libssh-riscos.patch` back.  The build applies it with
+   `--fuzz=0`, so a hunk that no longer fits fails instead of landing
    somewhere else.
 3. mbedTLS: compare `deps/mbedtls_riscos_config.h` with the new
    `include/mbedtls/mbedtls_config.h` (options renamed or added).
@@ -155,16 +157,6 @@ in the patch.
 `CryptRandom_Block` (R0 = buffer, R1 = length) works as documented; an
 earlier suspicion that it faulted was the unseeded DRBG above.
 
-The patch's SFTP server changes are commented where they are made; in
-short: handlers for `fstat`, `fsetstat` (a size truncates), `rename`
-(fails on an existing target) and `posix-rename@openssh.com` (replaces
-it), which libssh does not implement; `open` honouring TRUNC and EXCL;
-reads clamped to 32 KB and answered from the file size at or past the
-end; writes beyond 2 GB refused, as `off_t` is 32-bit; `setstat`
-ignoring modes, owner and times; a failed `realpath` being a client error
-rather than a fatal one; `sftp_server_close_handles()` so a dropped
-client's files are closed; and filetypes for new files and renames.
-
 Filetypes are mostly UnixLib's work: with `__RISCOSIFY_FILETYPE_EXT` in
 the application-defined `__riscosify_control` (in `src/main.c`),
 `riscosify` strips `,xxx` and looks extensions up in MimeMap, `open`
@@ -176,3 +168,33 @@ UnixLib details that cost time: `__riscosify` returns a pointer to the
 end of its output buffer, and `MimeMap_Translate`'s output code for a
 RISC OS type number is 0 (1 means a type name string written to a buffer
 in R3).
+
+## The libssh patch
+
+`deps/patches/libssh-riscos.patch`, one line per change; the code
+comments say why.  Nothing else in libssh is changed.
+
+- `DefineCMakeDefaults.cmake`: no `-fPIC` (see the porting notes).
+- `libmbedcrypto.c`: `ssh_crypto_init()` fails when the DRBG cannot be
+  seeded, instead of carrying on with an unseeded one.
+- `messages.c`: a public-key request with a bad signature goes to the
+  server's auth callback, which counts it as a failed attempt, instead of
+  being dropped where a client could repeat it without limit.
+- `pki_mbedcrypto.c`: RSA keys with a modulus over 4096 bits or an
+  exponent over 64 bits are refused.
+- `ttyopts.c`: `B230400` only where termios has it (UnixLib stops at
+  115200).
+- `sftpserver.c`, which also has the filetype hooks into
+  `src/riscos_sftp.c`:
+  - `fstat` and `fsetstat` handlers, which libssh lacks; `fsetstat`
+    honours a size and ignores the rest;
+  - `rename` (fails on an existing target) and `posix-rename@openssh.com`
+    (replaces it), retyping with a `,xxx` suffix and never losing a file;
+  - `open` honours TRUNC and EXCL and types new files;
+  - reads are clamped to 32 KB and answered from the file size at or past
+    the end;
+  - writes beyond 2 GB are refused, as `off_t` is 32-bit;
+  - `setstat` ignores modes, owner and times;
+  - a failed `realpath` is a client error, not a fatal one;
+  - `readdir` logs a long-name error instead of printing to stdout;
+  - `sftp_server_close_handles()` closes a dropped client's files.
