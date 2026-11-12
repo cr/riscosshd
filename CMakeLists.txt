@@ -72,16 +72,3 @@ add_custom_command(TARGET sshd POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E make_directory ${APP_DIR}
   COMMAND ${RISCOS_ELF2AIF} $<TARGET_FILE:sshd> ${APP_DIR}/sshd,ff8
   COMMENT "Creating !SSHd application")
-
-# Zip in the layout PackMan / riscpkg expect: Apps/Network/!SSHd + RiscPkg/Control
-# + RiscPkg/Copyright (our licence plus those of the statically linked libraries).
-add_custom_target(package-zip
-  COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/pkg
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pkg/Apps/Network
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${APP_DIR} "${CMAKE_BINARY_DIR}/pkg/Apps/Network/!SSHd"
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pkg/RiscPkg
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/riscos/RiscPkg/Control ${CMAKE_BINARY_DIR}/pkg/RiscPkg/Control
-  COMMAND sh ${CMAKE_SOURCE_DIR}/tools/mkcopyright.sh ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}/pkg/RiscPkg/Copyright
-  COMMAND sh ${CMAKE_SOURCE_DIR}/tools/mkzip.sh ${CMAKE_BINARY_DIR}/pkg ${CMAKE_BINARY_DIR}/SSHd.zip
-  DEPENDS sshd
-  COMMENT "Creating SSHd.zip")

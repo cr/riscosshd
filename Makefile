@@ -107,9 +107,13 @@ $(BINARY): $(SYSROOT)/lib/libssh.a $(SRC) $(PROFILE_STAMP)
 # (Movable LookAt Run) flags, so PackMan can add !SSHd to the boot sequence.
 package: $(PACKAGE)
 
-$(PACKAGE): $(BINARY) riscos/RiscPkg/Control LICENSE tools/mkcopyright.sh $(wildcard riscos/RiscPkg/licences/*)
-	$(RUN) sh -c 'cmake --build build --target package-zip >/dev/null'
-	@mkdir -p dist && cp build/SSHd.zip $(PACKAGE)
+# RiscPkg/Copyright is our licence plus those of the statically linked
+# libraries; mkzip.sh makes the zip reproducible.
+$(PACKAGE): $(BINARY) riscos/RiscPkg/Control LICENSE tools/mkcopyright.sh tools/mkzip.sh \
+            $(wildcard riscos/RiscPkg/licences/*)
+	$(RUN) sh -c 'rm -rf build/pkg && mkdir -p build/pkg/Apps/Network build/pkg/RiscPkg dist && \
+	    cp -R "build/!SSHd" build/pkg/Apps/Network/ && cp riscos/RiscPkg/Control build/pkg/RiscPkg/ && \
+	    sh tools/mkcopyright.sh . build/pkg/RiscPkg/Copyright && sh tools/mkzip.sh build/pkg $(PACKAGE)'
 	@echo "package: $(PACKAGE)"
 
 # --- local RPCEmu ------------------------------------------------------------
