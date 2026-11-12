@@ -55,6 +55,7 @@
 #define OUT_LOW_WATER  (32 * 1024)    /* resume it below this */
 #define EOF_QUIET_CS   100            /* non-pty shell: finish 1 s after the last output */
 #define SCRAP_DIR "<Wimp$ScrapDir>.SSHd"
+#define COMMAND_MAX 1000              /* longest exec command, one line of an Obey file */
 
 struct tw_state {
     struct chan_ctx *chan;     /* NULL once the channel went away before Ego */
@@ -71,7 +72,7 @@ struct tw_state {
     int cr_pending;            /* the last packet ended in CR: skip a leading LF */
     char line[16];             /* shell: start of the line being typed, for 'exit' */
     size_t line_len;           /* its full length, even past sizeof line */
-    char *scrap;               /* exec: the Obey file, deleted at the end; NULL for a shell */
+    char scrap[256];           /* exec: the Obey file, deleted at the end; "" for a shell */
     char rcvar[24];            /* exec: "SSHd$Rc<id>" */
     struct buf pending;        /* input waiting for the child (paced, or not yet ready) */
     struct tw_state *next;
@@ -110,10 +111,8 @@ static void unlink_state(struct tw_state *s)
             break;
         }
     }
-    if (s->scrap) {
+    if (s->scrap[0])
         ro_delete(s->scrap);
-        free(s->scrap);
-    }
     if (s->rcvar[0])
         ro_unset_var(s->rcvar);
     buf_free(&s->pending);
@@ -176,39 +175,31 @@ static void queue_input(struct tw_state *s, const char *data, size_t len)
 
 /* ---- backend ops --------------------------------------------------------- */
 
-/* Write the Obey wrapper for an exec command.  Returns the file's RISC OS
- * path (malloc'd) or NULL. */
-static char *write_wrapper(struct tw_state *s, const char *command)
+/* Write the Obey wrapper for an exec command to s->scrap.  Returns 0 or
+ * -1. */
+static int write_wrapper(struct tw_state *s, const char *command)
 {
-    char *dir = ro_gstrans(SCRAP_DIR), *path, *body;
-    size_t n;
+    char body[COMMAND_MAX + 2 * sizeof s->rcvar + 32];
+    char *dir = ro_gstrans(SCRAP_DIR);
     const char *err;
+    int n;
     if (!dir)
-        return NULL;
+        return -1;
     ro_mkdir(dir);
-    n = strlen(dir) + 16;
-    path = malloc(n);
-    if (!path) {
-        free(dir);
-        return NULL;
-    }
-    snprintf(path, n, "%s.%08X", dir, (unsigned)s->txt);
+    n = snprintf(s->scrap, sizeof s->scrap, "%s.%08X", dir, (unsigned)s->txt);
     free(dir);
-    n = strlen(command) + 2 * sizeof s->rcvar + 32;
-    body = malloc(n);
-    if (!body) {
-        free(path);
-        return NULL;
+    if (n < 0 || (size_t)n >= sizeof s->scrap) {
+        log_msg("scrap directory path too long: %s", s->scrap);
+        s->scrap[0] = '\0';           /* a cut-off path names some other file */
+        return -1;
     }
-    snprintf(body, n, "Set %s 1\n%s\nSet %s 0\n", s->rcvar, command, s->rcvar);
-    err = ro_save_file(path, FILETYPE_OBEY, body, strlen(body));
-    free(body);
+    snprintf(body, sizeof body, "Set %s 1\n%s\nSet %s 0\n", s->rcvar, command, s->rcvar);
+    err = ro_save_file(s->scrap, FILETYPE_OBEY, body, strlen(body));
     if (err) {
-        log_msg("cannot write %s: %s", path, err);
-        free(path);
-        return NULL;
+        log_msg("cannot write %s: %s", s->scrap, err);
+        return -1;
     }
-    return path;
+    return 0;
 }
 
 /* Release a state that was never linked, and refuse the request. */
@@ -234,7 +225,7 @@ static int tw_start(struct chan_ctx *c, const char *command)
         for (const char *p = command; *p; p++)
             if (((unsigned char)*p < 0x20 && *p != '\t') || *p == 0x7f)
                 return refuse(c, NULL, "Command refused: control characters");
-        if (strlen(command) > 1000)
+        if (strlen(command) > COMMAND_MAX)
             return refuse(c, NULL, "Command refused: over 1000 characters");
     }
     /* The Task Manager name: "SSH 10.0.0.5 riscos".  The user name comes
@@ -256,8 +247,7 @@ static int tw_start(struct chan_ctx *c, const char *command)
     s->txt = next_txt++;
     if (command) {
         snprintf(s->rcvar, sizeof s->rcvar, "SSHd$Rc%08X", (unsigned)s->txt);
-        s->scrap = write_wrapper(s, command);
-        if (!s->scrap)
+        if (write_wrapper(s, command) < 0)
             return refuse(c, s, "Command refused: cannot write the scrap file");
         n = snprintf(cmd, sizeof cmd, "TaskWindow \"Obey %s\" -task &%08X -txt &%08X -name \"%s\" -quit",
                      s->scrap, (unsigned)our_task, (unsigned)s->txt, name);
@@ -360,7 +350,7 @@ static void tw_data(struct chan_ctx *c, const char *buf, size_t len)
             continue;
         }
         if (ch == '\n' || ch == '\r') {
-            if (!s->scrap && line_is_exit(s)) {
+            if (!s->scrap[0] && line_is_exit(s)) {
                 if (!earlier_line && s->pending.len == 0) {
                     chan_output_str(c, "\r\n");
                     chan_finish(c, 0);
@@ -419,7 +409,7 @@ static void tw_eof(struct chan_ctx *c)
     /* Piped input is finished.  An exec channel ends when its command
      * does; a pty shell with Ctrl-D or the child's exit; a plain piped
      * shell once the child has gone quiet. */
-    if (!c->pty && !s->scrap) {
+    if (!c->pty && !s->scrap[0]) {
         s->eof_pending = 1;
         s->last_activity = ro_now_cs();
     }
@@ -471,7 +461,7 @@ const struct backend_ops backend_taskwindow = {
 static int exit_status(struct tw_state *s)
 {
     char val[16];
-    if (!s->scrap)
+    if (!s->scrap[0])
         return 0;
     if (ro_read_var(s->rcvar, val, sizeof val) < 0)
         return 1;
