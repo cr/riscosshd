@@ -1,0 +1,10 @@
+# Everything is LF; RISC OS reads Obey files, !Help and Messages with LF
+# line ends, so a CRLF checkout would break them.
+* text=auto eol=lf
+*,feb text eol=lf
+*,fff text eol=lf
+*,ff9 binary
+*,ff8 binary
+*.png binary
+# the patch must stay byte-exact
+*.patch text eol=lf -whitespace
