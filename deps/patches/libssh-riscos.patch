@@ -210,8 +210,8 @@
      msg_data = ssh_string_get_char(client_msg->data);
      len = ssh_string_len(client_msg->data);
  
-+    if (client_msg->offset > 0x7fffffffULL) {           /* off_t is 32-bit */
-+        sftp_reply_status(client_msg, SSH_FX_FAILURE, "Offset too large");
++    if (client_msg->offset + len > 0x7fffffffULL) {     /* off_t is 32-bit */
++        sftp_reply_status(client_msg, SSH_FX_FAILURE, "File would exceed 2 GB");
 +        return SSH_OK;
 +    }
      off = lseek(fd, client_msg->offset, SEEK_SET);
