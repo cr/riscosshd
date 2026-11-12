@@ -155,9 +155,12 @@ static int verbose_level = 1;     /* what ticking Verbose restores */
 static int fetching;              /* a key import is in progress */
 
 /* Dynamic key rows: one text icon and one Delete button per key. */
+struct key_row {
+    int text_icon, del_icon;
+    char text[160];               /* the text icon's indirected buffer */
+};
 static int nrows;
-static int *row_text_icon, *row_del_icon;
-static char (*row_text)[160];
+static struct key_row *key_rows;
 static char list_label[96];
 static char key_input[1200];
 static char fetch_host[256], fetch_pass[128];
@@ -341,32 +344,29 @@ static void refresh_keys_list(void)
     if (keys_win < 0)
         return;
     for (int i = 0; i < nrows; i++) {
-        delete_icon(keys_win, row_text_icon[i]);
-        delete_icon(keys_win, row_del_icon[i]);
+        delete_icon(keys_win, key_rows[i].text_icon);
+        delete_icon(keys_win, key_rows[i].del_icon);
     }
     if (n > 0) {
-        int *a = realloc(row_text_icon, sizeof *a * (size_t)n);
-        int *b = realloc(row_del_icon, sizeof *b * (size_t)n);
-        char (*t)[160] = realloc(row_text, sizeof *t * (size_t)n);
-        if (a) row_text_icon = a;
-        if (b) row_del_icon = b;
-        if (t) row_text = t;
-        if (!a || !b || !t)
+        struct key_row *r = realloc(key_rows, sizeof *r * (size_t)n);
+        if (r)
+            key_rows = r;
+        else
             n = 0;
     }
     for (int i = 0; i < n; i++) {
         struct wimp_icon ic;
         int top = ROW_TOP - i * ROW_H;
-        auth_describe_one(i, row_text[i], sizeof row_text[i]);
+        auth_describe_one(i, key_rows[i].text, sizeof key_rows[i].text);
         icon(&ic, 16, top - 40, KEYS_W - 200, top,
              ICON_TEXT | ICON_BORDER | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(0),
-             row_text[i], sizeof row_text[i], "R2");
-        row_text_icon[i] = create_icon(keys_win, &ic, NULL);
+             key_rows[i].text, sizeof key_rows[i].text, "R2");
+        key_rows[i].text_icon = create_icon(keys_win, &ic, NULL);
         icon(&ic, KEYS_W - 184, top - 40, KEYS_W - 16, top,
              ICON_TEXT | ICON_BORDER | ICON_HCENTRE | ICON_VCENTRE | ICON_FILLED | ICON_BUTTON(3) |
              ICON_FG(7) | ICON_BG(1),
              delete_text, sizeof delete_text, "R5,3");
-        row_del_icon[i] = create_icon(keys_win, &ic, NULL);
+        key_rows[i].del_icon = create_icon(keys_win, &ic, NULL);
     }
     /* the area to redraw covers the old rows as well as the new ones */
     ext[1] = ROW_TOP - (n > nrows ? n : nrows) * ROW_H - 16;
@@ -390,7 +390,7 @@ static void refresh_keys_list(void)
 static int row_of_delete_icon(int icon_handle)
 {
     for (int i = 0; i < nrows; i++)
-        if (row_del_icon[i] == icon_handle)
+        if (key_rows[i].del_icon == icon_handle)
             return i;
     return -1;
 }
