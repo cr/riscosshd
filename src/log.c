@@ -24,7 +24,7 @@ void log_set_sink(void (*sink)(const char *line))
     log_sink = sink;
     if (sink)
         for (i = 0; i < early_count; i++)
-            sink(early[i]);
+            sink(early[i] + 11);        /* the window shows the time only */
     early_count = 0;
 }
 
@@ -76,7 +76,7 @@ static void vlog(const char *fmt, va_list ap)
         log_sink(line + 11);            /* the window shows the time only */
     } else {
         if (early_count < EARLY_LINES)
-            snprintf(early[early_count++], sizeof early[0], "%s", line + 11);
+            snprintf(early[early_count++], sizeof early[0], "%s", line);
         if (log_stderr) {               /* text mode: this is the TaskWindow */
             fprintf(stderr, "sshd: %s\n", line + 11);
             fflush(stderr);
