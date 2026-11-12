@@ -431,7 +431,7 @@ int main(int argc, char **argv)
         log_msg("services: shell %s, exec %s, sftp %s", cfg.allow_shell ? "on" : "off",
                 cfg.allow_exec ? "on" : "off", cfg.allow_sftp ? "on" : "off");
     if (cfg.user[0])
-        log_msg("user name required: %s", cfg.user);
+        log_msg("only user name %s may log in", cfg.user);
     riscos_sftp_default_type = cfg.default_filetype;
 
     /* SFTP: libssh's server resolves paths relative to the process's

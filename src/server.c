@@ -53,7 +53,8 @@ struct session_ctx {
     char refusal[160];          /* why the last login attempt was refused */
     unsigned long addr;         /* peer IPv4 address, 0 if unknown */
     char user[64];
-    char peer[48];              /* "10.10.10.2:51234" */
+    char peer[48];              /* "10.10.10.2": the subject of log lines */
+    char who[112];              /* "10.10.10.2 riscos" once logged in */
     struct chan_ctx *chan;      /* one channel per session for now */
     struct chan_ctx *retired;   /* replaced channels, freed from the main loop */
     time_t deadline;            /* drop the session if not authenticated, or
@@ -365,14 +366,17 @@ static int cb_auth_pubkey(ssh_session session, const char *user, struct ssh_key_
     } else if (signature_state != SSH_PUBLICKEY_STATE_VALID) {
         snprintf(s->refusal, sizeof s->refusal, "invalid signature");
     } else if (auth_key_allowed(pubkey)) {
+        char fp[128];
         s->authenticated = 1;
         s->deadline = deadline_in(cfg.idle_timeout);
         snprintf(s->user, sizeof s->user, "%s", user);
-        log_msg("%s from %s: public key accepted", user, s->peer);
+        snprintf(s->who, sizeof s->who, "%s %s", s->peer, s->user);
+        key_fingerprint(pubkey, fp, sizeof fp);
+        log_msg("%s: logged in with key %s", s->who, fp);
         return SSH_AUTH_SUCCESS;
     }
     if (++s->auth_tries >= MAX_AUTH_TRIES) {
-        log_msg("%s from %s: too many auth failures", user, s->peer);
+        log_msg("%s: too many failed logins", s->peer);
         ssh_session_set_disconnect_message(s->session, "Too many failed login attempts");
         /* not ssh_disconnect here: it would free libssh's crypto state
          * while its packet handler, our caller, is still running */
@@ -403,7 +407,7 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
     if (!c)
         return NULL;
     c->session = session;
-    c->owner_name = s->user;
+    c->owner_name = s->who;
     c->channel = ssh_channel_new(session);
     if (!c->channel) {
         free(c);
@@ -487,6 +491,7 @@ static void accept_connection(void)
     socklen_t sl = sizeof sa;
     unsigned long addr = 0;
     char peer[48];
+    unsigned port = 0;
     int pending = 0;
 
     if (!session)
@@ -498,19 +503,20 @@ static void accept_connection(void)
     }
     if (getpeername(ssh_get_fd(session), (struct sockaddr *)&sa, &sl) == 0) {
         addr = (unsigned long)sa.sin_addr.s_addr;
-        snprintf(peer, sizeof peer, "%s:%u", inet_ntoa(sa.sin_addr), (unsigned)ntohs(sa.sin_port));
+        snprintf(peer, sizeof peer, "%s", inet_ntoa(sa.sin_addr));
+        port = ntohs(sa.sin_port);
     } else {
         snprintf(peer, sizeof peer, "unknown address");
     }
     /* Refusals close the socket without a DISCONNECT packet: before the
      * version exchange a binary packet only confuses the client. */
     if (too_frequent(addr)) {
-        log_debug("%s refused: over %d connections in %d s", peer, RATE_MAX, RATE_SECONDS);
+        log_debug("%s: refused, over %d connections in %d s", peer, RATE_MAX, RATE_SECONDS);
         ssh_free(session);
         return;
     }
     if (nsessions >= cfg.max_sessions) {
-        log_msg("%s refused: %d sessions already", peer, nsessions);
+        log_msg("%s: refused, %d connections already", peer, nsessions);
         ssh_free(session);
         return;
     }
@@ -518,7 +524,7 @@ static void accept_connection(void)
         if (!o->authenticated && o->addr == addr)
             pending++;
     if (pending >= PENDING_PER_ADDRESS) {
-        log_msg("%s refused: %d connections from that address not yet logged in", peer, pending);
+        log_msg("%s: refused, %d connections from there not yet logged in", peer, pending);
         ssh_free(session);
         return;
     }
@@ -529,6 +535,7 @@ static void accept_connection(void)
     }
     s->addr = addr;
     snprintf(s->peer, sizeof s->peer, "%s", peer);
+    snprintf(s->who, sizeof s->who, "%s", peer);
     s->session = session;
     s->state = SESS_KEX;
     s->deadline = deadline_in(cfg.auth_timeout);
@@ -542,7 +549,7 @@ static void accept_connection(void)
     s->next = sessions;
     sessions = s;
     nsessions++;
-    log_msg("connection from %s (%d active)", s->peer, nsessions);
+    log_msg("%s: connected from port %u (%d active)", s->peer, port, nsessions);
 
     /* Start the version exchange; it and the key exchange complete over
      * later polls. */
@@ -616,7 +623,7 @@ static int past_deadline(struct session_ctx *s, time_t now)
             snprintf(why, sizeof why, "No session opened for %d seconds", cfg.idle_timeout);
         else
             snprintf(why, sizeof why, "No login within %d seconds", cfg.auth_timeout);
-        log_msg("%s: timed out %s", s->peer, s->authenticated ? "with no channel" : "before authenticating");
+        log_msg("%s: timed out %s", s->who, s->authenticated ? "with no session open" : "before logging in");
         /* clients print this instead of libssh's default "Bye Bye" */
         ssh_session_set_disconnect_message(s->session, why);
         session_destroy(s);
@@ -663,7 +670,7 @@ static void service_sessions(time_t now)
             continue;
         if (s->drop || !ssh_is_connected(s->session)) {
             if (!s->drop)
-                log_msg("%s disconnected (%s)", s->peer, s->user[0] ? s->user : "not authenticated");
+                log_msg("%s: disconnected%s", s->who, s->authenticated ? "" : " before logging in");
             session_destroy(s);
             continue;
         }
@@ -687,7 +694,7 @@ static void service_sessions(time_t now)
             /* The connection stays for another channel (OpenSSH
              * multiplexing) until the idle deadline or the client's own
              * disconnect. */
-            log_debug("%s: channel closed", s->user);
+            log_debug("%s: channel closed", s->who);
             s->deadline = deadline_in(cfg.idle_timeout);
         }
     }
