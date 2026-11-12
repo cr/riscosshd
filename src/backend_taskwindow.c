@@ -70,6 +70,7 @@ struct tw_state {
     int awaiting_output;       /* a chunk is out and nothing came back yet */
     int esc;                   /* pty: inside a terminal escape sequence (ESC_*) */
     int cr_pending;            /* the last packet ended in CR: skip a leading LF */
+    int quitting;              /* *Quit queued for an exit: drop later input */
     unsigned char vdu[10];     /* output: a VDU code and its parameters so far */
     int vdu_have, vdu_need;
     char line[16];             /* shell: start of the line being typed, for 'exit' */
@@ -329,7 +330,10 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
     struct tw_state *s = c->backend_data;
     char out[MSG_DATA_MAX];
     size_t n = 0;
+    int earlier_line = 0;                /* this packet already ended a line */
 
+    if (s->quitting)
+        return (int)len;
     for (size_t i = 0; i < len; i++) {
         unsigned char ch = (unsigned char)buf[i];
         if (n == sizeof out) {           /* translate in message-sized chunks */
@@ -362,11 +366,23 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
         }
         if (ch == '\n' || ch == '\r') {
             if (!s->is_exec && line_is_exit(s)) {
-                chan_output_str(c, "\r\n");
-                chan_finish(c, 0);
+                if (!earlier_line && s->pending.len == 0) {
+                    chan_output_str(c, "\r\n");
+                    chan_finish(c, 0);
+                    break;
+                }
+                /* Pasted lines before it have not reached the shell yet:
+                 * swap the typed word for *Quit so the shell runs them
+                 * first and then ends.  Anything after it is dropped, as
+                 * it would be once a Unix shell has exited. */
+                queue_input(s, out, n);
+                queue_input(s, "\025Quit\r", 6);
+                s->quitting = 1;
+                n = 0;
                 break;
             }
             s->line_len = 0;
+            earlier_line = 1;
             out[n++] = '\r';                 /* RISC OS line end for ReadLine */
             if (ch == '\r') {
                 if (i + 1 == len)
