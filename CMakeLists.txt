@@ -23,6 +23,7 @@ add_executable(sshd
   src/main.c
   src/server.c
   src/buf.c
+  src/prof.c
   src/backend_exec.c
   src/backend_shell.c
   src/auth.c
@@ -40,6 +41,11 @@ target_include_directories(sshd PRIVATE ${LIBSSH_INCLUDE_DIR})
 file(STRINGS ${CMAKE_SOURCE_DIR}/riscos/RiscPkg/Control CONTROL_VERSION REGEX "^Version:")
 string(REGEX REPLACE "^Version: *" "" SSHD_VERSION "${CONTROL_VERSION}")
 target_compile_definitions(sshd PRIVATE WITH_SERVER=1 SSHD_VERSION="${SSHD_VERSION}")
+# make PROFILE=1: time the server loop and log the totals (src/prof.h)
+option(SSHD_PROFILE "Log timing of the server loop" OFF)
+if(SSHD_PROFILE)
+  target_compile_definitions(sshd PRIVATE SSHD_PROFILE=1)
+endif()
 target_link_libraries(sshd PRIVATE ${LIBSSH_LIBRARY} ${MBEDCRYPTO_LIBRARY})
 # Strip: UnixLib backtraces use embedded function names, not ELF symbols.
 target_link_options(sshd PRIVATE -s -Wl,--gc-sections)   # drop the library code nothing references

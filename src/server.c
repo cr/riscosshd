@@ -22,6 +22,7 @@
 #include "auth.h"
 #include "config.h"
 #include "log.h"
+#include "prof.h"
 
 #define MAX_AUTH_TRIES 6
 #define PENDING_PER_ADDRESS 2   /* unauthenticated connections one address may hold */
@@ -150,8 +151,10 @@ static int pump_queue(struct chan_ctx *c, struct buf *q, int is_stderr)
  * open, which is what lets server_poll free it. */
 static void chan_pump(struct chan_ctx *c)
 {
+    PROF_START(t);
     int drained = pump_queue(c, &c->out, 0);
     drained &= pump_queue(c, &c->err, 1);
+    PROF_STOP(PROF_PUMP, t);
     if (c->finished && drained && ssh_channel_is_open(c->channel)) {
         ssh_channel_request_send_exit_status(c->channel, c->exit_status);
         ssh_channel_send_eof(c->channel);
@@ -270,10 +273,15 @@ static int cb_data(ssh_session session, ssh_channel channel, void *data,
                    uint32_t len, int is_stderr, void *userdata)
 {
     struct chan_ctx *c = userdata;
+    int rc;
+    PROF_START(t);
     (void)session; (void)channel; (void)is_stderr;
+    PROF_BYTES(len);
     if (!c->backend || c->finished)
         return (int)len;
-    return c->backend->data(c, data, len);
+    rc = c->backend->data(c, data, len);
+    PROF_STOP(PROF_CBDATA, t);
+    return rc;
 }
 
 static void cb_eof(ssh_session session, ssh_channel channel, void *userdata)
@@ -580,6 +588,7 @@ int server_poll(int timeout_ms)
 {
     int rounds = 0, until;
     time_t now = time(NULL);
+    PROF_START(t_all);
 
     if (!event)
         return 0;               /* startup failed; the desktop task lives on to show why */
@@ -588,15 +597,21 @@ int server_poll(int timeout_ms)
         timeout_ms = 0;         /* those sessions are driven outside the event */
     until = now_cs() + POLL_BUDGET_CS;
     for (;;) {
+        PROF_START(t);
         int rc = ssh_event_dopoll(event, timeout_ms);
+        PROF_STOP(PROF_DOPOLL, t);
+        PROF_ROUND(rc >= 0);
         if (rc == SSH_ERROR)
             log_debug("event poll error");
         service_sessions(time(NULL));
-        /* SSH_OK: something was read; there may be more waiting */
-        if (rc != SSH_OK || ++rounds >= POLL_ROUNDS_MAX || now_cs() - until >= 0)
+        /* 0 or more: sockets were serviced (libssh may return a leftover
+         * count rather than SSH_OK); SSH_AGAIN is the timeout, SSH_ERROR < 0 */
+        if (rc < 0 || ++rounds >= POLL_ROUNDS_MAX || now_cs() - until >= 0)
             break;
         timeout_ms = 0;
     }
+    PROF_STOP(PROF_POLL, t_all);
+    PROF_REPORT();
     return nsessions;
 }
 

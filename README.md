@@ -173,7 +173,7 @@ Other targets: `make image` rebuilds the toolchain container from
 the PackMan zip; `make sprites` regenerates the icon from
 `tools/mksprites.py`; `make clean` / `make distclean`.  Variables:
 `ENGINE`, `IMAGE`, `RPCEMU_HOSTFS`, `PUBKEY`, `SSH_PORT`, `SSH_HOST`,
-`SSH_USER`.  `make install` finds the RPCEmu data directory with the most
+`SSH_USER`, and `PROFILE=1` for a server that logs where its time goes.  `make install` finds the RPCEmu data directory with the most
 recent `rpclog.txt` under `~/Documents/RPCEmu` or `~/RPCEmu`; set
 `RPCEMU_HOSTFS` to override.
 

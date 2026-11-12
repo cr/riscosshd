@@ -10,7 +10,8 @@
 #   make clean      remove the build tree;  make distclean  also the dependencies
 #
 # Variables you may override: ENGINE (docker|podman), IMAGE, RPCEMU_HOSTFS,
-# PUBKEY (default ~/.ssh/id_ed25519.pub), SSH_PORT (2222), SSH_HOST, SSH_USER.
+# PUBKEY (default ~/.ssh/id_ed25519.pub), SSH_PORT (2222), SSH_HOST, SSH_USER,
+# PROFILE (1: log timing of the server loop, see src/prof.h).
 
 IMAGE      ?= riscosshd-gccsdk
 ENGINE     ?= $(shell tools/container-engine.sh 2>/dev/null)
@@ -20,6 +21,7 @@ SSH_HOST   ?= localhost
 SSH_USER   ?= riscos
 VERSION    := $(shell sed -n 's/^Version: *//p' riscos/RiscPkg/Control)
 PACKAGE    := dist/SSHd_$(VERSION).zip
+PROFILE    ?= 0
 SYSROOT    := deps/sysroot
 BINARY     := build/!SSHd/sshd,ff8
 
@@ -70,9 +72,14 @@ sprites:
 
 build: $(BINARY)
 
-$(BINARY): $(SYSROOT)/lib/libssh.a $(SRC)
+# build/.profile-<0|1> records the PROFILE setting, so switching it rebuilds.
+PROFILE_STAMP := build/.profile-$(PROFILE)
+$(PROFILE_STAMP):
+	@mkdir -p build && rm -f build/.profile-* && touch $@
+
+$(BINARY): $(SYSROOT)/lib/libssh.a $(SRC) $(PROFILE_STAMP)
 	$(RUN) sh -c 'cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscos.cmake \
-	    -DCMAKE_BUILD_TYPE=Release >/dev/null && cmake --build build -j$$(nproc) && \
+	    -DCMAKE_BUILD_TYPE=Release -DSSHD_PROFILE=$(PROFILE) >/dev/null && cmake --build build -j$$(nproc) && \
 	    cp -R "riscos/!SSHd/." "build/!SSHd/" && touch "$(BINARY)"'
 	@# the app files are copied in the same container run: it owns build/ on CI
 

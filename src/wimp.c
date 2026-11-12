@@ -23,6 +23,7 @@
 #include "config.h"
 #include "riscos.h"
 #include "log.h"
+#include "prof.h"
 
 #ifndef Wimp_TextOp
 #define Wimp_TextOp 0x400F9
@@ -884,12 +885,14 @@ void wimp_run(void)
 {
     while (running) {
         int reason = 0, now = 0;
+        PROF_START(t);
         _swix(OS_ReadMonotonicTime, _OUT(0), &now);
         /* Poll the server 50 times a second while sessions exist, 4 times
          * a second otherwise. */
         if (_swix(Wimp_PollIdle, _INR(0, 2) | _OUT(0), POLL_MASK,
                   poll_block, now + (active_sessions ? 2 : 25), &reason))
             continue;
+        PROF_STOP(PROF_IDLE, t);
         dispatch(reason, poll_block);
     }
 }

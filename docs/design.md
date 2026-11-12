@@ -11,7 +11,10 @@ server normally leans on:
   therefore handles all connections in a single cooperative poll loop, each
   connection being a `session_ctx` driven by one libssh `ssh_event`.  As
   libssh reads at most 4 KB per socket per poll, each pass polls again
-  while data keeps arriving, within a few centiseconds.
+  while data keeps arriving, within a few centiseconds; without that,
+  uploads stopped at about 180 KB/s on RPCEmu, with it they reach about
+  440 KB/s.  `make PROFILE=1` builds a server that logs where its time
+  goes (`src/prof.h`).
 - **No pty.**  The RISC OS equivalent is the **TaskWindow** module: a child
   task whose keyboard input and VDU output are relayed as Wimp messages
   (`Message_TaskWindow_Input` / `_Output`).  A `shell` request starts such
@@ -45,6 +48,7 @@ specific is in `src/riscos*.c` and the backends.
 src/main.c            settings (Options file, command line), start-up, text-mode loop
 src/server.c          ssh_bind, sessions, timeouts, libssh callbacks, output pump
 src/buf.c             byte queue used for channel output, TaskWindow input, SFTP requests
+src/prof.c            optional timing of the server loop (make PROFILE=1)
 src/backend.h         session backend interface
 src/backend_taskwindow.c  exec and shell: TaskWindow child relayed over Wimp messages
 src/backend_sftp.c    sftp subsystem: libssh's SFTP server on the channel

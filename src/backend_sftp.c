@@ -22,6 +22,7 @@
 #include "backend.h"
 #include "buf.h"
 #include "log.h"
+#include "prof.h"
 
 /* Added to libssh by deps/patches/libssh-riscos.patch. */
 void sftp_server_close_handles(sftp_session sftp);
@@ -87,8 +88,12 @@ static void sftp_poll(struct chan_ctx *c)
         int rc;
         if (ssh_channel_window_size(c->channel) < REPLY_MAX)
             return;                                   /* let the client catch up */
-        rc = sftp_channel_default_data_callback(c->session, c->channel, buf_data(&st->q),
-                                                (uint32_t)n, 0, &st->sftp);
+        {
+            PROF_START(t);
+            rc = sftp_channel_default_data_callback(c->session, c->channel, buf_data(&st->q),
+                                                    (uint32_t)n, 0, &st->sftp);
+            PROF_STOP(PROF_SFTP, t);
+        }
         if (rc < 0) {
             /* A malformed packet, or the server stopped: end the session.
              * libssh closes the channel itself in some of these cases;
