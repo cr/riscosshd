@@ -34,6 +34,7 @@
 
 #include "backend_taskwindow.h"
 #include "buf.h"
+#include "config.h"
 #include "riscos.h"
 #include "log.h"
 
@@ -67,6 +68,8 @@ struct tw_state {
     int last_sent;             /* when the last input chunk went out */
     int awaiting_output;       /* a chunk is out and nothing came back yet */
     int esc;                   /* pty: inside a terminal escape sequence (ESC_*) */
+    char line[16];             /* shell: start of the line being typed, for 'exit' */
+    size_t line_len;           /* its full length, even past sizeof line */
     char *scrap;               /* exec: the Obey file, deleted at the end */
     char rcvar[24];            /* exec: "SSHd$Rc<id>" */
     struct buf pending;        /* input waiting for the child (paced, or not yet ready) */
@@ -266,6 +269,9 @@ static int tw_start(struct chan_ctx *c, const char *command)
         snprintf(msg, sizeof msg, "Cannot start a TaskWindow: %s", e->errmess);
         return refuse(c, s, msg);
     }
+    if (!command && c->pty && !cfg.motd)
+        chan_output_str(c, "RISC OS command line (TaskWindow). Ctrl-C is Escape; "
+                           "Ctrl-D or 'exit' ends the session.\r\n");
     /* Linked only now: the child's Ego cannot arrive before our next poll. */
     s->next = states;
     states = s;
@@ -275,6 +281,37 @@ static int tw_start(struct chan_ctx *c, const char *command)
 }
 
 enum { ESC_NONE, ESC_CSI, ESC_SS3 };
+
+/* The shell's line as the client types it: what ReadLine will see. */
+static void line_add(struct tw_state *s, unsigned char ch)
+{
+    if (ch == 0x7f) {
+        if (s->line_len)
+            s->line_len--;
+    } else {
+        if (s->line_len < sizeof s->line)
+            s->line[s->line_len] = (char)ch;
+        s->line_len++;
+    }
+}
+
+/* 'exit', 'logout' or 'quit' (with or without a leading '*'), which end
+ * a shell session as they would on Unix rather than reach OS_CLI. */
+static int line_is_exit(const struct tw_state *s)
+{
+    char w[sizeof s->line + 1];
+    const char *p = w;
+    size_t n = s->line_len;
+    if (n > sizeof s->line)
+        return 0;
+    memcpy(w, s->line, n);
+    while (n && w[n - 1] == ' ')
+        n--;
+    w[n] = '\0';
+    while (*p == ' ' || *p == '*')
+        p++;
+    return !strcmp(p, "exit") || !strcmp(p, "logout") || !strcmp(p, "quit");
+}
 
 static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
 {
@@ -308,23 +345,35 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
             continue;
         }
         if (ch == '\n' || ch == '\r') {
+            if (!s->is_exec && line_is_exit(s)) {
+                chan_output_str(c, "\r\n");
+                chan_finish(c, 0);
+                break;
+            }
+            s->line_len = 0;
             out[n++] = '\r';                 /* RISC OS line end for ReadLine */
             if (ch == '\r' && i + 1 < len && buf[i + 1] == '\n')
                 i++;
         } else if (!c->pty) {
             out[n++] = (char)ch;             /* a pipe: bytes are data, not keys */
+            line_add(s, ch);
         } else if (ch == 0x7f || ch == 0x08) {
             out[n++] = 0x7f;                 /* delete; ReadLine understands 127 */
+            line_add(s, 0x7f);
         } else if (ch == 0x03) {
             out[n++] = 0x1b;                 /* Ctrl-C -> Escape */
+            s->line_len = 0;
             if (c->out.len < OUT_HIGH_WATER) /* the echo is not worth unbounded memory */
                 chan_output_str(c, "^C\r\n");
         } else if (ch == 0x04) {
-            chan_output_str(c, "\r\n");
-            chan_finish(c, 0);               /* Ctrl-D ends the session */
-            break;
+            if (s->line_len == 0) {          /* Ctrl-D on an empty line ends it */
+                chan_output_str(c, "\r\n");
+                chan_finish(c, 0);
+                break;
+            }
         } else {
             out[n++] = (char)ch;
+            line_add(s, ch);
         }
     }
     if (n)
