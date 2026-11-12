@@ -186,7 +186,7 @@ const char *options_path(void)
 void options_ensure_file(void)
 {
     if (options_file && ro_file_size(options_file) < 0)
-        ro_save_file(options_file, 0xfff, options_template, strlen(options_template));
+        ro_save_file(options_file, FILETYPE_TEXT, options_template, strlen(options_template));
 }
 
 enum setting_kind { S_INT, S_HEX, S_BOOL, S_STR };
@@ -452,7 +452,7 @@ int main(int argc, char **argv)
     n = auth_load_keys(cfg.authorized_keys_path);
     if (n < 0) {
         log_msg("no %s yet: add your public key in the Keys window", cfg.authorized_keys_path);
-        ro_save_file(cfg.authorized_keys_path, 0xfff, "", 0);
+        ro_save_file(cfg.authorized_keys_path, FILETYPE_TEXT, "", 0);
         n = 0;
     } else {
         log_msg("%d authorised key%s", n, n == 1 ? "" : "s");

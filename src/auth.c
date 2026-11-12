@@ -143,7 +143,7 @@ static int append_to_file(const char *text, size_t n, char *err, size_t errlen)
     if (len > 0 && data[len - 1] != '\n')
         data[len++] = '\n';
     memcpy(data + len, text, n);
-    e = ro_save_file(keys_path, 0xfff, data, len + n);
+    e = ro_save_file(keys_path, FILETYPE_TEXT, data, len + n);
     free(data);
     if (e) {
         snprintf(err, errlen, "added for this session only; cannot save: %s", e);
@@ -250,7 +250,7 @@ static const char *save_all(void)
         len += (size_t)snprintf(data + len, cap - len, "%s %s%s%s\n", keys[i].type, keys[i].b64,
                                 keys[i].comment[0] ? " " : "", keys[i].comment);
     }
-    e = ro_save_file(keys_path, 0xfff, data, len);
+    e = ro_save_file(keys_path, FILETYPE_TEXT, data, len);
     free(data);
     return e;
 }

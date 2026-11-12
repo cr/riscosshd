@@ -131,7 +131,7 @@ int ro_append_file(const char *path, const void *data, size_t len, size_t limit)
     }
     _swix(OS_Find, _INR(0, 1), 0, fh);
     if (created)
-        _swix(OS_File, _INR(0, 2), 18, path, 0xfff);         /* Text */
+        _swix(OS_File, _INR(0, 2), 18, path, FILETYPE_TEXT);
     return 0;
 }
 

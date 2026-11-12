@@ -131,7 +131,7 @@ static void send_to_child(struct tw_state *s, int action, const char *data, size
     block[5] = (int)len;
     if (len)
         memcpy(&block[6], data, len);
-    _swix(Wimp_SendMessage, _INR(0, 2), 17, block, s->child);
+    _swix(Wimp_SendMessage, _INR(0, 2), WIMP_USER_MESSAGE, block, s->child);
 }
 
 static void kill_child(struct tw_state *s)
@@ -203,7 +203,7 @@ static char *write_wrapper(struct tw_state *s, const char *command)
         return NULL;
     }
     snprintf(body, n, "Set %s 1\n%s\nSet %s 0\n", s->rcvar, command, s->rcvar);
-    err = ro_save_file(path, 0xfeb, body, strlen(body));
+    err = ro_save_file(path, FILETYPE_OBEY, body, strlen(body));
     free(body);
     if (err) {
         log_msg("cannot write %s: %s", path, err);
@@ -586,9 +586,9 @@ int tw_message(int reason, int *block)
             s->awaiting_output = 0;          /* the child consumed input: send more */
             flush_pending(s);
         }
-        if (reason == 18) {                  /* acknowledge, or the child kills itself */
+        if (reason == WIMP_USER_MESSAGE_RECORDED) {   /* acknowledge, or the child kills itself */
             block[3] = block[2];
-            _swix(Wimp_SendMessage, _INR(0, 2), 19, block, sender);
+            _swix(Wimp_SendMessage, _INR(0, 2), WIMP_USER_MESSAGE_ACK, block, sender);
         }
         return 1;
     case Message_TaskWindow_Morio:

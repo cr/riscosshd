@@ -37,6 +37,15 @@
 #endif
 
 #define TASK_MAGIC 0x4B534154 /* "TASK" */
+
+/* Wimp message actions */
+#define Message_Quit        0
+#define Message_DataSave    1
+#define Message_DataSaveAck 2
+#define Message_DataLoad    3
+#define Message_DataLoadAck 4
+#define Message_HelpRequest 0x502
+#define Message_HelpReply   0x503
 /* Events never wanted: pointer leaving/entering (4, 5), caret lost/gained
  * (11, 12), message acknowledgements (19). */
 #define POLL_MASK ((1 << 4) | (1 << 5) | (1 << 11) | (1 << 12) | (1 << 19))
@@ -805,7 +814,7 @@ static int create_iconbar_icon(void)
 
 int wimp_init(void)
 {
-    static int messages[] = { 1 /* DataSave */, 3 /* DataLoad */, 0x502 /* HelpRequest */,
+    static int messages[] = { Message_DataSave, Message_DataLoad, Message_HelpRequest,
                               Message_TaskWindow_Output, Message_TaskWindow_Ego,
                               Message_TaskWindow_Morio, Message_TaskCloseDown, 0 };
     _kernel_oserror *e = _swix(Wimp_Initialise, _INR(0, 3) | _OUT(1), 350, TASK_MAGIC, "SSHd",
@@ -1019,8 +1028,8 @@ static const char *keys_help(int ic)
     }
 }
 
-/* Interactive help: Message_HelpRequest (0x502) names a window and icon,
- * Message_HelpReply (0x503) carries the text. */
+/* Interactive help: Message_HelpRequest names a window and icon,
+ * Message_HelpReply carries the text. */
 static void help_request(int *b)
 {
     int win = b[8], ic = b[9];
@@ -1047,8 +1056,8 @@ static void help_request(int *b)
     msgs_get(text, (char *)&b[5], 236, NULL);    /* text is a Messages token */
     b[0] = (int)((20 + strlen((char *)&b[5]) + 1 + 3) & ~3u);
     b[3] = b[2];
-    b[4] = 0x503;
-    _swix(Wimp_SendMessage, _INR(0, 2), 17, b, b[1]);
+    b[4] = Message_HelpReply;
+    _swix(Wimp_SendMessage, _INR(0, 2), WIMP_USER_MESSAGE, b, b[1]);
 }
 
 /* my_ref of our last DataSaveAck: a DataLoad answering it is our scrap
@@ -1060,20 +1069,20 @@ static void user_message(int reason, int *b)
     int action = b[4];
     if (tw_message(reason, b))
         return;
-    if (action == 0x502) {                 /* Message_HelpRequest */
+    if (action == Message_HelpRequest) {
         help_request(b);
-    } else if (action == 0) {              /* Message_Quit */
+    } else if (action == Message_Quit) {
         running = 0;
-    } else if (action == 1 && b[5] == keys_win) {   /* Message_DataSave: drag from an app */
+    } else if (action == Message_DataSave && b[5] == keys_win) {   /* a drag from an application */
         static const char scrap[] = "<Wimp$Scrap>";
         b[3] = b[2];                       /* your_ref = my_ref */
-        b[4] = 2;                          /* Message_DataSaveAck */
+        b[4] = Message_DataSaveAck;
         b[9] = -1;                         /* "not a safe destination" */
         memcpy(&b[11], scrap, sizeof scrap);
         b[0] = (int)((44 + sizeof scrap + 3) & ~3u);
-        if (_swix(Wimp_SendMessage, _INR(0, 2), 17, b, b[1]) == NULL)
+        if (_swix(Wimp_SendMessage, _INR(0, 2), WIMP_USER_MESSAGE, b, b[1]) == NULL)
             scrap_ack_ref = b[2];          /* the Wimp filled in my_ref */
-    } else if (action == 3 && b[5] == keys_win) {   /* Message_DataLoad */
+    } else if (action == Message_DataLoad && b[5] == keys_win) {
         char path[212];
         const char *name = (const char *)&b[11];
         size_t n = 0;
@@ -1091,8 +1100,8 @@ static void user_message(int reason, int *b)
             scrap_ack_ref = 0;
         }
         b[3] = b[2];
-        b[4] = 4;                          /* Message_DataLoadAck */
-        _swix(Wimp_SendMessage, _INR(0, 2), 17, b, b[1]);
+        b[4] = Message_DataLoadAck;
+        _swix(Wimp_SendMessage, _INR(0, 2), WIMP_USER_MESSAGE, b, b[1]);
     }
 }
 
@@ -1110,7 +1119,7 @@ static void dispatch(int reason, int *block)
     case 6:  mouse_click(block); break;
     case 8:  key_pressed(block); break;
     case 9:  menu_selection(block); break;
-    case 17: case 18: user_message(reason, block); break;
+    case WIMP_USER_MESSAGE: case WIMP_USER_MESSAGE_RECORDED: user_message(reason, block); break;
     }
 }
 

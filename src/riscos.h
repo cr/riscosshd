@@ -8,6 +8,14 @@
 
 #include <stddef.h>
 
+#define FILETYPE_TEXT 0xfff
+#define FILETYPE_OBEY 0xfeb
+
+/* Wimp_Poll reasons and Wimp_SendMessage codes for user messages */
+#define WIMP_USER_MESSAGE          17
+#define WIMP_USER_MESSAGE_RECORDED 18
+#define WIMP_USER_MESSAGE_ACK      19
+
 /* Expand <System$Variables> in src; returns malloc'd string or NULL. */
 char *ro_gstrans(const char *src);
 

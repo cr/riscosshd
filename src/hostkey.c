@@ -48,7 +48,7 @@ ssh_key hostkey_load_or_create(const char *path)
         return NULL;
     }
     {
-        const char *err = ro_save_file(path, 0xfff, pem, strlen(pem));
+        const char *err = ro_save_file(path, FILETYPE_TEXT, pem, strlen(pem));
         ssh_string_free_char(pem);
         if (err) {
             log_msg("cannot save host key to %s: %s", path, err);

@@ -41,7 +41,7 @@ void riscos_sftp_type_new_file(const char *unixpath)
         return;                         /* "name,xxx": UnixLib typed it */
     dot = strrchr(copy, '.');
     /* MimeMap_Translate: input 3 = ".ext", output 0 = filetype number */
-    if (dot && dot[1] && _swix(0x50B00, _INR(0, 3) | _OUT(3), 3, dot, 0, 0, &type) == NULL)
+    if (dot && dot[1] && _swix(MimeMap_Translate, _INR(0, 3) | _OUT(3), 3, dot, 0, 0, &type) == NULL)
         return;                         /* MimeMap chose the type */
     riscos_sftp_set_type(unixpath, riscos_sftp_default_type);
 }
