@@ -162,6 +162,22 @@ static const char *const menu_tokens[MENU_ITEMS] = {
 };
 #define MENU_ITEM_FLAGS (ICON_TEXT | ICON_FILLED | ICON_INDIRECTED | ICON_FG(7) | ICON_BG(0))
 #define MENU_ITEM(i, f) { f, -1, MENU_ITEM_FLAGS, { .ind = { menu_texts[i], (const char *)-1, sizeof menu_texts[i] } } }
+enum { LMENU_OPEN = 0, LMENU_CLEAR, LMENU_ITEMS };
+static char log_menu_texts[LMENU_ITEMS][32];
+static struct {
+    char title[12];
+    unsigned char tfg, tbg, wfg, wbg;
+    int width, height, gap;
+    struct wimp_menu_item item[LMENU_ITEMS];
+} log_menu = {
+    "Log", 7, 2, 7, 0, 240, 44, 0,
+    {
+        { 0,    -1, MENU_ITEM_FLAGS, { .ind = { log_menu_texts[0], (const char *)-1, sizeof log_menu_texts[0] } } },
+        { 0x80, -1, MENU_ITEM_FLAGS, { .ind = { log_menu_texts[1], (const char *)-1, sizeof log_menu_texts[1] } } },
+    }
+};
+static void *current_menu;         /* the menu last opened: icon bar or log */
+
 static struct wimp_menu menu = {
     "SSHd", 7, 2, 7, 0, 220, 44, 0,
     {
@@ -661,6 +677,9 @@ static void load_texts(void)
     if ((int)longest * 16 + 32 > menu.width)
         menu.width = (int)longest * 16 + 32;
     msgs_get("TLog", log_title, sizeof log_title, NULL);
+    msgs_get("LMOpen", log_menu_texts[LMENU_OPEN], sizeof log_menu_texts[0], NULL);
+    msgs_get("LMClear", log_menu_texts[LMENU_CLEAR], sizeof log_menu_texts[0], NULL);
+    msgs_get("LMTitle", log_menu.title, sizeof log_menu.title, NULL);
     msgs_get("TKeys", keys_title, sizeof keys_title, NULL);
     msgs_get("TInfo", info_title, sizeof info_title, NULL);
     msgs_get("LHost2", host_line2, sizeof host_line2, NULL);
@@ -688,6 +707,7 @@ static void create_windows(void)
     /* Log window: scrolling text, drawn in redraw_log(). */
     window_def(&w, 100, 200, 1100, 680, WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST | WIN_HSCROLL,
                0, -(LOG_MIN_LINES * LOG_LINE_H), LOG_WIDTH, log_title, sizeof log_title);
+    w.work_flags = ICON_BUTTON(3);     /* clicks reported: Menu opens the log menu */
     log_win = create_window(&w);
 
     /* Keys window: host key, add and import sections, then the key rows. */
@@ -784,7 +804,29 @@ int wimp_init(void)
 static void show_menu(void)
 {
     menu.item[MENU_VERBOSE].flags = (menu.item[MENU_VERBOSE].flags & ~1u) | (log_verbose ? 1u : 0u);
+    current_menu = &menu;
     _swix(Wimp_CreateMenu, _INR(1, 3), &menu, menu_x, menu_y);
+}
+
+static void show_log_menu(void)
+{
+    current_menu = &log_menu;
+    _swix(Wimp_CreateMenu, _INR(1, 3), &log_menu, menu_x, menu_y);
+}
+
+/* The log window's title: port and logged-in sessions, as a status line. */
+static void log_title_update(void)
+{
+    static int shown = -1;
+    int n = server_logged_in();
+    char port[12], num[12];
+    if (n == shown || log_win < 0)
+        return;
+    shown = n;
+    snprintf(port, sizeof port, "%d", cfg.port);
+    snprintf(num, sizeof num, "%d", n);
+    msgs_get2("TLogStatus", log_title, sizeof log_title, port, num);
+    _swix(Wimp_ForceRedraw, _INR(0, 2), log_win, TASK_MAGIC, 3);   /* title bar only */
 }
 
 static void open_menu(int x)
@@ -812,9 +854,34 @@ static void open_options(void)
         log_msg("editing %s: changes apply when SSHd is next started", options_path());
 }
 
+static void log_menu_selection(int *items)
+{
+    int ptr[5];
+    if (items[0] == LMENU_OPEN) {
+        char cmd[320];
+        if (!log_file_name())
+            reportf("No log file is written (the log setting is off)");
+        else {
+            snprintf(cmd, sizeof cmd, "Filer_Run %s", log_file_name());
+            if (_swix(OS_CLI, _IN(0), cmd) != NULL)
+                reportf("Cannot open the log file");
+        }
+    } else if (items[0] == LMENU_CLEAR) {
+        log_clear();
+        log_update(1);
+        _swix(Wimp_ForceRedraw, _INR(0, 4), log_win, 0, -(LOG_LINES * LOG_LINE_H), LOG_WIDTH, 0);
+    }
+    if (_swix(Wimp_GetPointerInfo, _IN(1), ptr) == NULL && (ptr[2] & 1))
+        show_log_menu();
+}
+
 static void menu_selection(int *items)
 {
     int ptr[5];
+    if (current_menu == &log_menu) {
+        log_menu_selection(items);
+        return;
+    }
     switch (items[0]) {
     case MENU_INFO:    open_on_top(info_win); break;
     case MENU_LOG:     wimp_open_log_window(); break;
@@ -857,6 +924,10 @@ static void mouse_click(int *b)
             wimp_open_log_window();        /* Select */
         else if (buttons & 1)
             wimp_open_keys_window();       /* Adjust */
+    } else if (win == log_win && (buttons & 2)) {
+        menu_x = x - 64;
+        menu_y = b[1];
+        show_log_menu();
     } else if (win == keys_win) {
         if (ic == KI_ADD)
             keys_add_from_input();
@@ -935,7 +1006,9 @@ static void help_request(int *b)
          * item is under the pointer */
         int sel[4] = { -1, -1, -1, -1 };
         if (_swix(Wimp_GetMenuState, _INR(0, 3), 1, sel, win, ic) == NULL)
-            text = menu_help(sel[0]);
+            text = current_menu == &log_menu
+                 ? (sel[0] == LMENU_OPEN ? "HLMOpen" : sel[0] == LMENU_CLEAR ? "HLMClear" : NULL)
+                 : menu_help(sel[0]);
     }
     if (!text)
         return;
@@ -998,7 +1071,7 @@ static int active_sessions;
 static void dispatch(int reason, int *block)
 {
     switch (reason) {
-    case 0:  active_sessions = server_poll(0); break;
+    case 0:  active_sessions = server_poll(0); log_title_update(); break;
     case 1:  redraw_log(block); break;
     case 2:  _swix(Wimp_OpenWindow, _IN(1), block); break;
     case 3:  _swix(Wimp_CloseWindow, _IN(1), block); break;

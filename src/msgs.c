@@ -22,9 +22,9 @@ void msgs_close(void)
     is_open = 0;
 }
 
-void msgs_get(const char *token, char *buf, size_t len, const char *arg)
+void msgs_get2(const char *token, char *buf, size_t len, const char *arg0, const char *arg1)
 {
     if (!is_open ||
-        _swix(MessageTrans_Lookup, _INR(0, 7), desc, token, buf, (int)len, arg, 0, 0, 0) != NULL)
+        _swix(MessageTrans_Lookup, _INR(0, 7), desc, token, buf, (int)len, arg0, arg1, 0, 0) != NULL)
         snprintf(buf, len, "%s", token);
 }

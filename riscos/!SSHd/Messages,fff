@@ -11,8 +11,14 @@ MKeys:Keys...
 MChoices:Choices...
 MQuit:Quit
 
+# Log window menu
+LMTitle:Log
+LMOpen:Open log file
+LMClear:Clear
+
 # Window titles
 TLog:SSHd Server Log
+TLogStatus:SSHd log: port %0, %1 logged in
 TKeys:SSHd Authorized Keys
 TInfo:About SSHd
 
@@ -61,3 +67,5 @@ HMVerbose:Click SELECT to turn detailed logging on or off. This lasts until SSHd
 HMKeys:Click SELECT to open the window of keys that may log in.
 HMChoices:Click SELECT to edit the settings in your text editor; they apply when SSHd is next started.
 HMQuit:Click SELECT to stop the SSH server and remove it from the icon bar.
+HLMOpen:Click SELECT to open the log file in your text editor, to read, search or copy it.
+HLMClear:Click SELECT to empty this window; the log file keeps every line.

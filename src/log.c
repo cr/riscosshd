@@ -25,6 +25,16 @@ const char *log_line(int i)
     return ring[(first + i) % LOG_LINES];
 }
 
+void log_clear(void)
+{
+    first = count = 0;
+}
+
+const char *log_file_name(void)
+{
+    return log_file;
+}
+
 void log_set_notify(void (*fn)(void))
 {
     notify = fn;

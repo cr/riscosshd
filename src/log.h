@@ -17,6 +17,10 @@ void log_debug(const char *fmt, ...);     /* only when log_verbose */
 /* Lines held (up to LOG_LINES) and line i of them, 0 the oldest. */
 int log_count(void);
 const char *log_line(int i);
+/* Forget the lines held (the log file keeps them). */
+void log_clear(void);
+/* The log file being written, or NULL. */
+const char *log_file_name(void);
 /* Called after each new line, e.g. to update the log window. */
 void log_set_notify(void (*fn)(void));
 /* Print lines to stderr as well (text mode). */
