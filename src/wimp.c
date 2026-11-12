@@ -64,7 +64,7 @@ enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT,
 #define KEYS_W    1200
 #define KEYS_MIN_EXTENT (-800)    /* keys window height with few rows */
 
-enum { MENU_INFO = 0, MENU_HELP, MENU_LOG, MENU_VERBOSE, MENU_KEYS, MENU_OPTIONS, MENU_QUIT, MENU_ITEMS };
+enum { MENU_INFO = 0, MENU_HELP, MENU_LOG, MENU_VERBOSE, MENU_KEYS, MENU_CHOICES, MENU_QUIT, MENU_ITEMS };
 #define MENU_TICK   1             /* item flags: ticked, */
 #define MENU_DOTTED 2             /* dotted line below, */
 #define MENU_LAST   0x80          /* last item */
@@ -194,7 +194,7 @@ static WIMP_MENU(MENU_ITEMS) menu = {
     {
         MENU_ITEM(menu_texts[MENU_INFO], 0), MENU_ITEM(menu_texts[MENU_HELP], MENU_DOTTED),
         MENU_ITEM(menu_texts[MENU_LOG], 0), MENU_ITEM(menu_texts[MENU_VERBOSE], MENU_DOTTED),
-        MENU_ITEM(menu_texts[MENU_KEYS], 0), MENU_ITEM(menu_texts[MENU_OPTIONS], MENU_DOTTED),
+        MENU_ITEM(menu_texts[MENU_KEYS], 0), MENU_ITEM(menu_texts[MENU_CHOICES], MENU_DOTTED),
         MENU_ITEM(menu_texts[MENU_QUIT], MENU_LAST),
     }
 };
@@ -252,22 +252,18 @@ static void icon(struct wimp_icon *ic, int x0, int y0, int x1, int y1, unsigned 
     ic->d.ind.size = size;
 }
 
-/* Create an icon in win (-1: the icon bar); returns its handle, or -1 with
- * the error reported when what names it. */
-static int create_icon(int win, struct wimp_icon *ic, const char *what)
+/* Create an icon in win (-1: the icon bar).  *handle is -1 on failure,
+ * and the error is returned for the caller to report if it matters. */
+static _kernel_oserror *create_icon(int win, struct wimp_icon *ic, int *handle)
 {
     struct { int window; struct wimp_icon ic; } blk;
-    int handle = -1;
     _kernel_oserror *e;
     blk.window = win;
     blk.ic = *ic;
-    e = _swix(Wimp_CreateIcon, _INR(0, 1) | _OUT(0), 0, &blk, &handle);
-    if (e) {
-        if (what)
-            reportf("%s: %s", what, e->errmess);
-        return -1;
-    }
-    return handle;
+    e = _swix(Wimp_CreateIcon, _INR(0, 1) | _OUT(0), 0, &blk, handle);
+    if (e)
+        *handle = -1;
+    return e;
 }
 
 /* Redraw an indirected icon after its text buffer changed. */
@@ -322,7 +318,7 @@ static char delete_text[24];
 static void refresh_keys_list(void)
 {
     int n = auth_count();
-    int ext[4];
+    int ext[4], redraw_bottom;
 
     if (keys_win < 0)
         return;
@@ -344,15 +340,15 @@ static void refresh_keys_list(void)
         icon(&ic, 16, top - 40, KEYS_W - 200, top,
              ICON_TEXT | ICON_BORDER | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(0),
              key_rows[i].text, sizeof key_rows[i].text, "R2");
-        key_rows[i].text_icon = create_icon(keys_win, &ic, NULL);
+        create_icon(keys_win, &ic, &key_rows[i].text_icon);
         icon(&ic, KEYS_W - 184, top - 40, KEYS_W - 16, top,
              ICON_TEXT | ICON_BORDER | ICON_HCENTRE | ICON_VCENTRE | ICON_FILLED | ICON_BUTTON(3) |
              ICON_FG(7) | ICON_BG(1),
              delete_text, sizeof delete_text, "R5,3");
-        key_rows[i].del_icon = create_icon(keys_win, &ic, NULL);
+        create_icon(keys_win, &ic, &key_rows[i].del_icon);
     }
     /* the area to redraw covers the old rows as well as the new ones */
-    ext[1] = ROW_TOP - (n > nrows ? n : nrows) * ROW_H - 16;
+    redraw_bottom = ROW_TOP - (n > nrows ? n : nrows) * ROW_H - 16;
     nrows = n;
     if (n == 0)
         msgs_get("LNone", list_label, sizeof list_label, NULL);
@@ -362,7 +358,7 @@ static void refresh_keys_list(void)
         msgs_get("LCount", list_label, sizeof list_label, num);
     }
     redraw_icon(keys_win, KI_LISTLABEL);
-    _swix(Wimp_ForceRedraw, _INR(0, 4), keys_win, 0, ext[1], KEYS_W, ROW_TOP + 4);
+    _swix(Wimp_ForceRedraw, _INR(0, 4), keys_win, 0, redraw_bottom, KEYS_W, ROW_TOP + 4);
 
     ext[0] = 0; ext[1] = ROW_TOP - n * ROW_H - 16; ext[2] = KEYS_W; ext[3] = 0;
     if (ext[1] > KEYS_MIN_EXTENT)
@@ -799,11 +795,16 @@ void wimp_show_failed(void)
 static int create_iconbar_icon(void)
 {
     struct wimp_icon ic;
+    _kernel_oserror *e;
     icon(&ic, 0, 0, 68, 68, ICON_SPRITE | ICON_HCENTRE | ICON_VCENTRE | ICON_BUTTON(3),
          sprite_name, sizeof sprite_name, NULL);
     ic.d.ind.valid = (const char *)1;      /* sprite area: Wimp pool */
-    iconbar_icon = create_icon(-1, &ic, "Cannot create icon bar icon");
-    return iconbar_icon < 0 ? -1 : 0;
+    e = create_icon(-1, &ic, &iconbar_icon);
+    if (e) {
+        reportf("Cannot create icon bar icon: %s", e->errmess);
+        return -1;
+    }
+    return 0;
 }
 
 int wimp_init(void)
@@ -911,7 +912,7 @@ static void iconbar_menu_selection(int *items)
     case MENU_HELP:
         filer_run("<SSHd$Dir>.!Help", "Cannot open the help file");
         break;
-    case MENU_OPTIONS: open_options(); break;
+    case MENU_CHOICES: open_options(); break;
     case MENU_QUIT: {
         int n = server_logged_in();
         if (n == 0 || ask("Quit", "%d SSH session%s open. Quitting SSHd ends %s.",
@@ -936,7 +937,7 @@ static void menu_selection(int *items)
 
 static void mouse_click(int *b)
 {
-    int x = b[0], buttons = b[2], win = b[3], ic = b[4];
+    int x = b[0], buttons = b[2], win = b[3], ic = b[4], row;
     if (win == -2) {                       /* icon bar */
         if (buttons & 2)
             open_menu(x);
@@ -953,8 +954,8 @@ static void mouse_click(int *b)
             keys_add_from_input();
         else if (ic == KI_FETCH)
             keys_fetch();
-        else if (row_of_delete_icon(ic) >= 0)
-            keys_delete_row(row_of_delete_icon(ic));
+        else if ((row = row_of_delete_icon(ic)) >= 0)
+            keys_delete_row(row);
     }
 }
 
