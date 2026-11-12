@@ -21,10 +21,14 @@
 #include "config.h"
 #include "log.h"
 
-#define MAX_SESSIONS 8
 #define MAX_AUTH_TRIES 6
-#define AUTH_TIMEOUT 60     /* seconds from accept to a successful login */
-#define IDLE_TIMEOUT 120    /* seconds a logged-in session may sit without a channel */
+/* cfg.auth_timeout: seconds from accept to a successful login;
+ * cfg.idle_timeout: seconds a logged-in session may sit without a channel;
+ * 0 means no limit. */
+static time_t deadline_in(int seconds)
+{
+    return seconds > 0 ? time(NULL) + seconds : 0;
+}
 
 enum sess_state { SESS_KEX, SESS_RUNNING };
 
@@ -33,6 +37,7 @@ struct session_ctx {
     enum sess_state state;
     int auth_tries;
     int authenticated;
+    int banner_sent;
     char user[64];
     char peer[48];              /* "10.10.10.2:51234" */
     struct chan_ctx *chan;      /* one channel per session for now */
@@ -200,6 +205,10 @@ static int cb_exec_request(ssh_session session, ssh_channel channel,
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
     log_msg("%s: exec '%s'", c->owner->user, command);
+    if (!cfg.allow_exec) {
+        refuse_with_message(c, "Command execution is disabled on this server");
+        return 0;
+    }
     /* A TaskWindow child (-quit) on the desktop so output streams as it is
      * produced and the command's success is known.  Commands it cannot
      * carry are refused rather than run inside the server task, where a
@@ -219,6 +228,12 @@ static int cb_shell_request(ssh_session session, ssh_channel channel, void *user
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
     log_msg("%s: shell%s", c->owner->user, c->pty ? " (pty)" : "");
+    if (!cfg.allow_shell) {
+        refuse_with_message(c, "Interactive sessions are disabled on this server");
+        return 0;
+    }
+    if (cfg.motd)
+        chan_output_str(c, cfg.motd);
     /* A TaskWindow child when running on the desktop; the line shell
      * otherwise (text mode, or if the TaskWindow could not be started). */
     if (start_backend(c, &backend_taskwindow, NULL) == 0)
@@ -231,8 +246,9 @@ static int cb_subsystem_request(ssh_session session, ssh_channel channel,
 {
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
-    if (strcmp(subsystem, "sftp") != 0) {
-        log_msg("%s: subsystem '%s' refused", c->owner->user, subsystem);
+    if (strcmp(subsystem, "sftp") != 0 || !cfg.allow_sftp) {
+        log_msg("%s: subsystem '%s' refused%s", c->owner->user, subsystem,
+                cfg.allow_sftp ? "" : " (sftp is off)");
         return 1;
     }
     log_msg("%s: sftp", c->owner->user);
@@ -273,13 +289,15 @@ static int cb_auth_pubkey(ssh_session session, const char *user, struct ssh_key_
     struct session_ctx *s = userdata;
     (void)session;
 
-    if (signature_state == SSH_PUBLICKEY_STATE_NONE) {
+    if (cfg.user[0] && strcmp(user, cfg.user) != 0) {
+        if (signature_state != SSH_PUBLICKEY_STATE_NONE)
+            log_msg("%s from %s: user name not allowed", user, s->peer);
+    } else if (signature_state == SSH_PUBLICKEY_STATE_NONE) {
         /* Probe: tell the client whether this key would be acceptable. */
         return auth_key_allowed(pubkey) ? SSH_AUTH_SUCCESS : SSH_AUTH_DENIED;
-    }
-    if (signature_state == SSH_PUBLICKEY_STATE_VALID && auth_key_allowed(pubkey)) {
+    } else if (signature_state == SSH_PUBLICKEY_STATE_VALID && auth_key_allowed(pubkey)) {
         s->authenticated = 1;
-        s->deadline = time(NULL) + IDLE_TIMEOUT;
+        s->deadline = deadline_in(cfg.idle_timeout);
         snprintf(s->user, sizeof s->user, "%s", user);
         log_msg("%s from %s: public key accepted", user, s->peer);
         return SSH_AUTH_SUCCESS;
@@ -366,7 +384,7 @@ static void accept_connection(void)
         ssh_free(session);
         return;
     }
-    if (nsessions >= MAX_SESSIONS) {
+    if (nsessions >= cfg.max_sessions) {
         log_msg("connection refused: too many sessions");
         ssh_disconnect(session);
         ssh_free(session);
@@ -379,7 +397,7 @@ static void accept_connection(void)
     }
     s->session = session;
     s->state = SESS_KEX;
-    s->deadline = time(NULL) + AUTH_TIMEOUT;
+    s->deadline = deadline_in(cfg.auth_timeout);
     {
         struct sockaddr_in sa;
         socklen_t sl = sizeof sa;
@@ -471,6 +489,16 @@ int server_poll(int timeout_ms)
             s->state = SESS_RUNNING;
             ssh_event_add_session(event, s->session);
             log_debug("key exchange done");
+            if (cfg.banner && !s->banner_sent) {
+                /* SSH_MSG_USERAUTH_BANNER: shown by the client before it
+                 * authenticates (ssh prints it; sftp and scp do too) */
+                ssh_string b = ssh_string_from_char(cfg.banner);
+                s->banner_sent = 1;
+                if (b) {
+                    ssh_send_issue_banner(s->session, b);
+                    ssh_string_free(b);
+                }
+            }
         } else if (rc != SSH_AGAIN) {
             log_msg("%s: key exchange failed: %s", s->peer, ssh_get_error(s->session));
             session_destroy(s);
@@ -503,7 +531,7 @@ int server_poll(int timeout_ms)
                  * multiplexing) until the idle deadline or the client's
                  * own disconnect. */
                 log_debug("%s: channel closed", s->user);
-                s->deadline = now + IDLE_TIMEOUT;
+                s->deadline = deadline_in(cfg.idle_timeout);
             }
         }
     }

@@ -12,4 +12,9 @@
 int riscos_sftp_strip_suffix(char *name);
 /* Set a file's type (UnixLib-style path); errors are logged, not fatal. */
 void riscos_sftp_set_type(const char *unixpath, int type);
+/* Called by the libssh patch after SFTP creates a file: when the name
+ * carries no ",xxx" suffix and MimeMap knows nothing of its extension,
+ * give it riscos_sftp_default_type instead of UnixLib's choice. */
+extern int riscos_sftp_default_type;
+void riscos_sftp_type_new_file(const char *unixpath);
 #endif

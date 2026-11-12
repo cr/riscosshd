@@ -68,16 +68,31 @@ anyone relink against a modified libssh as the LGPL requires.
 
 Settings
 --------
-Create a text file <Choices$Write>.SSHd.Options with one setting per line
-(it survives package upgrades, which replace !Run):
-  port 22                 TCP port to listen on
-  root <Boot$Dir>.^       directory SFTP clients start in
-  bind 0.0.0.0            address to listen on (all interfaces)
-  verbose 0               1 for more log lines, 2 for SSH protocol detail
-  log on                  off to stop writing <Choices$Write>.SSHd.log
+The first run writes <Choices$Write>.SSHd.Options, a text file with every
+setting as a comment showing its default; uncomment a line to change it.
+It survives package upgrades, which replace !Run.  Settings take effect
+when SSHd is next started.
+  port 22            TCP port to listen on
+  bind 0.0.0.0       address to listen on (all interfaces)
+  root <Boot$Dir>.^  directory SFTP clients start in
+  user riscos        the one user name that may log in; empty for any
+  shell on           off refuses interactive sessions
+  exec on            off refuses single commands (ssh host '*cmd')
+  sftp on            off refuses SFTP and scp
+  auth-timeout 60    seconds a connection has to log in; 0 unlimited
+  idle-timeout 120   seconds a logged-in connection may sit with no
+                     session open; 0 unlimited
+  max-sessions 8     connections held at once
+  banner on          send <Choices$Write>.SSHd.Banner (a text file you
+                     create) to clients before they log in
+  motd on            print <Choices$Write>.SSHd.Motd when a shell starts
+  filetype ffd       type for uploads with no ,xxx suffix and no MimeMap
+                     match (ffd Data, fff Text)
+  verbose 0          1 for more log lines, 2 for SSH protocol detail
+  log on             off stops writing <Choices$Write>.SSHd.log
+  log-size 256       start the log file afresh past this many KB
 Lines starting with # are comments.  The log file keeps the same lines as
-the log window and is started afresh when it grows past 256 KB; it is
-where to look after a crash.
+the log window; it is where to look after a crash.
 
 Command line options override the file (run sshd by hand in a TaskWindow
 with -t for text mode): -p port, -d config-dir, -r sftp-dir, -b address,

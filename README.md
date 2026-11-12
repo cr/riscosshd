@@ -175,11 +175,19 @@ suspended and resumed with the TaskWindow module's own messages.  If the
 server itself dies with a fatal error, any children keep running and show
 in the Task Manager as "SSH session"; quit them there.  Connections that
 do not authenticate within 60 s, or sit logged in without a channel for
-120 s, are dropped; at most 8 connections are held at once.
+120 s, are dropped; at most 8 connections are held at once.  All three
+are settings.
 
-Settings live in `Choices:SSHd.Options` (`port`, `root`, `bind`,
-`verbose`, `log`), which survives package upgrades; the log is also
-written to `Choices:SSHd.log`.  A failed start keeps the icon on the bar
+Settings live in `Choices:SSHd.Options`, written on first run with every
+setting commented out at its default, and survive package upgrades:
+`port`, `bind`, `root`, `user` (one accepted user name, default
+`riscos`, empty for any), `shell`/`exec`/`sftp` on or off,
+`auth-timeout`, `idle-timeout`, `max-sessions`, `banner` and `motd`
+(text files `Choices:SSHd.Banner`, sent before login, and
+`Choices:SSHd.Motd`, printed when a shell starts), `filetype` (for
+uploads with no `,xxx` suffix and no MimeMap match, default `ffd`),
+`verbose`, `log` and `log-size`.  The log is also written to
+`Choices:SSHd.log`.  A failed start keeps the icon on the bar
 with the log window open rather than showing a modal box, so a boot
 sequence that runs `!SSHd` is never stalled.  After an upgrade, Quit the
 running instance and start the new one.
