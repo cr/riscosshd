@@ -76,7 +76,13 @@ static int parse_line(const char *src, char *err, size_t errlen)
     comment = b64 ? strtok_r(NULL, "\r\n", &save) : NULL;
     while (comment && isspace((unsigned char)*comment))
         comment++;
-    if (!type || !b64)
+    if (!strncmp(src, "-----BEGIN", 10))
+        snprintf(err, errlen, "that is a private key: add the matching .pub file instead, "
+                              "and keep the private key secret");
+    else if (type && !strncmp(type, "AAAA", 4))
+        snprintf(err, errlen, "only part of the key was pasted: copy the whole line, "
+                              "starting with ssh-ed25519 or ssh-rsa");
+    else if (!type || !b64)
         snprintf(err, errlen, "expected 'type base64 [comment]'");
     else if ((kt = ssh_key_type_from_name(type)) == SSH_KEYTYPE_UNKNOWN)
         snprintf(err, errlen, "unknown key type '%s'", type);

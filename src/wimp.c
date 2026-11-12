@@ -501,6 +501,12 @@ static void keys_add_from_file(const char *path)
         reportf("Cannot read %s", path);
         return;
     }
+    if (strstr(data, "PRIVATE KEY-----")) {
+        free(data);
+        reportf("That file is a private key. Drop the matching .pub file instead, "
+                "and keep the private key secret.");
+        return;
+    }
     rc = auth_add_keys(data, &added, &dup, &bad, err, sizeof err);
     free(data);
     refresh_keys_list();
