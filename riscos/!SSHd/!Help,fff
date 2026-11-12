@@ -32,21 +32,24 @@ that is already listed is not added twice.  The window opens by itself
 when no key is configured yet.
 
 Any authorized key has full control of the machine: every *command, and
-over SFTP every filing system.  The user name is not checked.
+over SFTP every filing system.  Only the user name "riscos" is accepted
+(the "user" setting below); it is a filter, not a password: the key decides.
 
 Use
 ---
-  ssh user@riscos-host '*Cat'      run one command, output comes back
-  ssh user@riscos-host             interactive * command line in a
+  ssh riscos@riscos-host '*Cat'    run one command, output comes back
+  ssh riscos@riscos-host           interactive * command line in a
                                    TaskWindow; Ctrl-D ends the session
 
-The user name is not checked; only the key is.  Both single commands and
+Both single commands and
 interactive sessions run in a TaskWindow child task (as used by Edit), so
 they behave like a task window: line input, Escape via Ctrl-C, output as
 it is produced, and the same limits for Wimp applications.  A command is
 run from a small Obey file, so it may contain quotes and be up to 1000
-characters; its exit status is 0 if it completed and 1 if it raised a
-RISC OS error (printed in the output) or was interrupted.
+characters (control characters are refused), and Obey replaces %0..%9
+with nothing and %% with % before it runs; its exit status is 0 if it
+completed and 1 if it raised a RISC OS error (printed in the output) or
+was interrupted.
 
 File transfer
 -------------

@@ -22,6 +22,7 @@
 #include "log.h"
 
 #define MAX_AUTH_TRIES 6
+#define PENDING_PER_ADDRESS 2   /* unauthenticated connections one address may hold */
 /* cfg.auth_timeout: seconds from accept to a successful login;
  * cfg.idle_timeout: seconds a logged-in session may sit without a channel;
  * 0 means no limit. */
@@ -205,6 +206,10 @@ static int cb_exec_request(ssh_session session, ssh_channel channel,
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
     log_msg("%s: exec '%s'", c->owner->user, command);
+    if (c->backend) {
+        log_msg("%s: exec request on a channel that already has a %s session", c->owner->user, c->backend->name);
+        return 1;                       /* refused; the running session is untouched */
+    }
     if (!cfg.allow_exec) {
         refuse_with_message(c, "Command execution is disabled on this server");
         return 0;
@@ -217,7 +222,7 @@ static int cb_exec_request(ssh_session session, ssh_channel channel,
     if (start_backend(c, &backend_taskwindow, command) == 0)
         return 0;
     if (tw_available()) {
-        refuse_with_message(c, "Command refused: control characters or over 1000 characters");
+        refuse_with_message(c, tw_last_refusal());
         return 0;
     }
     return start_backend(c, &backend_exec, command) < 0 ? 1 : 0;
@@ -228,6 +233,10 @@ static int cb_shell_request(ssh_session session, ssh_channel channel, void *user
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
     log_msg("%s: shell%s", c->owner->user, c->pty ? " (pty)" : "");
+    if (c->backend) {
+        log_msg("%s: shell request on a channel that already has a %s session", c->owner->user, c->backend->name);
+        return 1;
+    }
     if (!cfg.allow_shell) {
         refuse_with_message(c, "Interactive sessions are disabled on this server");
         return 0;
@@ -246,6 +255,10 @@ static int cb_subsystem_request(ssh_session session, ssh_channel channel,
 {
     struct chan_ctx *c = userdata;
     (void)session; (void)channel;
+    if (c->backend) {
+        log_msg("%s: subsystem request on a channel that already has a %s session", c->owner->user, c->backend->name);
+        return 1;
+    }
     if (strcmp(subsystem, "sftp") != 0 || !cfg.allow_sftp) {
         log_msg("%s: subsystem '%s' refused%s", c->owner->user, subsystem,
                 cfg.allow_sftp ? "" : " (sftp is off)");
@@ -279,9 +292,30 @@ static void cb_close(ssh_session session, ssh_channel channel, void *userdata)
     (void)session; (void)channel;
     c->closed = 1;
     c->finished = 1;
+    /* Nothing more can be sent: drop the queues so the channel is freed
+     * (and its backend stopped) on the next poll instead of waiting for
+     * output that will never drain. */
+    c->out_len = 0;
+    c->err_len = 0;
 }
 
 /* ---- server callbacks --------------------------------------------------- */
+
+/* SSH_MSG_USERAUTH_BANNER, sent once from the first authentication
+ * request: RFC 4252 places it inside the authentication protocol, and
+ * OpenSSH rejects it before its SERVICE_ACCEPT. */
+static void send_banner(struct session_ctx *s)
+{
+    ssh_string b;
+    if (!cfg.banner || s->banner_sent)
+        return;
+    s->banner_sent = 1;
+    b = ssh_string_from_char(cfg.banner);
+    if (b) {
+        ssh_send_issue_banner(s->session, b);
+        ssh_string_free(b);
+    }
+}
 
 static int cb_auth_pubkey(ssh_session session, const char *user, struct ssh_key_struct *pubkey,
                           char signature_state, void *userdata)
@@ -289,12 +323,17 @@ static int cb_auth_pubkey(ssh_session session, const char *user, struct ssh_key_
     struct session_ctx *s = userdata;
     (void)session;
 
+    send_banner(s);
     if (cfg.user[0] && strcmp(user, cfg.user) != 0) {
         if (signature_state != SSH_PUBLICKEY_STATE_NONE)
             log_msg("%s from %s: user name not allowed", user, s->peer);
+        /* fall through: counted like any other failure, so a wrong name
+         * and a wrong key behave alike */
     } else if (signature_state == SSH_PUBLICKEY_STATE_NONE) {
-        /* Probe: tell the client whether this key would be acceptable. */
-        return auth_key_allowed(pubkey) ? SSH_AUTH_SUCCESS : SSH_AUTH_DENIED;
+        /* Probe: tell the client whether this key would be acceptable.
+         * Counted like a failed attempt when refused, so probing is bounded. */
+        if (auth_key_allowed(pubkey))
+            return SSH_AUTH_SUCCESS;
     } else if (signature_state == SSH_PUBLICKEY_STATE_VALID && auth_key_allowed(pubkey)) {
         s->authenticated = 1;
         s->deadline = deadline_in(cfg.idle_timeout);
@@ -384,28 +423,44 @@ static void accept_connection(void)
         ssh_free(session);
         return;
     }
-    if (nsessions >= cfg.max_sessions) {
-        log_msg("connection refused: too many sessions");
-        ssh_disconnect(session);
-        ssh_free(session);
-        return;
-    }
-    s = calloc(1, sizeof *s);
-    if (!s) {
-        ssh_free(session);
-        return;
+    {
+        char peer[48], addr[48];
+        struct sockaddr_in sa;
+        socklen_t sl = sizeof sa;
+        int pending = 0;
+        struct session_ctx *o;
+        if (getpeername(ssh_get_fd(session), (struct sockaddr *)&sa, &sl) == 0) {
+            snprintf(addr, sizeof addr, "%s", inet_ntoa(sa.sin_addr));
+            snprintf(peer, sizeof peer, "%s:%u", addr, (unsigned)ntohs(sa.sin_port));
+        } else {
+            snprintf(addr, sizeof addr, "?");
+            snprintf(peer, sizeof peer, "unknown address");
+        }
+        /* Refusals close the socket without a DISCONNECT packet: before
+         * the version exchange a binary packet only confuses the client. */
+        if (nsessions >= cfg.max_sessions) {
+            log_msg("%s refused: %d sessions already", peer, nsessions);
+            ssh_free(session);
+            return;
+        }
+        for (o = sessions; o; o = o->next)
+            if (!o->authenticated && strncmp(o->peer, addr, strlen(addr)) == 0 && o->peer[strlen(addr)] == ':')
+                pending++;
+        if (pending >= PENDING_PER_ADDRESS) {
+            log_msg("%s refused: %d connections from that address not yet logged in", peer, pending);
+            ssh_free(session);
+            return;
+        }
+        s = calloc(1, sizeof *s);
+        if (!s) {
+            ssh_free(session);
+            return;
+        }
+        snprintf(s->peer, sizeof s->peer, "%s", peer);
     }
     s->session = session;
     s->state = SESS_KEX;
     s->deadline = deadline_in(cfg.auth_timeout);
-    {
-        struct sockaddr_in sa;
-        socklen_t sl = sizeof sa;
-        if (getpeername(ssh_get_fd(session), (struct sockaddr *)&sa, &sl) == 0)
-            snprintf(s->peer, sizeof s->peer, "%s:%u", inet_ntoa(sa.sin_addr), (unsigned)ntohs(sa.sin_port));
-        else
-            snprintf(s->peer, sizeof s->peer, "unknown address");
-    }
     s->server_cb.userdata = s;
     s->server_cb.auth_pubkey_function = cb_auth_pubkey;
     s->server_cb.channel_open_request_session_function = cb_channel_open;
@@ -441,6 +496,14 @@ int server_init(ssh_key hostkey)
     ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_BINDADDR, cfg.bind_addr);
     ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_BINDPORT, &cfg.port);
     ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_IMPORT_KEY, hostkey);
+    /* Key exchange: the elliptic methods and one 2048-bit group.  The
+     * default list also offers 8192-bit groups and group exchange, each a
+     * C bignum exponentiation on the ARM inside the cooperative loop that
+     * any unauthenticated client could request in a loop; group exchange
+     * would also read a moduli file from the disc. */
+    ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_KEY_EXCHANGE,
+                         "curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,"
+                         "diffie-hellman-group14-sha256");
     if (log_verbose > 1) {
         int lvl = SSH_LOG_PROTOCOL;
         ssh_bind_options_set(bind_handle, SSH_BIND_OPTIONS_LOG_VERBOSITY, &lvl);
@@ -489,22 +552,17 @@ int server_poll(int timeout_ms)
             s->state = SESS_RUNNING;
             ssh_event_add_session(event, s->session);
             log_debug("key exchange done");
-            if (cfg.banner && !s->banner_sent) {
-                /* SSH_MSG_USERAUTH_BANNER: shown by the client before it
-                 * authenticates (ssh prints it; sftp and scp do too) */
-                ssh_string b = ssh_string_from_char(cfg.banner);
-                s->banner_sent = 1;
-                if (b) {
-                    ssh_send_issue_banner(s->session, b);
-                    ssh_string_free(b);
-                }
-            }
         } else if (rc != SSH_AGAIN) {
             log_msg("%s: key exchange failed: %s", s->peer, ssh_get_error(s->session));
             session_destroy(s);
         }
     }
 
+    for (s = sessions; s; s = s->next)
+        if (s->state == SESS_KEX) {
+            timeout_ms = 0;         /* that session is driven outside the event */
+            break;
+        }
     rc = ssh_event_dopoll(event, timeout_ms);
     if (rc == SSH_ERROR)
         log_debug("event poll error");

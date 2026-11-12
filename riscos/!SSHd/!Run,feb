@@ -6,9 +6,9 @@ IconSprites <SSHd$Dir>.!Sprites
 | CryptRandom is not in the ROM; PackMan installs it as System:Modules.CryptRand.
 | Missing modules are reported by the server in its log window, not with an
 | error box, so that running !SSHd from the boot sequence never stalls it.
-RMEnsure CryptRandom 0.00 RMLoad System:Modules.CryptRand
+RMEnsure CryptRandom 0.00 IfThere System:Modules.CryptRand Then RMLoad System:Modules.CryptRand
 IfThere <Choices$Write>.SSHd Then Else CDir <Choices$Write>.SSHd
 | UnixLib: no filename suffix swapping, keep our RISC OS paths as they are
 Set UnixEnv$sshd$sfix ""
 WimpSlot -min 2048K -max 2048K
-Run <SSHd$Dir>.sshd -d <Choices$Write>.SSHd -r <Boot$Dir>.^ %*0
+Run <SSHd$Dir>.sshd -d <Choices$Write>.SSHd %*0

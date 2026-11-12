@@ -39,8 +39,9 @@ Then from the Mac:
 ssh -p 2222 -o StrictHostKeyChecking=accept-new riscos@localhost '*Cat'
 ```
 
-The user name is not checked by the server; the public key must be listed
-in `!Boot.Choices.SSHd.authkeys` on the RISC OS side.
+The server accepts the user name `riscos` by default (the `user` setting
+in `Choices:SSHd.Options`); the public key must be listed in
+`!Boot.Choices.SSHd.authkeys` on the RISC OS side.
 
 ## Getting the app into the emulator
 

@@ -66,6 +66,6 @@ add_custom_target(package-zip
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pkg/RiscPkg
   COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/riscos/RiscPkg/Control ${CMAKE_BINARY_DIR}/pkg/RiscPkg/Control
   COMMAND sh ${CMAKE_SOURCE_DIR}/tools/mkcopyright.sh ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR}/pkg/RiscPkg/Copyright
-  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}/pkg zip -q -r -9 ${CMAKE_BINARY_DIR}/SSHd.zip .
+  COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}/pkg zip -q -r -9 -X ${CMAKE_BINARY_DIR}/SSHd.zip .
   DEPENDS sshd
   COMMENT "Creating SSHd.zip")

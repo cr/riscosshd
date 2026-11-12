@@ -13,9 +13,10 @@ work against RISC OS 5.30 in RPCEmu (2026-11-11).  See "Roadmap".
 
 **Security model.**  Any key listed in `Choices:SSHd.authkeys` has full
 control of the machine: every `*command`, and over SFTP every filing
-system, `!Boot` included.  The user name in the login is ignored.  That is
-the natural fit for a single-user RISC OS box; treat the key list
-accordingly.
+system, `!Boot` included.  Only the user name `riscos` is accepted (the
+`user` setting; empty accepts any), and it is a filter, not a factor: the
+key decides.  That is the natural fit for a single-user RISC OS box; treat
+the key list accordingly.
 
 ## Why it looks the way it does
 
@@ -68,9 +69,11 @@ src/keyfetch.c        import public keys from another machine as an SSH client
 src/auth.c            authorized_keys parsing, matching, add and remove
 src/hostkey.c         ed25519 host key load/generate
 src/riscos.c          OS_File, OS_GSTrans, OS_CLI capture, signals
-src/riscos_entropy.c  mbedTLS hooks: CryptRandom entropy, ms clock
+src/riscos_entropy.c  mbedTLS hooks: CryptRandom entropy, ms clock, start-up check
+src/riscos_sftp.c     filetype helpers used by the libssh SFTP patch
 src/riscos_compat.c   statvfs stub for libssh's SFTP server
-src/log.c             log lines to stderr or to the log window
+src/log.c             log lines to the window, the log file, or stderr in text mode
+tests/                host-side unit test of auth.c (make check)
 riscos/!SSHd          !Run, !Boot, !Help, sprites (binary is added by the build)
 riscos/RiscPkg        Control file for the PackMan package
 cmake/                GCCSDK toolchain file
@@ -163,13 +166,16 @@ key is configured.  `-t` runs the text mode in a TaskWindow instead.
    password of your usual machine.  Keys live in `Choices:SSHd.authkeys`.
 
 ```bash
-ssh riscos-host '*Cat'          # run a command, output streams back
-ssh riscos-host                 # interactive * command line; Ctrl-D ends it
-sftp riscos-host                # or scp; paths look like /HostFS::HostFS.$/Public
+ssh riscos@riscos-host '*Cat'   # run a command, output streams back
+ssh riscos@riscos-host          # interactive * command line; Ctrl-D ends it
+sftp riscos@riscos-host         # or scp; paths look like /HostFS::HostFS.$/Public
 ```
 
 Commands run in a TaskWindow child, so they behave as in Edit's task
-windows: line input, no Wimp applications.  The exit status is 0 when
+windows: line input, no Wimp applications.  A command is one line of an
+Obey file: control characters and more than 1000 characters are refused,
+and Obey substitutes `%0`..`%9` (with nothing) and `%%` (with `%`) before
+the command runs.  The exit status is 0 when
 the command completed and 1 when it raised a RISC OS error or was
 interrupted.  A child that prints faster than the client reads is
 suspended and resumed with the TaskWindow module's own messages.  If the
@@ -204,6 +210,7 @@ running instance and start the new one.
 ## Licence
 
 MIT for this repository.  The binary statically links libssh (LGPL 2.1),
-mbedTLS (Apache 2.0) and GCCSDK's UnixLib; the package's
-`RiscPkg/Copyright` carries all four texts, and the build scripts here let
-anyone relink against a modified libssh as the LGPL requires.
+mbedTLS (Apache 2.0) and GCCSDK's UnixLib (LGPL with exceptions); the
+package's `RiscPkg/Copyright` carries all four texts, and the build
+scripts here let anyone relink against a modified libssh or UnixLib as the
+LGPL requires.

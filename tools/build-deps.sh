@@ -29,7 +29,11 @@ fetch "$MBEDTLS_URL" "mbedtls-$MBEDTLS_VER.tar.bz2" "$MBEDTLS_SHA256"
 fetch "$LIBSSH_URL"  "libssh-$LIBSSH_VER.tar.xz" "$LIBSSH_SHA256"
 
 # --- mbedTLS -------------------------------------------------------------
-if [ ! -f "$SYSROOT/lib/libmbedcrypto.a" ]; then
+# Rebuild mbedTLS when its configuration or the toolchain file is newer
+# than the library, not only when the library is missing.
+if [ ! -f "$SYSROOT/lib/libmbedcrypto.a" ] \
+   || [ "$TOP/deps/mbedtls_riscos_config.h" -nt "$SYSROOT/lib/libmbedcrypto.a" ] \
+   || [ "$TOOLCHAIN" -nt "$SYSROOT/lib/libmbedcrypto.a" ]; then
 rm -rf "$SRC/mbedtls-$MBEDTLS_VER"
 tar -xjf "$DL/mbedtls-$MBEDTLS_VER.tar.bz2" -C "$SRC"
 cd "$SRC/mbedtls-$MBEDTLS_VER"

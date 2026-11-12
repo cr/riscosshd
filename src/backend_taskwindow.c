@@ -230,6 +230,13 @@ static char *write_wrapper(struct tw_state *s, const char *command)
     return path;
 }
 
+static char last_refusal[160] = "Command refused";
+
+const char *tw_last_refusal(void)
+{
+    return last_refusal;
+}
+
 static int tw_start(struct chan_ctx *c, const char *command)
 {
     struct tw_state *s;
@@ -241,14 +248,20 @@ static int tw_start(struct chan_ctx *c, const char *command)
     if (command) {
         /* The command becomes one line of an Obey file. */
         for (const char *p = command; *p; p++)
-            if (((unsigned char)*p < 0x20 && *p != '\t') || *p == 0x7f)
+            if (((unsigned char)*p < 0x20 && *p != '\t') || *p == 0x7f) {
+                snprintf(last_refusal, sizeof last_refusal, "Command refused: control characters");
                 return -1;
-        if (strlen(command) > 1000)
+            }
+        if (strlen(command) > 1000) {
+            snprintf(last_refusal, sizeof last_refusal, "Command refused: over 1000 characters");
             return -1;
+        }
     }
     s = calloc(1, sizeof *s);
-    if (!s)
+    if (!s) {
+        snprintf(last_refusal, sizeof last_refusal, "Command refused: out of memory");
         return -1;
+    }
     s->chan = c;
     s->txt = next_txt++;
     s->last_activity = now_cs();
@@ -261,6 +274,7 @@ static int tw_start(struct chan_ctx *c, const char *command)
         snprintf(s->rcvar, sizeof s->rcvar, "SSHd$Rc%08X", (unsigned)s->txt);
         s->scrap = write_wrapper(s, command);
         if (!s->scrap) {
+            snprintf(last_refusal, sizeof last_refusal, "Command refused: cannot write the scrap file");
             unlink_state(s);
             c->backend_data = NULL;
             return -1;
@@ -274,6 +288,7 @@ static int tw_start(struct chan_ctx *c, const char *command)
     e = _swix(Wimp_StartTask, _IN(0), cmd);
     if (e) {
         log_msg("cannot start TaskWindow: %s", e->errmess);
+        snprintf(last_refusal, sizeof last_refusal, "Cannot start a TaskWindow: %s", e->errmess);
         unlink_state(s);
         c->backend_data = NULL;
         return -1;                       /* caller falls back or refuses */
@@ -304,7 +319,8 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
             out[n++] = 0x7f;                 /* delete; ReadLine understands 127 */
         } else if (ch == 0x03) {
             out[n++] = 0x1b;                 /* Ctrl-C -> Escape */
-            chan_output_str(c, "^C\r\n");
+            if (c->out_len < OUT_HIGH_WATER) /* the echo is not worth unbounded memory */
+                chan_output_str(c, "^C\r\n");
         } else if (ch == 0x04) {
             chan_output_str(c, "\r\n");
             chan_finish(c, 0);               /* Ctrl-D ends the session */

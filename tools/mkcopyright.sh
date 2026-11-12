@@ -11,7 +11,7 @@ src="$1"; out="$2"
     echo "The sshd binary statically links the following libraries.  The build"
     echo "scripts at $(sed -n 's/^Homepage: *//p' "$src/riscos/RiscPkg/Control")"
     echo "rebuild it from source, which lets anyone relink against a modified"
-    echo "libssh as the LGPL requires."
+    echo "libssh or UnixLib as the LGPL requires."
     for f in libssh-lgpl-2.1 mbedtls-apache-2.0 unixlib; do
         echo
         echo "=================================================================="

@@ -1,5 +1,7 @@
 name: build
 on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
 jobs:
   riscos:
     runs-on: ubuntu-latest
@@ -10,6 +12,8 @@ jobs:
         with:
           path: deps/sysroot
           key: deps-${{ hashFiles('tools/build-deps.sh', 'deps/mbedtls_riscos_config.h', 'deps/patches/**', 'deps/riscos-compat/**', 'cmake/toolchain-riscos.cmake') }}
+      - name: Keep a restored sysroot newer than the checkout
+        run: test -d deps/sysroot && find deps/sysroot -exec touch {} + || true
       - name: Host-side unit test
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libssh-dev pkg-config && make check
       - name: Build (image, dependencies, server, package)

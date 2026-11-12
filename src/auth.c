@@ -29,8 +29,13 @@ static int add_key(ssh_key k, const char *type, const char *b64, const char *com
     keys[nkeys].type = strdup(type);
     keys[nkeys].b64 = strdup(b64);
     keys[nkeys].comment = strdup(comment ? comment : "");
-    if (keys[nkeys].comment)
-        log_sanitise(keys[nkeys].comment);   /* shown in icons and dialogue boxes */
+    if (!keys[nkeys].type || !keys[nkeys].b64 || !keys[nkeys].comment) {
+        free(keys[nkeys].type);
+        free(keys[nkeys].b64);
+        free(keys[nkeys].comment);
+        return -1;
+    }
+    log_sanitise(keys[nkeys].comment);   /* shown in icons and dialogue boxes */
     nkeys++;
     return 0;
 }
@@ -50,8 +55,10 @@ static int parse_line(const char *src, char *err, size_t errlen)
     if (*src == '\0' || *src == '#')
         return 0;
     line = strdup(src);
-    if (!line)
+    if (!line) {
+        snprintf(err, errlen, "out of memory");
         return -1;
+    }
     type = strtok_r(line, " \t\r\n", &save);
     b64 = type ? strtok_r(NULL, " \t\r\n", &save) : NULL;
     comment = b64 ? strtok_r(NULL, "\r\n", &save) : NULL;
@@ -81,7 +88,12 @@ static int parse_line(const char *src, char *err, size_t errlen)
     }
     rc = add_key(k, type, b64, comment);
     free(line);
-    return rc < 0 ? -1 : 1;
+    if (rc < 0) {
+        snprintf(err, errlen, "out of memory");
+        ssh_key_free(k);
+        return -1;
+    }
+    return 1;
 }
 
 int auth_load_keys(const char *path)
@@ -115,8 +127,10 @@ int auth_add_key_line(const char *line, char *err, size_t errlen)
         snprintf(err, errlen, "no key on that line");
         return -1;
     }
-    if (!keys_path)
-        return 0;
+    if (!keys_path) {
+        snprintf(err, errlen, "no configuration directory to save it in");
+        return -1;
+    }
     /* Append to the file: existing content + line + newline. */
     data = ro_load_file(keys_path, &len);
     add = strlen(line) + 2;
@@ -153,7 +167,7 @@ void auth_describe_one(int i, char *buf, size_t len)
         return;
     }
     bl = strlen(keys[i].b64);
-    snprintf(buf, len, "%s %s ...%s", keys[i].type,
+    snprintf(buf, len, "%s %.100s ...%s", keys[i].type,
              keys[i].comment[0] ? keys[i].comment : "(no comment)",
              keys[i].b64 + (bl > 12 ? bl - 12 : 0));
 }

@@ -1,5 +1,5 @@
 /* Wimp front end for sshd: icon-bar icon with a menu (Info..., Log Window,
- * Keys..., Quit), an Info window, a tail-style log window drawn with the
+ * Verbose, Keys..., Options..., Quit), an Info window, a tail-style log window drawn with the
  * desktop font, and a Keys window where public keys can be typed, pasted,
  * dropped as a file, imported from another machine, and deleted.
  * Windows and the menu are built in code, so there is no Templates file.
@@ -490,7 +490,7 @@ static void wimp_pump(void)
     _swix(OS_ReadMonotonicTime, _OUT(0), &start);
     for (;;) {
         int reason = 0;
-        if (_swix(Wimp_Poll, _INR(0, 1) | _OUT(0), (1 << 4) | (1 << 5) | (1 << 11) | (1 << 12), poll_block, &reason))
+        if (_swix(Wimp_Poll, _INR(0, 1) | _OUT(0), (1 << 4) | (1 << 5) | (1 << 11) | (1 << 12) | (1 << 19), poll_block, &reason))
             return;
         if (reason == 0)
             return;
@@ -501,14 +501,14 @@ static void wimp_pump(void)
     }
 }
 
-static int fetch_confirm(const char *fingerprint)
+static int fetch_confirm(const char *fingerprint, const char *host, unsigned port)
 {
     struct { int num; char text[252]; } box;
     int answer = 0;
     box.num = 0;
     snprintf(box.text, sizeof box.text,
-             "The machine's host key fingerprint is %s. Continue only if that matches what it reports (ssh-keygen -lf).",
-             fingerprint);
+             "%s port %u reports the host key fingerprint %s. Continue only if that matches what it shows (ssh-keygen -lf).",
+             host, port, fingerprint);
     _swix(Hourglass_Off, 0);
     if (_swix(Wimp_ReportError, _INR(0, 2) | _OUT(1), &box, 3, "SSHd", &answer))
         answer = 0;
@@ -569,7 +569,7 @@ static char info_labels[II_COUNT][12] = {
 };
 static char info_values[II_COUNT][96] = {
     "SSHd", "SSH server for RISC OS", "https://github.com/cr/riscosshd", SSHD_VERSION,
-    __DATE__ " " __TIME__, "", "", "", "MIT; libssh LGPL 2.1; mbedTLS Apache 2.0; UnixLib (see !Help)"
+    __DATE__ " " __TIME__, "", "", "", "MIT, LGPL 2.1, Apache 2.0: see !Help"
 };
 
 void wimp_open_info_window(void)
@@ -714,6 +714,8 @@ int wimp_init(void)
         wimp_shutdown();        /* leave no half-registered task behind */
         return -1;
     }
+    log_window_extent();        /* the lines replayed into the sink above */
+    menu.item[MENU_INFO].submenu = info_win;   /* Style Guide: Info is a submenu box */
     refresh_keys_list();
     return 0;
 }
@@ -810,7 +812,20 @@ static void help_request(int *b)
 {
     int win = b[8], ic = b[9];
     const char *text = NULL;
-    if (win == -2) {
+    if (win == -1) {                       /* a menu item: which one from Wimp_GetMenuState */
+        int sel[4] = { -1, -1, -1, -1 };
+        if (_swix(0x400F4 /* Wimp_GetMenuState */, _INR(0, 1), 0, sel) == NULL) {
+            switch (sel[0]) {
+            case MENU_INFO:    text = "Shows this program's version and how it was built."; break;
+            case MENU_LOG:     text = "Opens the log window, which follows the server's activity."; break;
+            case MENU_VERBOSE: text = "Ticked, the log carries more detail about each connection."; break;
+            case MENU_KEYS:    text = "Opens the window of keys that may log in."; break;
+            case MENU_OPTIONS: text = "Opens the settings file in your text editor; changes apply at the next start."; break;
+            case MENU_QUIT:    text = "Stops the SSH server and removes it from the icon bar."; break;
+            default: break;
+            }
+        }
+    } else if (win == -2) {
         text = "This is the SSH server. Click SELECT to open its log, ADJUST for the authorized keys, MENU for the settings and more.";
     } else if (win == log_win) {
         text = "The server's log, newest line at the bottom. The same lines go to Choices:SSHd.log.";
@@ -900,7 +915,7 @@ void wimp_run(void)
         /* mask: pointer leaving/entering (bits 4,5), lose/gain caret (11,12).
          * Poll the server 50 times a second while sessions exist, 4 times
          * a second otherwise. */
-        if (_swix(Wimp_PollIdle, _INR(0, 2) | _OUT(0), (1 << 4) | (1 << 5) | (1 << 11) | (1 << 12),
+        if (_swix(Wimp_PollIdle, _INR(0, 2) | _OUT(0), (1 << 4) | (1 << 5) | (1 << 11) | (1 << 12) | (1 << 19),
                   poll_block, now + (active_sessions ? 2 : 25), &reason))
             continue;
         dispatch(reason, poll_block);

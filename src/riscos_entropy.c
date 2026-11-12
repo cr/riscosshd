@@ -42,3 +42,13 @@ mbedtls_ms_time_t mbedtls_ms_time(void)
     gettimeofday(&tv, NULL);
     return (mbedtls_ms_time_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
+
+/* Start-up check: 32 bytes from CryptRandom_Block, or failure. */
+int riscos_entropy_check(void)
+{
+    unsigned char buf[32];
+    size_t got = 0;
+    if (mbedtls_hardware_poll(NULL, buf, sizeof buf, &got) != 0 || got != sizeof buf)
+        return -1;
+    return 0;
+}

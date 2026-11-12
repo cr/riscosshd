@@ -41,7 +41,8 @@ static int auth_kbdint(ssh_session s, const char *password)
 }
 
 int keyfetch_run(const char *userhost, const char *password,
-                 int (*confirm)(const char *fingerprint), char *msg, size_t msglen)
+                 int (*confirm)(const char *fingerprint, const char *host, unsigned port),
+                 char *msg, size_t msglen)
 {
     char user[64] = "", host[256] = "";
     const char *at = strchr(userhost, '@'), *colon;
@@ -82,6 +83,12 @@ int keyfetch_run(const char *userhost, const char *password,
     ssh_options_set(s, SSH_OPTIONS_USER, user);
     ssh_options_set(s, SSH_OPTIONS_PORT, &port);
     ssh_options_set(s, SSH_OPTIONS_TIMEOUT, &timeout);
+    {
+        /* No ssh_config: libssh would read one from the disc, which any
+         * SFTP client could have written to redirect this connection. */
+        int no = 0;
+        ssh_options_set(s, SSH_OPTIONS_PROCESS_CONFIG, &no);
+    }
     log_msg("key fetch: connecting to %s@%s:%u", user, host, port);
     if (ssh_connect(s) != SSH_OK) {
         fail(msg, msglen, "Cannot connect", s);
@@ -100,7 +107,7 @@ int keyfetch_run(const char *userhost, const char *password,
         return -1;
     }
     fp = ssh_get_fingerprint_hash(SSH_PUBLICKEY_HASH_SHA256, hash, hlen);
-    ok = confirm(fp ? fp : "(unknown)");
+    ok = confirm(fp ? fp : "(unknown)", host, port);
     ssh_string_free_char(fp);
     ssh_clean_pubkey_hash(&hash);
     ssh_key_free(key);

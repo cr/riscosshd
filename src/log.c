@@ -39,16 +39,22 @@ void log_set_file(const char *path)
 
 void log_sanitise(char *s)
 {
-    for (; *s; s++)
-        if ((unsigned char)*s < 0x20 || *s == 0x7f)
+    for (; *s; s++) {
+        unsigned char ch = (unsigned char)*s;
+        /* C0, DEL and C1 (0x80-0x9f: CSI and friends in a Unix terminal) */
+        if (ch < 0x20 || (ch >= 0x7f && ch < 0xa0))
             *s = '?';
+    }
 }
 
 static void vlog(const char *fmt, va_list ap)
 {
     char line[512];
     time_t now = time(NULL);
-    size_t n = strftime(line, sizeof line, "%Y-%m-%d %H:%M:%S ", localtime(&now));
+    struct tm *tm = localtime(&now);
+    size_t n = tm ? strftime(line, sizeof line, "%Y-%m-%d %H:%M:%S ", tm) : 0;
+    if (n != 20)                        /* no clock: keep the layout the window relies on */
+        n = (size_t)snprintf(line, sizeof line, "0000-00-00 00:00:00 ");
     vsnprintf(line + n, sizeof line - n, fmt, ap);
     log_sanitise(line);                 /* user names, commands, comments... */
     if (log_file) {

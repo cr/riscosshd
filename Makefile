@@ -59,7 +59,7 @@ image: docker/Dockerfile
 # --- dependencies: mbedTLS and libssh, static, into deps/sysroot -----------
 deps: $(SYSROOT)/lib/libssh.a
 
-$(SYSROOT)/lib/libssh.a: .image-built $(DEPS_INPUTS)
+$(SYSROOT)/lib/libssh.a: $(DEPS_INPUTS) | .image-built
 	$(RUN) sh tools/build-deps.sh
 
 # --- the server --------------------------------------------------------------
@@ -72,6 +72,7 @@ $(BINARY): $(SYSROOT)/lib/libssh.a $(SRC)
 	$(RUN) sh -c 'cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscos.cmake \
 	    -DRISCOS_SYSROOT=/work/$(SYSROOT) -DCMAKE_BUILD_TYPE=Release >/dev/null && \
 	    cmake --build build -j$$(nproc)'
+	@cp -R "riscos/!SSHd/." "build/!SSHd/" && touch "$(BINARY)"   # app files change without a relink
 
 # --- PackMan package ---------------------------------------------------------
 # Layout: Apps/Network/!SSHd, RiscPkg/Control, RiscPkg/Copyright, zipped with
@@ -79,7 +80,7 @@ $(BINARY): $(SYSROOT)/lib/libssh.a $(SRC)
 # (Movable LookAt Run) flags, so PackMan can add !SSHd to the boot sequence.
 package: $(PACKAGE)
 
-$(PACKAGE): $(BINARY) riscos/RiscPkg/Control LICENSE
+$(PACKAGE): $(BINARY) riscos/RiscPkg/Control LICENSE tools/mkcopyright.sh $(wildcard riscos/RiscPkg/licences/*)
 	$(RUN) sh -c 'cmake --build build --target package-zip >/dev/null'
 	@mkdir -p dist && cp build/SSHd.zip $(PACKAGE)
 	@echo "package: $(PACKAGE)"
@@ -104,7 +105,7 @@ check: build/host/test_auth
 	@test -f build/host/k2.pub || ssh-keygen -q -t rsa -b 2048 -N '' -C 'test key two' -f build/host/k2
 	build/host/test_auth build/host/k1.pub build/host/k2.pub build/host/authkeys
 
-build/host/test_auth: tests/test_auth.c tests/riscos_stub.c src/auth.c src/log.c src/auth.h
+build/host/test_auth: tests/test_auth.c tests/riscos_stub.c src/auth.c src/log.c src/auth.h src/log.h src/riscos.h
 	@pkg-config --exists libssh || { echo "libssh not found on the host (pkg-config libssh)"; exit 1; }
 	@mkdir -p build/host
 	cc -std=gnu99 -D_GNU_SOURCE -Wall -Wextra -Isrc $$(pkg-config --cflags libssh) -o $@ \

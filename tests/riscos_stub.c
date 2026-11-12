@@ -36,3 +36,15 @@ const char *ro_save_file(const char *path, int filetype, const void *data, size_
     fclose(f);
     return NULL;
 }
+
+/* log.c appends to a log file when one is set; the test sets none, but
+ * the symbols must link. */
+const char *ro_append_error = "";
+size_t ro_append_limit = 0;
+int ro_append_file(const char *path, const void *data, size_t len)
+{
+    (void)path; (void)data; (void)len;
+    return 0;
+}
+void ro_delete(const char *path) { (void)path; }
+long ro_file_size(const char *path) { (void)path; return -1; }

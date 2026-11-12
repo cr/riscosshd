@@ -8,5 +8,6 @@
  * the number of keys added, or -1 with a message in msg (which also gets
  * a summary on success). */
 int keyfetch_run(const char *userhost, const char *password,
-                 int (*confirm)(const char *fingerprint), char *msg, size_t msglen);
+                 int (*confirm)(const char *fingerprint, const char *host, unsigned port),
+                 char *msg, size_t msglen);
 #endif

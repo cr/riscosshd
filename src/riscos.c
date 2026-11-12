@@ -68,11 +68,24 @@ const char *ro_mkdir(const char *path)
 }
 
 const char *ro_append_error = "";
+size_t ro_append_limit = 0;
+
+long ro_file_size(const char *path)
+{
+    int type = 0, len = 0;
+    if (_swix(OS_File, _INR(0, 1) | _OUT(0) | _OUT(4), 17, path, &type, &len) || type != 1)
+        return -1;
+    return len;
+}
 
 int ro_append_file(const char *path, const void *data, size_t len)
 {
     int fh = 0, extent = 0, unwritten = 0;
     _kernel_oserror *e;
+    /* Past the limit the file starts afresh, so a flood of log lines
+     * cannot fill the disc while the server runs. */
+    if (ro_append_limit && (size_t)ro_file_size(path) > ro_append_limit)
+        ro_delete(path);
     /* 0xc3: open for update, must not be a directory, handle 0 when the
      * file does not exist (only "output", 0x83, creates it); bit 2 would
      * stop "Boot:" style path prefixes from being expanded */
@@ -143,6 +156,8 @@ void ro_yield(void)
 static void on_oserror(int sig)
 {
     _kernel_oserror *e = _kernel_last_oserror();
+    signal(sig, SIG_DFL);               /* first: logging may fault again */
+    ro_unset_var("SSHd$Running");
     /* through log_msg so it also reaches the log file, then stderr */
     log_msg("fatal RISC OS error (signal %d): &%x %s", sig,
             e ? (unsigned)e->errnum : 0u, e ? e->errmess : "");
@@ -151,7 +166,6 @@ static void on_oserror(int sig)
         fprintf(stderr, ": &%x %s", (unsigned)e->errnum, e->errmess);
     fputc('\n', stderr);
     fflush(stderr);
-    signal(sig, SIG_DFL);
     raise(sig);
 }
 

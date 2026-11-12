@@ -6,3 +6,4 @@ deps/sysroot/
 deps/build-deps.log
 .image-built
 dist/
+deps/libssh-errors.log

@@ -25,6 +25,7 @@
 #include "hostkey.h"
 #include "riscos.h"
 #include "riscos_sftp.h"
+#include "riscos_entropy.h"
 #include "wimp.h"
 #include "log.h"
 
@@ -211,12 +212,16 @@ static void read_options(const char *dir, const char **root_arg, int *logfile,
             val[0] = '\0';               /* "user" alone: any user */
         if (strcmp(key, "port") == 0)
             cfg.port = atoi(val);
-        else if (strcmp(key, "root") == 0)
-            *root_arg = strdup(val);
-        else if (strcmp(key, "bind") == 0)
-            cfg.bind_addr = strdup(val);
-        else if (strcmp(key, "user") == 0)
-            cfg.user = strdup(val);
+        else if (strcmp(key, "root") == 0) {
+            char *v = strdup(val);
+            if (v) *root_arg = v;
+        } else if (strcmp(key, "bind") == 0) {
+            char *v = strdup(val);
+            if (v) cfg.bind_addr = v;
+        } else if (strcmp(key, "user") == 0) {
+            char *v = strdup(val);
+            if (v) cfg.user = v;
+        }
         else if (strcmp(key, "shell") == 0)
             cfg.allow_shell = on_off(val, key);
         else if (strcmp(key, "exec") == 0)
@@ -328,13 +333,14 @@ int main(int argc, char **argv)
 
     log_set_stderr(text_mode);
     log_msg("SSHd %s starting", SSHD_VERSION);
+    /* Every key and nonce comes from CryptRandom; without it libssh
+     * would still start (patched to fail, but check here with a clear
+     * message before anything is generated). */
+    if (riscos_entropy_check() < 0)
+        return fatal("CryptRandom module missing or failing: install it from PackMan%s", "");
     ssh_threads_set_callbacks(ssh_threads_get_noop());
     if (ssh_init() < 0)
-        return fatal("libssh initialisation failed%s", "");
-    if (log_verbose > 1) {
-        ssh_set_log_level(SSH_LOG_PROTOCOL);
-        ssh_set_log_callback(libssh_log);
-    }
+        return fatal("libssh initialisation failed (random number source)%s", "");
     ro_init_signals(text_mode ? on_quit : NULL);   /* Escape quits in text mode only */
 
     cfg.config_dir = ro_gstrans(dir_arg);
@@ -356,17 +362,24 @@ int main(int argc, char **argv)
     if (opt_root) root_arg = opt_root;
     if (opt_bind) cfg.bind_addr = opt_bind;
     if (opt_verbose) log_verbose = opt_verbose;
-    if (cfg.port <= 0 || cfg.port > 65535)
-        return fatal("Invalid port %s", "number");
+    if (log_verbose > 1) {
+        /* libssh's own log, through ours: its default goes to stderr,
+         * which on the desktop is the screen */
+        ssh_set_log_level(SSH_LOG_PROTOCOL);
+        ssh_set_log_callback(libssh_log);
+    }
+    if (cfg.port <= 0 || cfg.port > 65535) {
+        char v[16];
+        snprintf(v, sizeof v, "%d", cfg.port);
+        return fatal("Invalid port number %s", v);
+    }
     if (logfile) {
         /* keep the log file bounded: start afresh when it has grown large */
         char *logpath = join(cfg.config_dir, "log");
-        size_t len = 0;
-        char *old = ro_load_file(logpath, &len);
-        free(old);
-        if (len > (size_t)cfg.log_size_kb * 1024)
+        ro_append_limit = (size_t)cfg.log_size_kb * 1024;
+        if (ro_file_size(logpath) > (long)ro_append_limit)
             ro_delete(logpath);
-        if (ro_append_file(logpath, "", 0) == 0)
+        if (logpath && ro_append_file(logpath, "", 0) == 0)
             log_set_file(logpath);
         else
             log_msg("cannot write log file %s: %s", logpath, ro_append_error);
@@ -414,8 +427,10 @@ int main(int argc, char **argv)
         return fatal("Cannot listen on port %s: is another SSH server running?", port);
     }
     _swix(OS_SetVarVal, _INR(0, 4), "SSHd$Running", SSHD_VERSION, (int)strlen(SSHD_VERSION), 0, 0);
-    if (!text_mode && wimp_init() < 0)
+    if (!text_mode && wimp_init() < 0) {
+        ro_unset_var("SSHd$Running");
         return 1;
+    }
 
     signal(SIGTERM, on_term);
     signal(SIGHUP, on_term);

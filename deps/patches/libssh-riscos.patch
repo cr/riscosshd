@@ -11,6 +11,20 @@
 +if(NOT CMAKE_TOOLCHAIN_FILE MATCHES "riscos")
 +  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 +endif()
+--- a/src/libmbedcrypto.c	2026-06-12 13:53:41
++++ b/src/libmbedcrypto.c	2026-11-12 10:00:00
+@@ -1078,7 +1078,11 @@
+     rc = mbedtls_ctr_drbg_seed(&ssh_mbedtls_ctr_drbg, mbedtls_entropy_func,
+             &ssh_mbedtls_entropy, NULL, 0);
+     if (rc != 0) {
++        /* Without entropy there is no usable DRBG: the freed context
++         * would still "generate" from a zero key.  Fail initialisation. */
+         mbedtls_ctr_drbg_free(&ssh_mbedtls_ctr_drbg);
++        mbedtls_entropy_free(&ssh_mbedtls_entropy);
++        return SSH_ERROR;
+     }
+ 
+ #if !(defined(MBEDTLS_CHACHA20_C) && defined(MBEDTLS_POLY1305_C))
 --- a/src/misc.c	2026-06-12 13:53:41
 +++ b/src/misc.c	2026-11-12 10:00:00
 @@ -71,6 +71,16 @@
@@ -155,7 +169,7 @@
      handle_s = sftp_handle_alloc(client_msg->sftp, h);
      if (handle_s != NULL) {
          sftp_reply_handle(client_msg, handle_s);
-@@ -996,6 +1059,17 @@
+@@ -996,6 +1059,23 @@
          SSH_LOG(SSH_LOG_PROTOCOL, "invalid fd (%d) received from handle", fd);
          return SSH_ERROR;
      }
@@ -170,10 +184,16 @@
 +        }
 +    }
 +#endif
++#ifdef __riscos__
++    if (client_msg->offset > 0x7fffffffULL) {           /* off_t is 32-bit */
++        sftp_reply_status(client_msg, SSH_FX_FAILURE, "Offset too large");
++        return SSH_OK;
++    }
++#endif
      off = lseek(fd, client_msg->offset, SEEK_SET);
      if (off == -1) {
          sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
-@@ -1005,6 +1079,12 @@
+@@ -1005,6 +1085,12 @@
          return SSH_OK;
      }
  
@@ -186,7 +206,20 @@
      buffer = malloc(client_msg->len);
      if (buffer == NULL) {
          ssh_set_error_oom(sftp->session);
-@@ -1309,6 +1389,7 @@
+@@ -1057,6 +1143,12 @@
+     msg_data = ssh_string_get_char(client_msg->data);
+     len = ssh_string_len(client_msg->data);
+ 
++#ifdef __riscos__
++    if (client_msg->offset > 0x7fffffffULL) {           /* off_t is 32-bit */
++        sftp_reply_status(client_msg, SSH_FX_FAILURE, "Offset too large");
++        return SSH_OK;
++    }
++#endif
+     off = lseek(fd, client_msg->offset, SEEK_SET);
+     if (off == -1) {
+         sftp_reply_status(client_msg, SSH_FX_FAILURE, NULL);
+@@ -1309,6 +1401,7 @@
              struct sftp_attributes_struct attr;
              struct stat st;
              char long_name[MAX_LONG_NAME_LEN];
@@ -194,7 +227,7 @@
  
              if (strlen(dentry->d_name) + srclen + 1 >= PATH_MAX) {
                  SSH_LOG(SSH_LOG_PROTOCOL,
-@@ -1324,8 +1405,8 @@
+@@ -1324,10 +1417,10 @@
                  clear_filexfer_attrib(&attr);
              }
  
@@ -203,9 +236,12 @@
 +            if (readdir_long_name((char *)name, &st, long_name) == 0) {
 +                sftp_reply_names_add(client_msg, name, long_name, &attr);
              } else {
-                 printf("readdir long name error\n");
+-                printf("readdir long name error\n");
++                SSH_LOG(SSH_LOG_WARNING, "readdir long name error");
              }
-@@ -1428,7 +1509,11 @@
+ 
+             entries++;
+@@ -1428,7 +1521,11 @@
  
          SSH_LOG(SSH_LOG_PROTOCOL, "realpath failed: %s", strerror(saved_errno));
          sftp_reply_status(client_msg, status, err_msg);
@@ -217,10 +253,15 @@
      }
      sftp_reply_name(client_msg, path, NULL);
      free(path);
-@@ -1497,7 +1582,96 @@
-     return SSH_OK;
- }
- 
+@@ -1492,10 +1589,120 @@
+     } else {
+         stat_to_filexfer_attrib(&st, &attr);
+         sftp_reply_attr(client_msg, &attr);
++    }
++
++    return SSH_OK;
++}
++
 +#ifdef __riscos__
 +int riscos_sftp_strip_suffix(char *name);          /* src/riscos_sftp.c */
 +void riscos_sftp_set_type(const char *unixpath, int type);
@@ -228,12 +269,12 @@
 +/* libssh leaves both rename requests unimplemented.  SSH_FXP_RENAME
 + * (filexfer v3) must fail when the target exists; posix-rename@openssh.com
 + * must replace it.  rename() through UnixLib does the work either way. */
- static int
++static int
 +do_rename(sftp_client_message client_msg, int replace)
 +{
 +    const char *oldpath = sftp_client_message_get_filename(client_msg);
 +    const char *newpath_in = sftp_client_message_get_data(client_msg);
-+    char newpath[PATH_MAX];
++    char newpath[PATH_MAX], oldbare[PATH_MAX];
 +    struct stat st;
 +    int newtype;
 +    if (oldpath == NULL || newpath_in == NULL) {
@@ -242,7 +283,12 @@
 +    }
 +    snprintf(newpath, sizeof newpath, "%s", newpath_in);
 +    newtype = riscos_sftp_strip_suffix(newpath);      /* "name,ffb" also retypes */
-+    if (strcmp(oldpath, newpath) == 0) {              /* same name: only the type changes */
++    /* Listings show typed files as "name,xxx", so the old name may carry
++     * a suffix too; compare without them, or "rt,ffb" -> "rt,fff" would
++     * unlink the very file it is about to rename. */
++    snprintf(oldbare, sizeof oldbare, "%s", oldpath);
++    riscos_sftp_strip_suffix(oldbare);
++    if (strcmp(oldbare, newpath) == 0) {              /* same name: only the type changes */
 +        if (newtype >= 0)
 +            riscos_sftp_set_type(newpath, newtype);
 +        sftp_reply_status(client_msg, SSH_FX_OK, NULL);
@@ -289,7 +335,7 @@
 +    if (h == NULL || h->type != SFTP_FILE_HANDLE || h->fd < 0) {
 +        sftp_reply_status(client_msg, SSH_FX_INVALID_HANDLE, NULL);
 +        return SSH_OK;
-+    }
+     }
 +    if (fstat(h->fd, &st) < 0) {
 +        int saved_errno = errno;
 +        sftp_reply_status(client_msg, unix_errno_to_ssh_stat(saved_errno), NULL);
@@ -299,22 +345,36 @@
 +    sftp_reply_attr(client_msg, &attr);
 +    return SSH_OK;
 +}
-+
+ 
 +static int
 +process_fsetstat_riscos(sftp_client_message client_msg)
 +{
 +    /* Permissions, owner and times cannot be applied on RISC OS; a size
-+     * change through a handle is rare (sftp "put" never sends one). */
++     * is honoured, as clients that truncate through the handle rely on it. */
++    struct sftp_handle *h = sftp_handle(client_msg->sftp, client_msg->handle);
++    if (h == NULL || h->type != SFTP_FILE_HANDLE || h->fd < 0) {
++        sftp_reply_status(client_msg, SSH_FX_INVALID_HANDLE, NULL);
++        return SSH_OK;
++    }
++    if (client_msg->attr != NULL && (client_msg->attr->flags & SSH_FILEXFER_ATTR_SIZE)) {
++        if (client_msg->attr->size > 0x7fffffffULL) {   /* off_t is 32-bit */
++            sftp_reply_status(client_msg, SSH_FX_FAILURE, "Size too large");
++            return SSH_OK;
++        }
++        if (ftruncate(h->fd, (off_t)client_msg->attr->size) < 0) {
++            int saved_errno = errno;
++            sftp_reply_status(client_msg, unix_errno_to_ssh_stat(saved_errno), strerror(saved_errno));
++            return SSH_OK;
++        }
++    }
 +    sftp_reply_status(client_msg, SSH_FX_OK, NULL);
-+    return SSH_OK;
-+}
+     return SSH_OK;
+ }
 +#endif
-+
-+static int
+ 
+ static int
  process_setstat(sftp_client_message client_msg)
- {
-     int rv;
-@@ -1526,6 +1700,11 @@
+@@ -1526,6 +1733,11 @@
          }
      }
  
