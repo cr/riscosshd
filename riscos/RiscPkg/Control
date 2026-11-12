@@ -3,7 +3,7 @@ Priority: Optional
 Section: Network
 Maintainer: Christiane Ruetten <cr@users.noreply.github.com>
 Standards-Version: 0.6.0
-Version: 0.1.0-2
+Version: 0.1.0-3
 Environment: arm
 Licence: Free
 Description: SSH server for RISC OS 5
@@ -15,5 +15,4 @@ Description: SSH server for RISC OS 5
  (LGPL 2.1), mbedTLS (Apache 2.0) and UnixLib, see RiscPkg.Copyright.
 Homepage: https://github.com/cr/riscosshd
 Depends: CryptRandom
-OSDepends: RISC OS (>= 5.00)
 Components: Apps.Network.!SSHd (Movable LookAt Run)
