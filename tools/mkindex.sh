@@ -32,16 +32,17 @@ for zip in "$@"; do
         sum=$(md5 -q "$zip")
     fi
     size=$(wc -c < "$zip" | tr -d ' ')
-    unzip -p "$zip" RiscPkg/Control | sed -e 's/[[:space:]]*$//' >> "$index"
+    control=$(unzip -p "$zip" RiscPkg/Control | sed -e 's/[[:space:]]*$//')
+    printf '%s\n' "$control" >> "$index"
     {
         echo "Size: $size"
         echo "MD5Sum: $sum"
         echo "URL: $base/packages/$name"
         echo
     } >> "$index"
-    pkg=$(unzip -p "$zip" RiscPkg/Control | sed -n 's/^Package: *//p')
-    ver=$(unzip -p "$zip" RiscPkg/Control | sed -n 's/^Version: *//p')
-    desc=$(unzip -p "$zip" RiscPkg/Control | sed -n 's/^Description: *//p')
+    pkg=$(printf '%s\n' "$control" | sed -n 's/^Package: *//p')
+    ver=$(printf '%s\n' "$control" | sed -n 's/^Version: *//p')
+    desc=$(printf '%s\n' "$control" | sed -n 's/^Description: *//p')
     echo "<li><a href=\"packages/$name\">$pkg $ver</a>: $desc</li>" >> "$html"
 done
 echo "</ul></body></html>" >> "$html"
