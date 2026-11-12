@@ -292,41 +292,24 @@ static void set_caret(int win, int ic, const char *text)
 /* Screen size in OS units, from the current mode. */
 static void screen_size(int *w, int *h)
 {
-    int xl = 1279, yl = 1023, xe = 1, ye = 1;
-    _swix(OS_ReadModeVariable, _INR(0, 1) | _OUT(2), -1, 11, &xl);
-    _swix(OS_ReadModeVariable, _INR(0, 1) | _OUT(2), -1, 12, &yl);
-    _swix(OS_ReadModeVariable, _INR(0, 1) | _OUT(2), -1, 4, &xe);
-    _swix(OS_ReadModeVariable, _INR(0, 1) | _OUT(2), -1, 5, &ye);
-    *w = (xl + 1) << xe;
-    *h = (yl + 1) << ye;
+    /* XEigFactor, YEigFactor, XWindLimit, YWindLimit */
+    static const int vars[] = { 4, 5, 11, 12, -1 };
+    int v[4] = { 1, 1, 1279, 1023 };
+    _swix(OS_ReadVduVariables, _INR(0, 1), vars, v);
+    *w = (v[2] + 1) << v[0];
+    *h = (v[3] + 1) << v[1];
 }
 
-/* Open a window on top of the stack: centred on the screen the first time
- * (a window that is already open stays where it is), where the user left
- * it afterwards. */
+/* Open a window on top of the stack, where it is: centred when it was
+ * created, where the user left it afterwards. */
 static void open_on_top(int win)
 {
-    static int centred[3];
-    static int nc;
-    int state[9], i;
+    int state[9];
     if (win < 0)
         return;
     state[0] = win;
     if (_swix(Wimp_GetWindowState, _IN(1), state))
         return;
-    for (i = 0; i < nc && centred[i] != win; i++)
-        ;
-    if (i == nc && nc < 3 && !(state[8] & (1 << 16))) {
-        int sw, sh, w = state[3] - state[1], h = state[4] - state[2];
-        screen_size(&sw, &sh);
-        if (w > sw) w = sw;
-        if (h > sh - 160) h = sh - 160;   /* clear of the icon bar */
-        state[1] = (sw - w) / 2;
-        state[3] = state[1] + w;
-        state[2] = 132 + (sh - 132 - h) / 2;
-        state[4] = state[2] + h;
-        centred[nc++] = win;
-    }
     state[7] = -1;
     _swix(Wimp_OpenWindow, _IN(1), state);
 }
@@ -611,11 +594,21 @@ static void keys_fetch(void)
 
 /* --- creation ------------------------------------------------------------ */
 
-static void window_def(struct wimp_window *w, int x0, int y0, int x1, int y1, unsigned flags,
+/* A window width by height, centred on the screen of the mode at start-up
+ * and clear of the icon bar, so that it first opens in the middle. */
+static void window_def(struct wimp_window *w, int width, int height, unsigned flags,
                        int work_bg, int ey0, int ex1, char *title, int title_size)
 {
+    int sw, sh;
+    screen_size(&sw, &sh);
+    if (width > sw)
+        width = sw;
+    if (height > sh - 160)
+        height = sh - 160;
     memset(w, 0, sizeof *w);
-    w->x0 = x0; w->y0 = y0; w->x1 = x1; w->y1 = y1; w->behind = -1;
+    w->x0 = (sw - width) / 2; w->x1 = w->x0 + width;
+    w->y0 = 132 + (sh - 132 - height) / 2; w->y1 = w->y0 + height;
+    w->behind = -1;
     w->flags = WIN_NEWFORMAT | WIN_MOVEABLE | WIN_BACK | WIN_CLOSE | WIN_TITLE | flags;
     w->title_fg = 7; w->title_bg = 2; w->work_fg = 7; w->work_bg = (unsigned char)work_bg;
     w->scroll_outer = 3; w->scroll_inner = 1; w->highlight = 12;
@@ -717,13 +710,13 @@ static void create_windows(void)
                                   ICON_BUTTON(3) | ICON_FG(7) | ICON_BG(1);
 
     /* Log window: scrolling text, drawn in redraw_log(). */
-    window_def(&w, 100, 200, 1100, 680, WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST | WIN_HSCROLL,
+    window_def(&w, 1000, 480, WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST | WIN_HSCROLL,
                0, -(LOG_MIN_LINES * LOG_LINE_H), LOG_WIDTH, log_title, sizeof log_title);
     w.work_flags = ICON_BUTTON(3);     /* clicks reported: Menu opens the log menu */
     log_win = create_window(&w);
 
     /* Keys window: host key, add and import sections, then the key rows. */
-    window_def(&w, 40, 100, 40 + KEYS_W, 920, WIN_AUTOREDRAW | WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST,
+    window_def(&w, KEYS_W, 820, WIN_AUTOREDRAW | WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST,
                1, KEYS_MIN_EXTENT, KEYS_W, keys_title, sizeof keys_title);
     w.work_flags = ICON_BUTTON(10);    /* click/drag so DataLoad hits the window */
     w.nicons = KI_COUNT;
@@ -760,7 +753,7 @@ static void create_windows(void)
     /* Info window: the usual label/value box, icons only; it is the Info
      * menu item's submenu, so the Wimp opens it on its own. */
     snprintf(info_values[II_LIBSSH], sizeof info_values[II_LIBSSH], "%s", ssh_version(0));
-    window_def(&w, 300, 360, 1240, 780, WIN_AUTOREDRAW, 1, -(16 + II_COUNT * 44), 940,
+    window_def(&w, 940, 420, WIN_AUTOREDRAW, 1, -(16 + II_COUNT * 44), 940,
                info_title, sizeof info_title);
     w.flags &= ~(WIN_BACK | WIN_CLOSE);  /* an Info box has a title bar only */
     w.nicons = II_COUNT * 2;
