@@ -22,6 +22,7 @@
 #include "backend_taskwindow.h"
 #include "auth.h"
 #include "config.h"
+#include "keyfp.h"
 #include "log.h"
 #include "prof.h"
 
@@ -41,6 +42,7 @@ struct session_ctx {
     int auth_tries;
     int authenticated;
     int banner_sent;
+    char refusal[160];          /* why the last login attempt was refused */
     unsigned long addr;         /* peer IPv4 address, 0 if unknown */
     char user[64];
     char peer[48];              /* "10.10.10.2:51234" */
@@ -331,17 +333,27 @@ static int cb_auth_pubkey(ssh_session session, const char *user, struct ssh_key_
     (void)session;
 
     send_banner(s);
+    /* OpenSSH first asks whether a key would do and signs only after a
+     * yes, so refusals mostly happen at the question; the reason is kept
+     * and logged once when the connection ends without a login. */
     if (cfg.user[0] && strcmp(user, cfg.user) != 0) {
-        if (signature_state != SSH_PUBLICKEY_STATE_NONE)
-            log_msg("%s from %s: user name not allowed", user, s->peer);
-        /* fall through: counted like any other failure, so a wrong name
-         * and a wrong key behave alike */
+        char safe[64];
+        snprintf(safe, sizeof safe, "%s", user);
+        log_sanitise(safe);
+        snprintf(s->refusal, sizeof s->refusal, "user name '%s' (log in as %s@...)", safe, cfg.user);
+        /* counted like any other failure, so a wrong name and a wrong key
+         * behave alike */
     } else if (signature_state == SSH_PUBLICKEY_STATE_NONE) {
         /* Probe: tell the client whether this key would be acceptable.
          * Counted like a failed attempt when refused, so probing is bounded. */
+        char fp[128];
         if (auth_key_allowed(pubkey))
             return SSH_AUTH_SUCCESS;
-    } else if (signature_state == SSH_PUBLICKEY_STATE_VALID && auth_key_allowed(pubkey)) {
+        key_fingerprint(pubkey, fp, sizeof fp);
+        snprintf(s->refusal, sizeof s->refusal, "key %s is not authorised", fp);
+    } else if (signature_state != SSH_PUBLICKEY_STATE_VALID) {
+        snprintf(s->refusal, sizeof s->refusal, "invalid signature");
+    } else if (auth_key_allowed(pubkey)) {
         s->authenticated = 1;
         s->deadline = deadline_in(cfg.idle_timeout);
         snprintf(s->user, sizeof s->user, "%s", user);
@@ -415,6 +427,8 @@ static void session_destroy(struct session_ctx *s)
 {
     struct session_ctx **pp;
     struct chan_ctx *c = s->chan;
+    if (!s->authenticated && s->refusal[0])
+        log_msg("%s: login refused: %s", s->peer, s->refusal);
     for (pp = &sessions; *pp; pp = &(*pp)->next) {
         if (*pp == s) {
             *pp = s->next;
