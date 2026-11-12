@@ -281,10 +281,14 @@ static int cb_subsystem_request(ssh_session session, ssh_channel channel,
     (void)session; (void)channel;
     if (channel_busy(c, "subsystem"))
         return 1;
-    if (strcmp(subsystem, "sftp") != 0 || !cfg.allow_sftp) {
-        log_msg("%s: subsystem '%s' refused%s", c->owner_name, subsystem,
-                cfg.allow_sftp ? "" : " (sftp is off)");
+    if (strcmp(subsystem, "sftp") != 0) {
+        log_msg("%s: subsystem '%s' refused", c->owner_name, subsystem);
         return 1;
+    }
+    if (!cfg.allow_sftp) {
+        log_msg("%s: sftp refused (the sftp setting is off)", c->owner_name);
+        chan_refuse(c, "SFTP is turned off on this server (the sftp setting)");
+        return 0;
     }
     log_msg("%s: sftp", c->owner_name);
     return start_backend(c, &backend_sftp, NULL) == 0 ? 0 : 1;

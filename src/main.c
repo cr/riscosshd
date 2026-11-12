@@ -387,7 +387,8 @@ int main(int argc, char **argv)
     /* Every key and nonce comes from CryptRandom.  libssh is patched to
      * fail without it too; this check comes first with a clear message. */
     if (riscos_entropy_check() < 0)
-        return fatal("CryptRandom module missing or failing: install it from PackMan");
+        return fatal("the CryptRandom module is missing or not working: install the CryptRandom "
+                     "package with PackMan, then run !SSHd again");
     ssh_threads_set_callbacks(ssh_threads_get_noop());
     if (ssh_init() < 0)
         return fatal("libssh initialisation failed (random number source)");
@@ -466,7 +467,9 @@ int main(int argc, char **argv)
             wimp_report_error(msg);
             return 1;
         }
-        return fatal("Cannot listen on port %d: is another SSH server running?", cfg.port);
+        return fatal("cannot listen on port %d: another program is using it, or the network "
+                     "is not running; choose another port with Choices..., then Quit and run "
+                     "!SSHd again", cfg.port);
     }
     _swix(OS_SetVarVal, _INR(0, 4), "SSHd$Running", SSHD_VERSION, (int)strlen(SSHD_VERSION), 0, 0);
     {
