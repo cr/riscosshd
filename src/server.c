@@ -126,6 +126,10 @@ void chan_refuse(struct chan_ctx *c, const char *msg)
  * it is drained. */
 static int pump_queue(struct chan_ctx *c, struct buf *q, int is_stderr)
 {
+    /* libssh may run a nested poll inside a write (to finish a rekey),
+     * whose callbacks can append to this queue and move its bytes; so the
+     * chunk is copied out first. */
+    static char chunk[32768];
     while (q->len > 0 && ssh_channel_is_open(c->channel)) {
         uint32_t window = ssh_channel_window_size(c->channel);
         size_t n = q->len;
@@ -134,10 +138,11 @@ static int pump_queue(struct chan_ctx *c, struct buf *q, int is_stderr)
             return 0;
         if (n > window)
             n = window;
-        if (n > 32768)
-            n = 32768;
-        rc = is_stderr ? ssh_channel_write_stderr(c->channel, buf_data(q), (uint32_t)n)
-                       : ssh_channel_write(c->channel, buf_data(q), (uint32_t)n);
+        if (n > sizeof chunk)
+            n = sizeof chunk;
+        memcpy(chunk, buf_data(q), n);
+        rc = is_stderr ? ssh_channel_write_stderr(c->channel, chunk, (uint32_t)n)
+                       : ssh_channel_write(c->channel, chunk, (uint32_t)n);
         if (rc == SSH_AGAIN || rc == 0)
             return 0;
         if (rc < 0) {
