@@ -174,6 +174,7 @@ static const char *const menu_tokens[MENU_ITEMS] = {
 #define MENU_ITEM(i, f) { f, -1, MENU_ITEM_FLAGS, { .ind = { menu_texts[i], (const char *)-1, sizeof menu_texts[i] } } }
 enum { LMENU_OPEN = 0, LMENU_CLEAR, LMENU_ITEMS };
 static char log_menu_texts[LMENU_ITEMS][32];
+static const char *const log_menu_tokens[LMENU_ITEMS] = { "LMOpen", "LMClear" };
 static struct {
     char title[12];
     unsigned char tfg, tbg, wfg, wbg;
@@ -708,8 +709,8 @@ static void load_texts(void)
     if ((int)longest * 16 + 32 > menu.width)
         menu.width = (int)longest * 16 + 32;
     msgs_get("TLog", log_title, sizeof log_title, NULL);
-    msgs_get("LMOpen", log_menu_texts[LMENU_OPEN], sizeof log_menu_texts[0], NULL);
-    msgs_get("LMClear", log_menu_texts[LMENU_CLEAR], sizeof log_menu_texts[0], NULL);
+    for (int i = 0; i < LMENU_ITEMS; i++)
+        msgs_get(log_menu_tokens[i], log_menu_texts[i], sizeof log_menu_texts[i], NULL);
     msgs_get("LMTitle", log_menu.title, sizeof log_menu.title, NULL);
     msgs_get("TKeys", keys_title, sizeof keys_title, NULL);
     msgs_get("TInfo", info_title, sizeof info_title, NULL);
@@ -1001,20 +1002,6 @@ static void key_pressed(int *b)
     _swix(Wimp_ProcessKey, _IN(0), key);
 }
 
-static const char *menu_help(int item)
-{
-    switch (item) {
-    case MENU_INFO:    return "HMInfo";
-    case MENU_HELP:    return "HMHelp";
-    case MENU_LOG:     return "HMLog";
-    case MENU_VERBOSE: return "HMVerbose";
-    case MENU_KEYS:    return "HMKeys";
-    case MENU_OPTIONS: return "HMChoices";
-    case MENU_QUIT:    return "HMQuit";
-    default:           return NULL;
-    }
-}
-
 static const char *keys_help(int ic)
 {
     switch (ic) {
@@ -1036,6 +1023,7 @@ static void help_request(int *b)
 {
     int win = b[8], ic = b[9];
     const char *text = NULL;
+    char token[16];
     if (win == -2)
         text = "HIcon";
     else if (win == log_win)
@@ -1045,13 +1033,17 @@ static void help_request(int *b)
     else if (win == keys_win)
         text = keys_help(ic);
     else {
-        /* any other window sent to us is our open menu: ask the Wimp which
-         * item is under the pointer */
+        /* Any other window sent to us is our open menu: ask the Wimp which
+         * item is under the pointer.  Every item's help token is its text
+         * token with an H in front, so a new item needs no code here. */
         int sel[4] = { -1, -1, -1, -1 };
-        if (_swix(Wimp_GetMenuState, _INR(0, 3), 1, sel, win, ic) == NULL)
-            text = current_menu == &log_menu
-                 ? (sel[0] == LMENU_OPEN ? "HLMOpen" : sel[0] == LMENU_CLEAR ? "HLMClear" : NULL)
-                 : menu_help(sel[0]);
+        int is_log = current_menu == &log_menu;
+        int count = is_log ? LMENU_ITEMS : MENU_ITEMS;
+        if (_swix(Wimp_GetMenuState, _INR(0, 3), 1, sel, win, ic) == NULL &&
+            sel[0] >= 0 && sel[0] < count) {
+            snprintf(token, sizeof token, "H%s", (is_log ? log_menu_tokens : menu_tokens)[sel[0]]);
+            text = token;
+        }
     }
     if (!text)
         return;
