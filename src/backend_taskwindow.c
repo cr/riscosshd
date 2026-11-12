@@ -71,8 +71,6 @@ struct tw_state {
     int esc;                   /* pty: inside a terminal escape sequence (ESC_*) */
     int cr_pending;            /* the last packet ended in CR: skip a leading LF */
     int quitting;              /* exit after a paste: drop later input */
-    unsigned char vdu[10];     /* output: a VDU code and its parameters so far */
-    int vdu_have, vdu_need;
     char line[16];             /* shell: start of the line being typed, for 'exit' */
     size_t line_len;           /* its full length, even past sizeof line */
     char *scrap;               /* exec: the Obey file, deleted at the end */
@@ -473,80 +471,6 @@ const struct backend_ops backend_taskwindow = {
     "taskwindow", tw_start, tw_data, tw_eof, tw_poll, tw_stop
 };
 
-/* ---- output: RISC OS VDU codes to a terminal ------------------------------ */
-
-/* Parameter bytes that follow each VDU code 0-31. */
-static const unsigned char vdu_params[32] = {
-    0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 1, 2, 5, 0, 0, 1, 9, 8, 5, 0, 0, 4, 4, 0, 2
-};
-
-/* A complete VDU control sequence, for a pty: the ones a terminal can
- * show become ANSI sequences, the rest are dropped. */
-static void vdu_control(struct chan_ctx *c, const unsigned char *v)
-{
-    char esc[24];
-    switch (v[0]) {
-    case 7:  chan_output_str(c, "\a"); break;                    /* bell */
-    case 8:  chan_output_str(c, "\b"); break;                    /* cursor left */
-    case 9:  chan_output_str(c, "\033[C"); break;                /* cursor right */
-    case 11: chan_output_str(c, "\033[A"); break;                /* cursor up */
-    case 12: case 22:                                            /* CLS, MODE */
-             chan_output_str(c, "\033[H\033[2J"); break;
-    case 17:                                                     /* COLOUR c */
-        if (v[1] < 128)
-            snprintf(esc, sizeof esc, "\033[%dm", (v[1] & 15) < 8 ? 30 + (v[1] & 7) : 90 + (v[1] & 7));
-        else
-            snprintf(esc, sizeof esc, "\033[%dm", 40 + (v[1] & 7));
-        chan_output_str(c, esc);
-        break;
-    case 20: chan_output_str(c, "\033[0m"); break;               /* default colours */
-    case 30: chan_output_str(c, "\033[H"); break;                /* home */
-    case 31:                                                     /* TAB(x, y) */
-        snprintf(esc, sizeof esc, "\033[%d;%dH", v[2] + 1, v[1] + 1);
-        chan_output_str(c, esc);
-        break;
-    default: break;
-    }
-}
-
-/* Relay a child's VDU output.  Text, LF and CR go through chan_output_vdu
- * (line ends); control codes and their parameter bytes, which would show
- * as junk, are translated for a pty and dropped for a pipe; ReadLine's
- * echo of a deleted character (DEL) becomes backspace-space-backspace. */
-static void relay_output(struct tw_state *s, const char *d, size_t n)
-{
-    struct chan_ctx *c = s->chan;
-    size_t start = 0;
-    for (size_t i = 0; i < n; i++) {
-        unsigned char ch = (unsigned char)d[i];
-        if (s->vdu_need) {               /* a parameter byte */
-            s->vdu[s->vdu_have++] = ch;
-            if (--s->vdu_need == 0 && c->pty)
-                vdu_control(c, s->vdu);
-            start = i + 1;
-            continue;
-        }
-        if (ch >= 32 && ch != 127)
-            continue;                    /* text: sent in one piece below */
-        if (ch == 10 || ch == 13 || (ch == 9 && !c->pty))
-            continue;                    /* line ends (and a tab in a pipe) */
-        chan_output_vdu(c, d + start, i - start);
-        start = i + 1;
-        if (ch == 127) {
-            if (c->pty)
-                chan_output_str(c, "\b \b");
-        } else {
-            s->vdu[0] = ch;
-            s->vdu_have = 1;
-            s->vdu_need = vdu_params[ch];
-            if (s->vdu_need == 0 && c->pty)
-                vdu_control(c, s->vdu);
-        }
-    }
-    chan_output_vdu(c, d + start, n - start);
-}
-
 /* ---- Wimp messages ------------------------------------------------------- */
 
 /* The exit status of a child: for exec, SSHd$Rc<id> is 1 until the
@@ -601,7 +525,7 @@ int tw_message(int reason, int *block)
             size_t max = block[0] > 24 ? (size_t)(block[0] - 24) : 0;
             if (n > max)
                 n = max;
-            relay_output(s, d, n);
+            chan_output_vdu(s->chan, d, n);
             s->last_activity = ro_now_cs();
         }
         if (s) {

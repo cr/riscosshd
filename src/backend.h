@@ -54,6 +54,8 @@ struct chan_ctx {
 
     int pty;                 /* client requested a pty: raw mode, CRLF output */
     int vdu_after_lf;        /* the last VDU byte sent was a LF (see chan_output_vdu) */
+    unsigned char vdu[10];   /* a VDU code and its parameters so far */
+    int vdu_have, vdu_need;
 
     const struct backend_ops *backend;
     void *backend_data;
@@ -75,7 +77,9 @@ int chan_output_str(struct chan_ctx *c, const char *s);
 int chan_output_err(struct chan_ctx *c, const char *s);
 /* Queue RISC OS VDU output.  RISC OS ends lines with LF CR: the CR after
  * a LF is dropped, and in pty mode each LF becomes CRLF while any other CR
- * (a line redrawing itself) passes through; in pipe mode every CR goes. */
+ * (a line redrawing itself) passes through; in pipe mode every CR goes.
+ * VDU control codes become ANSI sequences for a pty where a terminal has
+ * an equivalent; otherwise they and their parameters are dropped. */
 int chan_output_vdu(struct chan_ctx *c, const char *data, size_t len);
 /* Mark the session finished with the given exit status. */
 void chan_finish(struct chan_ctx *c, int status);

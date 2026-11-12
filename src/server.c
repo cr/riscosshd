@@ -94,7 +94,10 @@ int chan_output_err(struct chan_ctx *c, const char *s)
     return buf_append(&c->err, s, strlen(s));
 }
 
-int chan_output_vdu(struct chan_ctx *c, const char *data, size_t len)
+/* Text with RISC OS line ends, which are LF CR: the CR after a LF is
+ * dropped, and in pty mode each LF becomes CRLF while any other CR (a
+ * line redrawing itself) passes through; in pipe mode every CR goes. */
+static int output_lines(struct chan_ctx *c, const char *data, size_t len)
 {
     size_t i, start = 0;
     for (i = 0; i < len; i++) {
@@ -114,6 +117,79 @@ int chan_output_vdu(struct chan_ctx *c, const char *data, size_t len)
     if (len > start)
         return chan_output(c, data + start, len - start);
     return 0;
+}
+
+/* Parameter bytes that follow each VDU code 0-31. */
+static const unsigned char vdu_params[32] = {
+    0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 1, 2, 5, 0, 0, 1, 9, 8, 5, 0, 0, 4, 4, 0, 2
+};
+
+/* A complete VDU control sequence, for a pty: the ones a terminal can
+ * show become ANSI sequences, the rest are dropped. */
+static void vdu_control(struct chan_ctx *c, const unsigned char *v)
+{
+    char esc[24];
+    switch (v[0]) {
+    case 7:  chan_output_str(c, "\a"); break;                    /* bell */
+    case 8:  chan_output_str(c, "\b"); break;                    /* cursor left */
+    case 9:  chan_output_str(c, "\033[C"); break;                /* cursor right */
+    case 11: chan_output_str(c, "\033[A"); break;                /* cursor up */
+    case 12: case 22:                                            /* CLS, MODE */
+             chan_output_str(c, "\033[H\033[2J"); break;
+    case 17:                                                     /* COLOUR c */
+        if (v[1] < 128)
+            snprintf(esc, sizeof esc, "\033[%dm", (v[1] & 15) < 8 ? 30 + (v[1] & 7) : 90 + (v[1] & 7));
+        else
+            snprintf(esc, sizeof esc, "\033[%dm", 40 + (v[1] & 7));
+        chan_output_str(c, esc);
+        break;
+    case 20: chan_output_str(c, "\033[0m"); break;               /* default colours */
+    case 30: chan_output_str(c, "\033[H"); break;                /* home */
+    case 31:                                                     /* TAB(x, y) */
+        snprintf(esc, sizeof esc, "\033[%d;%dH", v[2] + 1, v[1] + 1);
+        chan_output_str(c, esc);
+        break;
+    default: break;
+    }
+}
+
+/* Text, LF and CR go through output_lines; control codes and their
+ * parameter bytes, which would show as junk, are translated for a pty and
+ * dropped for a pipe; ReadLine's echo of a deleted character (DEL)
+ * becomes backspace-space-backspace.  A sequence may be split across
+ * calls. */
+int chan_output_vdu(struct chan_ctx *c, const char *data, size_t len)
+{
+    size_t start = 0;
+    for (size_t i = 0; i < len; i++) {
+        unsigned char ch = (unsigned char)data[i];
+        if (c->vdu_need) {               /* a parameter byte */
+            c->vdu[c->vdu_have++] = ch;
+            if (--c->vdu_need == 0 && c->pty)
+                vdu_control(c, c->vdu);
+            start = i + 1;
+            continue;
+        }
+        if (ch >= 32 && ch != 127)
+            continue;                    /* text: sent in one piece below */
+        if (ch == 10 || ch == 13 || (ch == 9 && !c->pty))
+            continue;                    /* line ends (and a tab in a pipe) */
+        if (output_lines(c, data + start, i - start) < 0)
+            return -1;
+        start = i + 1;
+        if (ch == 127) {
+            if (c->pty)
+                chan_output_str(c, "\b \b");
+        } else {
+            c->vdu[0] = ch;
+            c->vdu_have = 1;
+            c->vdu_need = vdu_params[ch];
+            if (c->vdu_need == 0 && c->pty)
+                vdu_control(c, c->vdu);
+        }
+    }
+    return output_lines(c, data + start, len - start);
 }
 
 void chan_finish(struct chan_ctx *c, int status)
