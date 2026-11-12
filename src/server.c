@@ -309,16 +309,22 @@ static int start_backend(struct chan_ctx *c, const struct backend_ops *b, const 
     return rc;
 }
 
-/* Exec and shell run in a TaskWindow child on the desktop, so output streams
- * as it is produced and a hung command cannot take the server down.  In
- * text mode the TaskWindow backend is unavailable and the in-process
- * OS_CLI backends serve instead; on the desktop they are never used. */
-static int start_command_backend(struct chan_ctx *c, const struct backend_ops *fallback,
-                                 const char *command)
+/* Exec (command set) and shell (command NULL) run in a TaskWindow child on
+ * the desktop, so output streams as it is produced and a hung command
+ * cannot take the server down.  In text mode the TaskWindow backend is
+ * unavailable and the in-process OS_CLI backends serve instead; on the
+ * desktop they are never used.  Returns the request callback's answer. */
+static int start_command_backend(struct chan_ctx *c, const char *command)
 {
-    int rc = start_backend(c, &backend_taskwindow, command);
+    int rc;
+    if (!(command ? cfg.allow_exec : cfg.allow_shell)) {
+        chan_refuse(c, command ? "Command execution is disabled on this server"
+                               : "Interactive sessions are disabled on this server");
+        return 0;
+    }
+    rc = start_backend(c, &backend_taskwindow, command);
     if (rc == BACKEND_UNAVAILABLE)
-        rc = start_backend(c, fallback, command);
+        rc = start_backend(c, command ? &backend_exec : &backend_shell, command);
     return rc == BACKEND_UNAVAILABLE ? 1 : 0;   /* a refusal is answered on stderr */
 }
 
@@ -330,11 +336,7 @@ static int cb_exec_request(ssh_session session, ssh_channel channel,
     log_msg("%s: exec '%s'", c->owner_name, command);
     if (channel_busy(c, "exec"))
         return 1;
-    if (!cfg.allow_exec) {
-        chan_refuse(c, "Command execution is disabled on this server");
-        return 0;
-    }
-    return start_command_backend(c, &backend_exec, command);
+    return start_command_backend(c, command);
 }
 
 static int cb_shell_request(ssh_session session, ssh_channel channel, void *userdata)
@@ -344,13 +346,9 @@ static int cb_shell_request(ssh_session session, ssh_channel channel, void *user
     log_msg("%s: shell%s", c->owner_name, c->pty ? " (pty)" : "");
     if (channel_busy(c, "shell"))
         return 1;
-    if (!cfg.allow_shell) {
-        chan_refuse(c, "Interactive sessions are disabled on this server");
-        return 0;
-    }
-    if (cfg.motd)
+    if (cfg.motd && cfg.allow_shell)    /* not ahead of a refusal */
         chan_output_str(c, cfg.motd);
-    return start_command_backend(c, &backend_shell, NULL);
+    return start_command_backend(c, NULL);
 }
 
 static int cb_subsystem_request(ssh_session session, ssh_channel channel,
