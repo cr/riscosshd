@@ -8,10 +8,28 @@
 int log_verbose = 0;
 static void (*log_sink)(const char *line);
 static const char *log_file;
+static int log_stderr;
+
+/* Lines logged before a sink exists (startup: configuration, listening
+ * port) are kept and replayed into the sink, so the log window is not
+ * empty when it first opens. */
+#define EARLY_LINES 32
+static char early[EARLY_LINES][160];
+static int early_count;
 
 void log_set_sink(void (*sink)(const char *line))
 {
+    int i;
     log_sink = sink;
+    if (sink)
+        for (i = 0; i < early_count; i++)
+            sink(early[i]);
+    early_count = 0;
+}
+
+void log_set_stderr(int on)
+{
+    log_stderr = on;
 }
 
 void log_set_file(const char *path)
@@ -42,8 +60,12 @@ static void vlog(const char *fmt, va_list ap)
     if (log_sink) {
         log_sink(line + 11);            /* the window shows the time only */
     } else {
-        fprintf(stderr, "sshd: %s\n", line + 11);
-        fflush(stderr);
+        if (early_count < EARLY_LINES)
+            snprintf(early[early_count++], sizeof early[0], "%s", line + 11);
+        if (log_stderr) {               /* text mode: this is the TaskWindow */
+            fprintf(stderr, "sshd: %s\n", line + 11);
+            fflush(stderr);
+        }
     }
 }
 

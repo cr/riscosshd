@@ -326,6 +326,8 @@ int main(int argc, char **argv)
         }
     }
 
+    log_set_stderr(text_mode);
+    log_msg("SSHd %s starting", SSHD_VERSION);
     ssh_threads_set_callbacks(ssh_threads_get_noop());
     if (ssh_init() < 0)
         return fatal("libssh initialisation failed%s", "");
