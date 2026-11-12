@@ -72,7 +72,7 @@ $(BINARY): $(SYSROOT)/lib/libssh.a $(SRC)
 	$(RUN) sh -c 'cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-riscos.cmake \
 	    -DRISCOS_SYSROOT=/work/$(SYSROOT) -DCMAKE_BUILD_TYPE=Release >/dev/null && \
 	    cmake --build build -j$$(nproc)'
-	@cp -R "riscos/!SSHd/." "build/!SSHd/" && touch "$(BINARY)"   # app files change without a relink
+	@$(RUN) sh -c 'cp -R "riscos/!SSHd/." "build/!SSHd/" && touch "$(BINARY)"'   # app files change without a relink; in the container, which owns build/
 
 # --- PackMan package ---------------------------------------------------------
 # Layout: Apps/Network/!SSHd, RiscPkg/Control, RiscPkg/Copyright, zipped with
