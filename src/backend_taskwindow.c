@@ -66,6 +66,7 @@ struct tw_state {
     int last_activity;         /* centiseconds, OS_ReadMonotonicTime */
     int last_sent;             /* when the last input chunk went out */
     int awaiting_output;       /* a chunk is out and nothing came back yet */
+    int esc;                   /* pty: inside a terminal escape sequence (ESC_*) */
     char *scrap;               /* exec: the Obey file, deleted at the end */
     char rcvar[24];            /* exec: "SSHd$Rc<id>" */
     struct buf pending;        /* input waiting for the child (paced, or not yet ready) */
@@ -273,6 +274,8 @@ static int tw_start(struct chan_ctx *c, const char *command)
     return 0;
 }
 
+enum { ESC_NONE, ESC_CSI, ESC_SS3 };
+
 static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
 {
     struct tw_state *s = c->backend_data;
@@ -284,6 +287,25 @@ static int tw_data(struct chan_ctx *c, const char *buf, size_t len)
         if (n == sizeof out) {           /* translate in message-sized chunks */
             queue_input(s, out, n);
             n = 0;
+        }
+        /* A terminal sends cursor and editing keys as escape sequences
+         * (ESC [ ... final, or ESC O x).  ReadLine has no use for them, and
+         * passing them on would turn the ESC into an Escape condition and
+         * type the rest onto the command line, so they are dropped; a lone
+         * ESC key is still Escape. */
+        if (s->esc == ESC_CSI) {
+            if (ch >= 0x40 && ch <= 0x7e)
+                s->esc = ESC_NONE;       /* final byte */
+            continue;
+        }
+        if (s->esc == ESC_SS3) {
+            s->esc = ESC_NONE;
+            continue;
+        }
+        if (c->pty && ch == 0x1b && i + 1 < len && (buf[i + 1] == '[' || buf[i + 1] == 'O')) {
+            s->esc = buf[i + 1] == '[' ? ESC_CSI : ESC_SS3;
+            i++;
+            continue;
         }
         if (ch == '\n' || ch == '\r') {
             out[n++] = '\r';                 /* RISC OS line end for ReadLine */
