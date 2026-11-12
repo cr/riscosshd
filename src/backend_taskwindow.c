@@ -294,7 +294,9 @@ enum { ESC_NONE, ESC_CSI, ESC_SS3 };
 /* The shell's line as the client types it: what ReadLine will see. */
 static void line_add(struct tw_state *s, unsigned char ch)
 {
-    if (ch == 0x7f) {
+    if (ch == 0x15) {                    /* Ctrl-U: ReadLine clears its line */
+        s->line_len = 0;
+    } else if (ch == 0x7f) {
         if (s->line_len)
             s->line_len--;
     } else {
