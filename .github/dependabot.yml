@@ -1,0 +1,8 @@
+# Keeps the commit-pinned actions in .github/workflows current: a monthly
+# pull request per update, with the version comment next to the SHA.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

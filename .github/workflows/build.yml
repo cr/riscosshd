@@ -10,11 +10,19 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+# A newer push to the same pull request makes an older run pointless.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+# Actions are pinned by commit; .github/dependabot.yml keeps the pins current.
 jobs:
   riscos:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Check that a release tag matches the Control file
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -27,7 +35,9 @@ jobs:
         # hosted runners; a buildx layer cache made the job slower.
         run: docker build --platform linux/amd64 -t riscosshd-gccsdk docker
       - name: Cache cross-built dependencies
-        uses: actions/cache@v4
+        # not for releases: a tag builds everything from the pinned sources
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: deps/sysroot
           key: deps-${{ hashFiles('tools/build-deps.sh', 'deps/mbedtls_riscos_config.h', 'deps/patches/**', 'deps/riscos-compat/**', 'cmake/toolchain-riscos.cmake', 'docker/Dockerfile') }}
@@ -37,7 +47,7 @@ jobs:
           test -d deps/sysroot && find deps/sysroot -exec touch {} + || true
       - name: Build (dependencies, server, package)
         run: make ENGINE=docker WERROR=1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: SSHd
           path: dist/SSHd_*.zip
@@ -45,7 +55,8 @@ jobs:
   release:
     needs: riscos
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: write
       pages: write
@@ -54,8 +65,10 @@ jobs:
       group: pages
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: SSHd
           path: dist
@@ -68,8 +81,8 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" dist/SSHd_*.zip \
               --title "SSHd ${GITHUB_REF_NAME#v}" \
               --notes "PackMan source (add under Sources): $site/pkg/index"
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
-      - uses: actions/deploy-pages@v4
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
