@@ -4,7 +4,7 @@ Release notes for each package version.  A `v<version>` tag publishes the
 section of the same version as its GitHub release notes; the build fails
 when that section is missing.
 
-## Unreleased
+## 0.2.0-1 - 2026-11-13
 
 - SFTP renames never lose a file, case-only renames included.
 - Unauthenticated clients can no longer make the server verify an unlimited

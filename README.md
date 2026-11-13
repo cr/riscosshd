@@ -8,7 +8,7 @@ and accepts public-key logins only.  `ssh host '*Cat'` runs a command,
 `sftp`/`scp` move files.  Keys are managed in a desktop window, including
 an import that logs in to another machine and fetches its public keys.
 
-Status: version 0.1.0, tested on RISC OS 5.30 in RPCEmu and installable
+Status: version 0.2.0, tested on RISC OS 5.30 in RPCEmu and installable
 through PackMan.  See "Roadmap".
 
 **Security model.**  Any key listed in `Choices:SSHd.authkeys` has full
