@@ -4,6 +4,16 @@ Release notes for each package version.  A `v<version>` tag publishes the
 section of the same version as its GitHub release notes; the build fails
 when that section is missing.
 
+## 0.2.1-1 - 2026-11-13
+
+- A system variable that is not set no longer turns into an empty part of
+  a path.  With `Choices$Write` unset, SSHd used to keep its settings in
+  `.SSHd`, inside whatever the current directory was; now it stops with a
+  message naming the missing variable.  The SFTP start directory and the scrap directory are checked
+  the same way.
+- Tested on RISC OS Direct 5.31 on a Raspberry Pi as well as in RPCEmu;
+  `docs/systems.md` records how the two differ.
+
 ## 0.2.0-2 - 2026-11-13
 
 - The package installs on native filing systems (SDFS, ADFS): files carry
