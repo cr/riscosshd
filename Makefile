@@ -104,17 +104,19 @@ $(BINARY): $(SYSROOT)/lib/libssh.a $(SRC) $(PROFILE_STAMP)
 
 # --- PackMan package ---------------------------------------------------------
 # Layout: Apps/Network/!SSHd, RiscPkg/Control, RiscPkg/Copyright, zipped with
-# ,xxx filetype suffixes.  The Components line in Control carries the
-# (Movable LookAt Run) flags, so PackMan can add !SSHd to the boot sequence.
+# RISC OS filetypes: mkzip.py turns the ,xxx suffixes into the Acorn extra
+# field, the only filetype source PackMan reads.  The Components line in
+# Control carries the (Movable LookAt Run) flags, so PackMan can add !SSHd
+# to the boot sequence.
 package: $(PACKAGE)
 
 # RiscPkg/Copyright is our licence plus those of the statically linked
-# libraries; mkzip.sh makes the zip reproducible.
-$(PACKAGE): $(BINARY) riscos/RiscPkg/Control LICENSE tools/mkcopyright.sh tools/mkzip.sh \
+# libraries; mkzip.py makes the zip reproducible.
+$(PACKAGE): $(BINARY) riscos/RiscPkg/Control LICENSE tools/mkcopyright.sh tools/mkzip.py \
             $(wildcard riscos/RiscPkg/licences/*)
 	$(RUN) sh -c 'rm -rf build/pkg && mkdir -p build/pkg/Apps/Network build/pkg/RiscPkg dist && \
 	    cp -R "build/!SSHd" build/pkg/Apps/Network/ && cp riscos/RiscPkg/Control build/pkg/RiscPkg/ && \
-	    sh tools/mkcopyright.sh . build/pkg/RiscPkg/Copyright && sh tools/mkzip.sh build/pkg $(PACKAGE)'
+	    sh tools/mkcopyright.sh . build/pkg/RiscPkg/Copyright && python3 tools/mkzip.py build/pkg $(PACKAGE)'
 	@echo "package: $(PACKAGE)"
 
 # --- local RPCEmu ------------------------------------------------------------
