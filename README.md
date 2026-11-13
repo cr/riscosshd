@@ -8,8 +8,8 @@ and accepts public-key logins only.  `ssh host '*Cat'` runs a command,
 `sftp`/`scp` move files.  Keys are managed in a desktop window, including
 an import that logs in to another machine and fetches its public keys.
 
-Status: version 0.2.0, tested on RISC OS 5.30 in RPCEmu and installable
-through PackMan.  See "Roadmap".
+Status: version 0.2.0, tested on RISC OS 5.27 in RPCEmu and 5.31 on a
+Raspberry Pi (RISC OS Direct), and installable through PackMan.  See "Roadmap".
 
 **Security model.**  Any key listed in `Choices:SSHd.authkeys` has full
 control of the machine: every `*command`, and over SFTP every filing
@@ -20,7 +20,7 @@ the key list accordingly.
 
 ## Installation
 
-SSHd needs RISC OS 5 (developed and tested against 5.30 in RPCEmu), a
+SSHd needs RISC OS 5 (tested on 5.27 and 5.31, see `docs/systems.md`), a
 configured network connection, and the CryptRandom module, which the
 package pulls in.  The server listens on TCP port 22; if the machine sits
 behind a router or an emulator's NAT, forward that port to reach it from
@@ -153,7 +153,8 @@ most ten in any ten seconds.  The first three numbers are settings.
 **SFTP and scp** use libssh's SFTP server, so `sftp` and modern `scp`
 (OpenSSH 9 and later, which transfers over SFTP) both work; the legacy
 `scp -O` protocol does not.  Paths are what UnixLib makes of RISC OS
-names: the boot disc root is `/HostFS::HostFS.$/` on RPCEmu, and
+names: the boot disc root is `/HostFS::HostFS.$/` on RPCEmu and
+`/SDFS::ROdirect.$/` on a Raspberry Pi with RISC OS Direct, and
 `dir.file/ext` appears as `/dir/file.ext`.  Permissions, owners and
 timestamps are accepted and ignored, as RISC OS has nothing to map them
 to; files cannot be read or written past 2 GB.  Filetypes follow the

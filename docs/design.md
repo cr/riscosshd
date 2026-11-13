@@ -71,5 +71,5 @@ docker/               the GCCSDK container
 tools/                dependency build, container engine, RPCEmu install, sprites,
                       Copyright file and PackMan index generators
 .github/workflows/    CI build and test; releases on v<version> tags
-docs/                 design, toolchain, RPCEmu notes, audit
+docs/                 design, toolchain, RPCEmu notes, test systems, audit
 ```
