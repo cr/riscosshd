@@ -4,6 +4,13 @@ Release notes for each package version.  A `v<version>` tag publishes the
 section of the same version as its GitHub release notes; the build fails
 when that section is missing.
 
+## 0.2.0-2 - 2026-11-13
+
+- The package installs on native filing systems (SDFS, ADFS): files carry
+  their RISC OS filetypes instead of ,xxx names, which only HostFS
+  understood.  0.2.0-1 failed on a Raspberry Pi with "File ...!Run not
+  found".
+
 ## 0.2.0-1 - 2026-11-13
 
 - SFTP renames never lose a file, case-only renames included.
