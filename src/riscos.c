@@ -219,10 +219,16 @@ int ro_local_address(char *buf, size_t len)
             size_t salen = sa->sa_len > sizeof *sa ? sa->sa_len : sizeof *sa;
             if (sa->sa_family == AF_INET) {
                 struct in_addr a = ((struct sockaddr_in *)sa)->sin_addr;
-                if ((ntohl(a.s_addr) >> 24) != 127) {
+                unsigned long h = ntohl(a.s_addr);
+                /* Loopback never; a self-assigned 169.254.x.x address
+                 * (an Ethernet port without a cable gets one) only if
+                 * there is nothing better, as on a Pi whose Wi-Fi
+                 * address comes after it. */
+                if ((h >> 24) != 127 && (rc < 0 || (h >> 16) != 0xA9FE)) {
                     snprintf(buf, len, "%s", inet_ntoa(a));
                     rc = 0;
-                    break;
+                    if ((h >> 16) != 0xA9FE)
+                        break;
                 }
             }
             off += IFNAMSIZ + salen;

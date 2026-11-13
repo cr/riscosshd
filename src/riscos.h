@@ -64,8 +64,9 @@ int ro_run_command(const char *command, const char *capture_path,
  * may also serve other signals, so the server stops. */
 void ro_init_signals(void (*quit_fn)(int));
 
-/* The machine's first IPv4 address other than loopback, as text, into
- * buf; returns 0, or -1 if there is none (no network yet). */
+/* The machine's first IPv4 address other than loopback, preferring one
+ * that is not self-assigned (169.254.x.x), as text, into buf; returns 0,
+ * or -1 if there is none (no network yet). */
 int ro_local_address(char *buf, size_t len);
 
 /* Centiseconds since the machine started (OS_ReadMonotonicTime), and the
