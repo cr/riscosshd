@@ -10,4 +10,6 @@ RMEnsure CryptRandom 0.00 IfThere System:Modules.CryptRand Then RMLoad System:Mo
 | UnixLib: no filename suffix swapping, keep our RISC OS paths as they are
 Set UnixEnv$sshd$sfix ""
 WimpSlot -min 2048K -max 2048K
-Run <SSHd$Dir>.sshd -d <Choices$Write>.SSHd %*0
+| The server finds its Choices directory itself, and stops with a clear
+| message when Choices$Write is not set.
+Run <SSHd$Dir>.sshd %*0
