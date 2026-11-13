@@ -1,18 +1,22 @@
 # Test systems
 
-SSHd runs on two machines during development.  They differ in ways that
-have already caught bugs, so test a change on both when it touches
-paths, packaging or the boot sequence.
+SSHd runs on two machines during development, both with RISC OS Direct
+but in different editions: the RPCEmu "Easy-Start" bundle is an
+unofficial Risc PC port of an older Direct release, the Pi runs the
+official, current Raspberry Pi edition.  They differ in ways that have
+already caught bugs, so test a change on both when it touches paths,
+packaging, networking or the boot sequence.  Plain RISC OS 5 from RISC
+OS Open (the HardDisc4 image) is not among them and is untested.
 
 | | RPCEmu (`make install`) | Raspberry Pi |
 |---|---|---|
-| RISC OS | 5.27 (19 Mar 2020) ROM, 5.20 boot hooks | 5.31 (21 Jul 2024), RISC OS Direct |
+| RISC OS | Direct, Easy-Start bundle (Risc PC port): 5.27 ROM (19 Mar 2020), 5.20 boot hooks | Direct, Raspberry Pi edition: 5.31 (21 Jul 2024), 5.30 boot hooks |
 | boot disc | `HostFS::HostFS.$`, a folder on the Mac | `SDFS::ROdirect.$`, a native SD card |
 | `Boot$Dir` | `HostFS::HostFS.$.!Boot` | `SDFS::ROdirect.$.!BOOT` (upper case) |
 | `Choices$Write` | `Boot:Choices` (a path variable) | `SDFS::ROdirect.$.!BOOT.Choices` |
 | `Wimp$ScrapDir` | `HostFS::HostFS.$.!Boot.Resources.!Scrap.ScrapDirs.ScrapDir` | `SDFS::ROdirect.$.!BOOT.Resources.!Scrap.ScrapDirs.ScrapDir` |
 | CryptRandom | `System:Modules.CryptRand` (2020) | `System:Modules.CryptRand`, the IPv6 build 0.20 (2024) |
-| network | NAT, 10.10.10.10, port 22 forwarded from 2222 | Wi-Fi `wb0`, DHCP, IPv4 and IPv6; unstable (below) |
+| network | Acorn Internet stack, EtherRPCEm, NAT at 10.10.10.10, port 22 forwarded from 2222 | Direct's OBSD stack with NetManager, Wi-Fi `wb0`, DHCP, IPv4 and IPv6; unstable (below) |
 | reach it | `ssh -p 2222 riscos@localhost` | `ssh riscos@riscos` |
 | installed by | copying `build/!SSHd` | PackMan |
 
