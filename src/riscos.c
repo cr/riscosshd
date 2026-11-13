@@ -20,11 +20,48 @@
 #define OS_ChangeRedirection 0x5e
 #endif
 
+/* Whether a system variable exists: OS_ReadVarVal with R2 < 0 only
+ * checks, and returns R2 = 0 for a variable that is not set.  It returns
+ * an error either way, so _kernel_swi, which hands back the registers
+ * regardless; _swix would leave the output unwritten. */
+static int var_exists(const char *name)
+{
+    _kernel_swi_regs r;
+    r.r[0] = (int)name;
+    r.r[1] = 0;
+    r.r[2] = -1;
+    r.r[3] = 0;
+    r.r[4] = 0;
+    _kernel_swi(OS_ReadVarVal, &r, &r);
+    return r.r[2] != 0;
+}
+
 char *ro_gstrans(const char *src)
 {
     char buf[1024];
     int len = 0;
-    _kernel_oserror *e = _swix(OS_GSTrans, _INR(0, 2) | _OUT(2), src, buf, sizeof buf - 1, &len);
+    _kernel_oserror *e;
+    /* GSTrans expands an unset variable to nothing, which leaves a path
+     * that still looks valid ("<Choices$Write>.SSHd" becomes ".SSHd", a
+     * directory in the current one): refuse it instead.  <n> is a
+     * character code and |< a plain <, neither a variable. */
+    for (const char *p = src; (p = strchr(p, '<')) != NULL; p++) {
+        const char *end = strchr(p + 1, '>');
+        char name[64];
+        size_t n;
+        if (!end)
+            break;
+        n = (size_t)(end - p - 1);
+        if (n == 0 || n >= sizeof name || (p[1] >= '0' && p[1] <= '9') || (p > src && p[-1] == '|'))
+            continue;
+        memcpy(name, p + 1, n);
+        name[n] = '\0';
+        if (!var_exists(name)) {
+            log_msg("'%s': %s is not set", src, name);
+            return NULL;
+        }
+    }
+    e = _swix(OS_GSTrans, _INR(0, 2) | _OUT(2), src, buf, sizeof buf - 1, &len);
     if (e) {
         log_msg("GSTrans '%s': %s", src, e->errmess);
         return NULL;

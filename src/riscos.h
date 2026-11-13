@@ -18,7 +18,8 @@
 #define WIMP_USER_MESSAGE_RECORDED 18
 #define WIMP_USER_MESSAGE_ACK      19
 
-/* Expand <System$Variables> in src; returns malloc'd string or NULL. */
+/* Expand <System$Variables> in src; returns malloc'd string, or NULL
+ * (logged) when a variable is not set or GSTrans fails. */
 char *ro_gstrans(const char *src);
 
 /* Load a whole file (native RISC OS path) into a malloc'd, NUL-terminated
