@@ -19,6 +19,7 @@ struct akey {
 
 static struct akey *keys;
 static int nkeys;
+static unsigned generation;           /* bumped by every change to keys[] */
 static const char *keys_path;
 
 static void free_akey(struct akey *k)
@@ -208,6 +209,7 @@ int auth_add_keys(char *text, int *added, int *duplicate, int *invalid,
     add_lines(text, 1, added, duplicate, invalid, err, errlen);
     if (*added == 0)
         return 0;
+    generation++;
     out = format_keys(first, &len);
     if (!out) {
         snprintf(err, errlen, "added for this session only: out of memory saving it");
@@ -216,6 +218,11 @@ int auth_add_keys(char *text, int *added, int *duplicate, int *invalid,
     rc = append_to_file(out, len, err, errlen);
     free(out);
     return rc;
+}
+
+unsigned auth_generation(void)
+{
+    return generation;
 }
 
 int auth_count(void)
@@ -257,6 +264,7 @@ int auth_remove_key(int i, char *err, size_t errlen)
     free_akey(&keys[i]);
     memmove(&keys[i], &keys[i + 1], sizeof *keys * (size_t)(nkeys - i - 1));
     nkeys--;
+    generation++;
     e = keys_path ? save_all() : NULL;
     if (e) {
         snprintf(err, errlen, "removed for this session only; cannot save: %s", e);

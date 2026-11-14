@@ -20,6 +20,9 @@ int auth_key_allowed(ssh_key pubkey);
 int auth_add_keys(char *text, int *added, int *duplicate, int *invalid,
                   char *err, size_t errlen);
 int auth_count(void);
+/* Changes whenever a key is added or removed, by whatever route: a window
+ * showing the keys compares it to know when to refresh. */
+unsigned auth_generation(void);
 /* One-line description of key i: "ED25519 SHA256:... comment", the
  * fingerprint as ssh-keygen -l shows it. */
 void auth_describe_one(int i, char *buf, size_t len);

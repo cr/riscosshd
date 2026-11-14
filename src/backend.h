@@ -16,6 +16,8 @@
  *                  output captured to a file, then the channel closes.
  *   backend_shell  text mode only: a line-mode "*" prompt on the same
  *                  capture mechanism, one OS_CLI call per line.
+ *   backend_copyid ssh-copy-id's install command: the keys on its input
+ *                  are added to the authorised keys.
  */
 #ifndef SSHD_BACKEND_H
 #define SSHD_BACKEND_H
@@ -52,6 +54,7 @@ struct chan_ctx {
     const char *owner_name;  /* user name, for log lines */
 
     int pty;                 /* client requested a pty: raw mode, CRLF output */
+    int keys_only;           /* logged in by pairing: may only run ssh-copy-id */
     int vdu_after_lf;        /* the last VDU byte sent was a LF (see chan_output_vdu) */
     unsigned char vdu[10];   /* a VDU code and its parameters so far */
     int vdu_have, vdu_need;
@@ -92,5 +95,9 @@ int backend_run_cli(struct chan_ctx *c, const char *command);
 extern const struct backend_ops backend_exec;
 extern const struct backend_ops backend_shell;
 extern const struct backend_ops backend_sftp;
+extern const struct backend_ops backend_copyid;
+
+/* 1 if an exec command is ssh-copy-id's key installer (backend_copyid). */
+int copyid_command(const char *command);
 
 #endif

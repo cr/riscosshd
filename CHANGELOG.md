@@ -4,6 +4,20 @@ Release notes for each package version.  A `v<version>` tag publishes the
 section of the same version as its GitHub release notes; the build fails
 when that section is missing.
 
+## Unreleased
+
+- `ssh-copy-id` works.  SSHd recognises its install command and adds the
+  keys it sends; with no key authorised yet, the SSH Keys window's new
+  ssh-copy-id Pairing section gives a one-time code to type as the
+  password.  The code works for one login within two minutes, and that
+  login can only add keys.  Password logins stay off otherwise.
+- `ssh host exit` succeeds, as ssh-copy-id expects when it checks
+  whether a key is already authorised.
+- The SSH Keys window shows keys added over the network straight away.
+- The connect hint prefers a real address to a self-assigned 169.254 one.
+- Read-only fields in the Info and SSH Keys windows are grey, with a gap
+  between fields; the Info values are centred.
+
 ## 0.2.1-1 - 2026-11-13
 
 - A system variable that is not set no longer turns into an empty part of

@@ -60,17 +60,19 @@
  * with a short title on its border and its instructions inside.  Key rows
  * are created dynamically in the last section, whose box grows with them.
  * Group boxes come first so that the icons inside draw over them. */
-enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT, KI_BOX_LIST,
+enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT, KI_BOX_PAIR, KI_BOX_LIST,
        KI_HOSTTITLE, KI_HOSTTEXT, KI_HOST,
        KI_ADDTITLE, KI_PROMPT, KI_INPUT, KI_ADD,
        KI_FETCHTITLE, KI_FETCHTEXT, KI_ACCLABEL, KI_PASSLABEL, KI_FHOST, KI_FPASS, KI_FETCH,
+       KI_PAIRTITLE, KI_PAIRTEXT, KI_PAIRCODE, KI_PAIR,
        KI_LISTTITLE, KI_LISTLABEL, KI_COUNT };
-enum { GROUP_HOST = 0, GROUP_ADD, GROUP_FETCH, GROUP_LIST, GROUPS };
-#define LIST_TOP  (-744)          /* work-area y of the list section's box */
-#define ROW_TOP   (-820)          /* work-area y of the first row's top edge */
+enum { GROUP_HOST = 0, GROUP_ADD, GROUP_FETCH, GROUP_PAIR, GROUP_LIST, GROUPS };
+#define PAIR_SECONDS 120          /* how long a pairing code works */
+#define LIST_TOP  (-976)          /* work-area y of the list section's box */
+#define ROW_TOP   (-1052)         /* work-area y of the first row's top edge */
 #define ROW_H     48          /* 40-unit row and an 8-unit gap */
 #define KEYS_W    1200
-#define KEYS_MIN_EXTENT (-860)    /* keys window height with few rows */
+#define KEYS_MIN_EXTENT (-1092)   /* keys window height with few rows */
 /* bottom of the list section's box, and of the work area, with n rows */
 #define LIST_BOTTOM(n) (ROW_TOP - (n) * ROW_H - 12)
 
@@ -84,7 +86,7 @@ enum { MENU_INFO = 0, MENU_HELP, MENU_LOG, MENU_VERBOSE, MENU_KEYS, MENU_CHOICES
 #define INFO_H     (16 + II_COUNT * INFO_ROW_H + 8)
 enum { II_NAME = 0, II_PURPOSE, II_AUTHOR, II_VERSION, II_WEBSITE, II_COMPILER, II_LIBSSH, II_CRYPTO,
        II_LICENCE, II_COUNT };
-#define MAX_FIXED_ICONS 20        /* largest icon count of any window defined here */
+#define MAX_FIXED_ICONS 25        /* largest icon count of any window defined here */
 
 #define LOG_LINE_H 40
 #define LOG_MIN_LINES 12          /* log window height before it fills */
@@ -329,6 +331,7 @@ static void open_on_top(int win)
 #define DISPLAY_FLAGS (ICON_TEXT | ICON_BORDER | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(1))
 
 static char delete_text[24];
+static unsigned keys_shown;     /* auth_generation() the rows were built for */
 
 /* Rebuild the key rows as icons and size the window to fit them. */
 static void refresh_keys_list(void)
@@ -338,6 +341,7 @@ static void refresh_keys_list(void)
 
     if (keys_win < 0)
         return;
+    keys_shown = auth_generation();
     for (int i = 0; i < nrows; i++) {
         delete_icon(keys_win, key_rows[i].text_icon);
         delete_icon(keys_win, key_rows[i].del_icon);
@@ -688,7 +692,12 @@ static char group_dummy[] = "";
 static char add_text[16], fetch_btn_text[16];
 static char fetch_text[160];
 static char group_titles[GROUPS][40];
-static const char *const group_tokens[GROUPS] = { "GHost", "GAdd", "GFetch", "GList" };
+static const char *const group_tokens[GROUPS] = { "GHost", "GAdd", "GFetch", "GPair", "GList" };
+static char pair_text[160];               /* the section's instructions */
+static char pair_code[64];                /* the code and time left, or how to get one */
+static char pair_btn_text[16], pair_label[16], pair_stop_label[16];
+static char pair_shown[PAIR_CODE_SIZE];   /* the code on show */
+static int pair_left_shown = -1;          /* the seconds left on show */
 static char acc_text[48], pass_text[48];
 
 /* A menu width that fits the longest of n entries in the desktop font,
@@ -719,6 +728,9 @@ static void load_texts(void)
         { "LPassword", pass_text,                sizeof pass_text },
         { "LImport",   fetch_btn_text,           sizeof fetch_btn_text },
         { "LDelete",   delete_text,              sizeof delete_text },
+        { "LPairText", pair_text,                sizeof pair_text },
+        { "LPair",     pair_label,               sizeof pair_label },
+        { "LPairStop", pair_stop_label,          sizeof pair_stop_label },
         { "IPurposeV", info_values[II_PURPOSE],  sizeof info_values[II_PURPOSE] },
     };
     for (size_t i = 0; i < sizeof fixed / sizeof fixed[0]; i++)
@@ -734,6 +746,8 @@ static void load_texts(void)
     for (int i = 0; i < GROUPS; i++)
         msgs_get(group_tokens[i], group_titles[i], sizeof group_titles[i], NULL);
     info_versions();
+    snprintf(pair_btn_text, sizeof pair_btn_text, "%s", pair_label);
+    msgs_get("LPairOff", pair_code, sizeof pair_code, NULL);
 }
 
 /* A group box from top to bottom across the SSH Keys window, with its
@@ -749,6 +763,40 @@ static void group(struct wimp_window *w, int box, int title, int g, int top, int
     icon(&w->icon[title], 32, top - 20, 32 + width + 24, top + 20,
          ICON_TEXT | ICON_HCENTRE | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(1),
          group_titles[g], sizeof group_titles[g], NULL);
+}
+
+/* Show the pairing state: the code and the seconds left, or how to get
+ * one.  Called on every null event; redraws only on a change. */
+static void pair_update(void)
+{
+    int left = server_pair_left();
+    char secs[16];
+    if (keys_win < 0 || left == pair_left_shown)
+        return;
+    if (left > 0) {
+        snprintf(secs, sizeof secs, "%d", left);
+        msgs_get2("LPairCode", pair_code, sizeof pair_code, pair_shown, secs);
+    } else {
+        memset(pair_shown, 0, sizeof pair_shown);
+        msgs_get("LPairOff", pair_code, sizeof pair_code, NULL);
+    }
+    if ((left > 0) != (pair_left_shown > 0)) {
+        snprintf(pair_btn_text, sizeof pair_btn_text, "%s", left > 0 ? pair_stop_label : pair_label);
+        redraw_icon(keys_win, KI_PAIR);
+    }
+    pair_left_shown = left;
+    redraw_icon(keys_win, KI_PAIRCODE);
+}
+
+/* The Pair button: start pairing with a new code, or stop it. */
+static void pair_toggle(void)
+{
+    if (server_pair_left() > 0)
+        server_pair_stop();
+    else if (server_pair_start(pair_shown, PAIR_SECONDS) < 0)
+        reportf("No pairing code: the CryptRandom module gave no random numbers.");
+    pair_left_shown = -1;                  /* show the new state at once */
+    pair_update();
 }
 
 static void create_windows(void)
@@ -797,7 +845,14 @@ static void create_windows(void)
     icon(&w.icon[KI_FPASS], 640, -688, 980, -636, box_flags | ICON_BUTTON(15), fetch_pass, sizeof fetch_pass,
          "Kta;D*;Pptr_write");
     icon(&w.icon[KI_FETCH], 1000, -688, KEYS_W - 40, -636, button_flags, fetch_btn_text, sizeof fetch_btn_text, "R5,3");
-    /* Section 4: the authorised keys, growing downwards (refresh_keys_list). */
+    /* Section 4: pairing, for ssh-copy-id from another machine. */
+    group(&w, KI_BOX_PAIR, KI_PAIRTITLE, GROUP_PAIR, -744, -936);
+    icon(&w.icon[KI_PAIRTEXT], 40, -860, KEYS_W - 40, -772, wrap_flags, pair_text, sizeof pair_text, "L");
+    icon(&w.icon[KI_PAIRCODE], 40, -920, KEYS_W - 220, -868, DISPLAY_FLAGS | ICON_HCENTRE,
+         pair_code, sizeof pair_code, "R2");
+    icon(&w.icon[KI_PAIR], KEYS_W - 200, -920, KEYS_W - 40, -868, button_flags, pair_btn_text,
+         sizeof pair_btn_text, "R5,3");
+    /* Section 5: the authorised keys, growing downwards (refresh_keys_list). */
     group(&w, KI_BOX_LIST, KI_LISTTITLE, GROUP_LIST, LIST_TOP, LIST_BOTTOM(0));
     icon(&w.icon[KI_LISTLABEL], 40, ROW_TOP + 8, KEYS_W - 40, ROW_TOP + 48, text_flags | ICON_HCENTRE,
          list_label, sizeof list_label, NULL);
@@ -992,6 +1047,8 @@ static void mouse_click(int *b)
             keys_add_from_input();
         else if (ic == KI_FETCH)
             keys_fetch();
+        else if (ic == KI_PAIR)
+            pair_toggle();
         else if ((row = row_of_delete_icon(ic)) >= 0)
             keys_delete_row(row);
     }
@@ -1023,6 +1080,8 @@ static const char *const keys_help_tokens[KI_COUNT] = {
     [KI_HOSTTITLE] = "HHost", [KI_HOSTTEXT] = "HHost", [KI_HOST] = "HHost",
     [KI_INPUT] = "HInput", [KI_ADD] = "HAdd",
     [KI_FHOST] = "HAccount", [KI_FPASS] = "HPassword", [KI_FETCH] = "HImport",
+    [KI_PAIRTITLE] = "HPairText", [KI_PAIRTEXT] = "HPairText", [KI_PAIRCODE] = "HPairCode",
+    [KI_PAIR] = "HPair",
 };
 
 static const char *keys_help(int ic)
@@ -1121,7 +1180,13 @@ static int active_sessions;
 static void dispatch(int reason, int *block)
 {
     switch (reason) {
-    case 0:  active_sessions = server_poll(0); log_title_update(); break;
+    case 0:
+        active_sessions = server_poll(0);
+        log_title_update();
+        if (auth_generation() != keys_shown)   /* added over the network */
+            refresh_keys_list();
+        pair_update();
+        break;
     case 1:  redraw_log(block); break;
     case 2:  _swix(Wimp_OpenWindow, _IN(1), block); break;
     case 3:  _swix(Wimp_CloseWindow, _IN(1), block); break;

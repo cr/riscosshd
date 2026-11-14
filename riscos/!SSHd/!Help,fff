@@ -15,7 +15,8 @@ Quick start
    creates the host key and the Options file.
 2. The SSH Keys window opens by itself.  Add your public key: paste the
    line from your id_ed25519.pub into the field and press Return, or drop
-   the .pub file on the window, or use Remote Import (below).
+   the .pub file on the window, use Remote Import, or pair with
+   ssh-copy-id (both below).
 3. The log window (Select on the icon) shows the command to connect with,
    for example:  ssh riscos@192.168.1.20
 4. On the first connection ssh prints "ED25519 key fingerprint is
@@ -34,7 +35,7 @@ Desktop
   Interactive help (the Help application) describes each icon and menu
   item.
 
-The SSH Keys window has four sections:
+The SSH Keys window has five sections:
   Host Key Fingerprint  the command to connect with and this server's
       host key fingerprint, which ssh shows on the first connection.
   Public Key Import  paste a public key into the field (the line
@@ -48,8 +49,14 @@ The SSH Keys window has four sections:
       desktop pauses while this runs.  Import needs an SSH server on that
       machine (macOS: Sharing > Remote Login; Linux: openssh-server);
       without one, copy its ~/.ssh/id_ed25519.pub here some other way and
-      drop it on the window.  ssh-copy-id does not work: SSHd has no
-      password logins.
+      drop it on the window.
+  ssh-copy-id Pairing  click Pair for a one-time code, then on the
+      other machine run  ssh-copy-id riscos@<address>  and type the code
+      when it asks for a password.  The code works for one login within
+      2 minutes (Stop ends it sooner, as do three wrong codes), and that
+      login can only add keys: no commands, no shell, no SFTP.  Without
+      pairing SSHd accepts no passwords at all.  With a key that is
+      already authorised, ssh-copy-id adds more keys without pairing.
   Authorised Keys  the keys that may log in, by fingerprint and comment,
       each with a Delete button.  A key that is already listed is not
       added twice.

@@ -25,6 +25,7 @@ TInfo:About this program
 GHost:Host Key Fingerprint
 GAdd:Public Key Import
 GFetch:Remote Import
+GPair:ssh-copy-id Pairing
 GList:Authorised Keys
 LHost:ssh shows this fingerprint on the first connection. Answer yes only if it matches exactly.
 LConnect:Connect with %0. ssh then shows this fingerprint; answer yes only if it matches exactly.
@@ -34,6 +35,11 @@ LFetch:Log in to another machine to import an account's public keys. The passwor
 LAccount:Account (user@host)
 LPassword:Password
 LImport:Import
+LPairText:Click Pair, run ssh-copy-id on the other computer, and give the code below as the password. It works once, within 2 minutes.
+LPairOff:No code: click Pair to get one
+LPairCode:%0   (%1 s left)
+LPair:Pair
+LPairStop:Stop
 LDelete:Delete
 LNone:None yet. Nobody can log in until you add a key.
 LCount:Keys that may log in: %0
@@ -59,6 +65,9 @@ HAdd:Click SELECT to add the key in the field to the authorised keys.
 HAccount:The account on another machine whose public keys you want to allow, as user@host or user@host:port.
 HPassword:That account's password. It is used once to log in and read its id_ed25519, id_ecdsa and id_rsa public keys, then forgotten.
 HImport:Click SELECT to log in to the machine named on the left and import its public keys.
+HPairText:Pairing lets ssh-copy-id on another computer add its public key here, with a one-time code instead of a password.
+HPairCode:The pairing code. Type it when ssh-copy-id asks for a password. It works for one login, and that login can only add keys.
+HPair:Click SELECT to get a pairing code for ssh-copy-id, valid for 2 minutes; click again to stop pairing.
 HHost:This server's host key fingerprint. On your first connection ssh prints the same text; answer yes only if they match.
 HDelete:Click SELECT to remove this key; it will no longer be able to log in.
 HDrop:Drop a file containing public keys anywhere on this window to add them.

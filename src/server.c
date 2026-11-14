@@ -27,6 +27,7 @@
 #include "log.h"
 #include "prof.h"
 #include "riscos.h"
+#include "riscos_entropy.h"
 
 #define MAX_AUTH_TRIES 6
 #define PENDING_PER_ADDRESS 2   /* unauthenticated connections one address may hold */
@@ -49,6 +50,7 @@ struct session_ctx {
     enum sess_state state;
     int auth_tries;
     int authenticated;
+    int paired;                 /* logged in with the pairing code */
     int banner_sent;
     int drop;                   /* close from the main loop, not from a callback */
     char refusal[160];          /* why the last login attempt was refused */
@@ -67,6 +69,13 @@ static ssh_bind bind_handle;
 static ssh_event event;
 static struct session_ctx *sessions;
 static int nsessions;
+
+/* Pairing (server_pair_start): the code, and when it stops working. */
+static struct {
+    char code[PAIR_CODE_SIZE];  /* "abcd-efgh" */
+    time_t until;               /* 0: off */
+    int wrong;                  /* wrong codes so far */
+} pair;
 
 /* cfg.auth_timeout: seconds from accept to a successful login;
  * cfg.idle_timeout: seconds a logged-in session may sit without a channel;
@@ -309,6 +318,8 @@ static int start_backend(struct chan_ctx *c, const struct backend_ops *b, const 
     return rc;
 }
 
+#define KEYS_ONLY "This login, with a pairing code, may only add keys with ssh-copy-id"
+
 /* Exec (command set) and shell (command NULL) run in a TaskWindow child on
  * the desktop, so output streams as it is produced and a hung command
  * cannot take the server down.  In text mode the TaskWindow backend is
@@ -336,6 +347,21 @@ static int cb_exec_request(ssh_session session, ssh_channel channel,
     log_msg("%s: exec '%s'", c->owner_name, command);
     if (channel_busy(c, "exec"))
         return 1;
+    /* ssh-copy-id: its installer is a sh script, served here instead;
+     * and it tests whether a key is already authorised by logging in with
+     * it to run "exit", which RISC OS has no command for. */
+    if (copyid_command(command)) {
+        start_backend(c, &backend_copyid, command);
+        return 0;
+    }
+    if (c->keys_only) {
+        chan_refuse(c, KEYS_ONLY);
+        return 0;
+    }
+    if (strcmp(command, "exit") == 0) {
+        chan_finish(c, 0);
+        return 0;
+    }
     return start_command_backend(c, command);
 }
 
@@ -346,6 +372,10 @@ static int cb_shell_request(ssh_session session, ssh_channel channel, void *user
     log_msg("%s: shell%s", c->owner_name, c->pty ? " (pty)" : "");
     if (channel_busy(c, "shell"))
         return 1;
+    if (c->keys_only) {
+        chan_refuse(c, KEYS_ONLY);
+        return 0;
+    }
     if (cfg.motd && cfg.allow_shell)    /* not ahead of a refusal */
         chan_output_str(c, cfg.motd);
     return start_command_backend(c, NULL);
@@ -361,6 +391,10 @@ static int cb_subsystem_request(ssh_session session, ssh_channel channel,
     if (strcmp(subsystem, "sftp") != 0) {
         log_msg("%s: subsystem '%s' refused", c->owner_name, subsystem);
         return 1;
+    }
+    if (c->keys_only) {
+        chan_refuse(c, KEYS_ONLY);
+        return 0;
     }
     if (!cfg.allow_sftp) {
         log_msg("%s: sftp refused (the sftp setting is off)", c->owner_name);
@@ -474,6 +508,122 @@ static int cb_auth_pubkey(ssh_session session, const char *user, struct ssh_key_
     return SSH_AUTH_DENIED;
 }
 
+/* ---- pairing ------------------------------------------------------------ */
+
+/* Offer password login on every session not yet logged in, or stop. */
+static void set_auth_methods(void)
+{
+    int methods = SSH_AUTH_METHOD_PUBLICKEY | (pair.until ? SSH_AUTH_METHOD_PASSWORD : 0);
+    for (struct session_ctx *s = sessions; s; s = s->next)
+        if (!s->authenticated)
+            ssh_set_auth_methods(s->session, methods);
+}
+
+static void pair_end(const char *why)
+{
+    if (!pair.until)
+        return;
+    memset(pair.code, 0, sizeof pair.code);
+    pair.until = 0;
+    set_auth_methods();
+    log_msg("pairing ended: %s", why);
+}
+
+int server_pair_start(char *code, int seconds)
+{
+    /* no 0/o, 1/l/i: easy to read off the screen and type */
+    static const char alphabet[] = "abcdefghjkmnpqrstuvwxyz23456789";
+    unsigned char rnd[32];
+    size_t got = 0;
+    int n = 0;
+    if (mbedtls_hardware_poll(NULL, rnd, sizeof rnd, &got) != 0 || got != sizeof rnd)
+        return -1;
+    /* each byte below 248 (8 * 31) picks a letter without bias */
+    for (size_t i = 0; i < got && n < 9; i++) {
+        if (rnd[i] >= 248)
+            continue;
+        if (n == 4)
+            pair.code[n++] = '-';
+        pair.code[n++] = alphabet[rnd[i] % 31];
+    }
+    memset(rnd, 0, sizeof rnd);
+    if (n < 9)
+        return -1;
+    pair.code[n] = '\0';
+    pair.until = time(NULL) + seconds;
+    pair.wrong = 0;
+    set_auth_methods();
+    memcpy(code, pair.code, PAIR_CODE_SIZE);
+    log_msg("pairing on for %d s: password login accepts the code once", seconds);
+    return 0;
+}
+
+void server_pair_stop(void)
+{
+    pair_end("stopped");
+}
+
+int server_pair_left(void)
+{
+    time_t now = time(NULL);
+    if (pair.until && now >= pair.until)
+        pair_end("time ran out");
+    return pair.until ? (int)(pair.until - now) : 0;
+}
+
+/* The code as typed matches: case and the hyphen do not matter, and the
+ * comparison takes the same time wherever a difference is. */
+static int pair_code_matches(const char *typed)
+{
+    char a[16];
+    int n = 0;
+    unsigned diff = 0;
+    for (; *typed && n < (int)sizeof a - 1; typed++)
+        if (*typed != '-' && *typed != ' ')
+            a[n++] = (char)(*typed >= 'A' && *typed <= 'Z' ? *typed + 32 : *typed);
+    a[n] = '\0';
+    if (*typed || n != 8)
+        return 0;
+    for (int i = 0, j = 0; i < 9; i++)
+        if (pair.code[i] != '-')
+            diff |= (unsigned)(a[j++] ^ pair.code[i]);
+    return diff == 0;
+}
+
+static int cb_auth_password(ssh_session session, const char *user, const char *password, void *userdata)
+{
+    struct session_ctx *s = userdata;
+    (void)session;
+    send_banner(s);
+    if (!server_pair_left()) {
+        snprintf(s->refusal, sizeof s->refusal, "password (only accepted while pairing)");
+    } else if (cfg.user[0] && strcmp(user, cfg.user) != 0) {
+        char safe[64];
+        snprintf(safe, sizeof safe, "%s", user);
+        log_sanitise(safe);
+        snprintf(s->refusal, sizeof s->refusal, "user name '%s' (log in as %s@...)", safe, cfg.user);
+    } else if (pair_code_matches(password)) {
+        s->authenticated = 1;
+        s->paired = 1;
+        s->deadline = deadline_in(cfg.idle_timeout);
+        snprintf(s->who, sizeof s->who, "%s %s", s->peer, user);
+        log_msg("%s: logged in with the pairing code, to add keys only", s->who);
+        pair_end("its code was used");
+        return SSH_AUTH_SUCCESS;
+    } else {
+        snprintf(s->refusal, sizeof s->refusal, "wrong pairing code");
+        log_msg("%s: wrong pairing code", s->peer);
+        if (++pair.wrong >= PAIR_TRIES)
+            pair_end("too many wrong codes");
+    }
+    if (++s->auth_tries >= MAX_AUTH_TRIES) {
+        log_msg("%s: too many failed logins", s->peer);
+        ssh_session_set_disconnect_message(s->session, "Too many failed login attempts");
+        s->drop = 1;
+    }
+    return SSH_AUTH_DENIED;
+}
+
 static ssh_channel cb_channel_open(ssh_session session, void *userdata)
 {
     struct session_ctx *s = userdata;
@@ -497,6 +647,7 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
         return NULL;
     c->session = session;
     c->owner_name = s->who;
+    c->keys_only = s->paired;
     c->channel = ssh_channel_new(session);
     if (!c->channel) {
         free(c);
@@ -626,10 +777,12 @@ static void accept_connection(void)
     s->deadline = deadline_in(cfg.auth_timeout);
     s->server_cb.userdata = s;
     s->server_cb.auth_pubkey_function = cb_auth_pubkey;
+    s->server_cb.auth_password_function = cb_auth_password;
     s->server_cb.channel_open_request_session_function = cb_channel_open;
     ssh_callbacks_init(&s->server_cb);
     ssh_set_server_callbacks(session, &s->server_cb);
-    ssh_set_auth_methods(session, SSH_AUTH_METHOD_PUBLICKEY);
+    ssh_set_auth_methods(session, SSH_AUTH_METHOD_PUBLICKEY |
+                                  (server_pair_left() ? SSH_AUTH_METHOD_PASSWORD : 0));
     ssh_set_blocking(session, 0);
     s->next = sessions;
     sessions = s;
@@ -794,6 +947,8 @@ int server_poll(int timeout_ms)
     if (!event)
         return 0;               /* startup failed; the desktop task lives on to show why */
 
+    if (pair.until)
+        server_pair_left();     /* ends pairing once its time is up */
     if (drive_key_exchanges(now))
         timeout_ms = 0;         /* those sessions are driven outside the event */
     for (;;) {

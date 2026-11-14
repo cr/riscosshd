@@ -84,7 +84,14 @@ inside the emulator with PackMan.
    Settings > General > Sharing > Remote Login; Linux: the openssh-server
    package).  Without one, copy `~/.ssh/id_ed25519.pub` to a disc, a
    network share or RPCEmu's HostFS folder and drop it on the SSH Keys
-   window.  `ssh-copy-id` does not work, as SSHd has no password logins.
+   window.
+
+   Or use `ssh-copy-id` from the other machine: click **Pair** in the
+   window's ssh-copy-id Pairing section, run `ssh-copy-id riscos@<address>`
+   there and give the code the window shows when it asks for a password.
+   SSHd accepts no passwords otherwise; the code works for one login
+   within two minutes, and that login can only add keys.  Once a key is
+   authorised, `ssh-copy-id` adds further keys without pairing.
 3. The window's Host Key Fingerprint section shows this server's own
    host key.  Compare it
    with what your client prints on its first connection.
