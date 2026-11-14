@@ -4,7 +4,7 @@ Release notes for each package version.  A `v<version>` tag publishes the
 section of the same version as its GitHub release notes; the build fails
 when that section is missing.
 
-## Unreleased
+## 0.3.0-1 - 2026-11-14
 
 - `ssh-copy-id` works.  SSHd recognises its install command and adds the
   keys it sends; with no key authorised yet, the SSH Keys window's new
