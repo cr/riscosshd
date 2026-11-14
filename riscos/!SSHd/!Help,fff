@@ -3,7 +3,8 @@
 
 SSHd lets you use this machine from another computer with ssh: run
 *commands, work at an interactive command line, and copy files with sftp
-or scp.  Logins use public keys only.
+or scp.  Logins use public keys only, apart from a one-time code for
+adding the first key with ssh-copy-id.
 
 Its files live in the SSHd directory inside !Boot.Choices (Shift-double-
 click !Boot to open it): the host key, the authorised keys (authkeys),

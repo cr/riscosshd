@@ -3,7 +3,8 @@
 An SSH server for RISC OS 5, built on [libssh](https://www.libssh.org/)
 (LGPL 2.1) and [mbedTLS](https://github.com/Mbed-TLS/mbedtls) (Apache 2.0),
 cross-compiled with GCCSDK.  It runs as a Wimp task with an icon-bar icon
-and accepts public-key logins only.  `ssh host '*Cat'` runs a command,
+and accepts public-key logins only, apart from a one-time pairing code
+for `ssh-copy-id`.  `ssh host '*Cat'` runs a command,
 `ssh host` gives an interactive `*` command line in a TaskWindow, and
 `sftp`/`scp` move files.  Keys are managed in a desktop window, including
 an import that logs in to another machine and fetches its public keys.
@@ -16,7 +17,9 @@ control of the machine: every `*command`, and over SFTP every filing
 system, `!Boot` included.  Only the user name `riscos` is accepted (the
 `user` setting; empty accepts any), and it is a filter, not a factor: the
 key decides.  That is the natural fit for a single-user RISC OS box; treat
-the key list accordingly.
+the key list accordingly.  Pairing is on only for two minutes after a
+click on **Pair**.  During that time, whoever types the code first can add
+a key, and with it gets the same full control.
 
 ## Installation
 
