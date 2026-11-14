@@ -68,7 +68,7 @@ enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT, KI_BOX_LIST,
 enum { GROUP_HOST = 0, GROUP_ADD, GROUP_FETCH, GROUP_LIST, GROUPS };
 #define LIST_TOP  (-744)          /* work-area y of the list section's box */
 #define ROW_TOP   (-820)          /* work-area y of the first row's top edge */
-#define ROW_H     44
+#define ROW_H     48          /* 40-unit row and an 8-unit gap */
 #define KEYS_W    1200
 #define KEYS_MIN_EXTENT (-860)    /* keys window height with few rows */
 /* bottom of the list section's box, and of the work area, with n rows */
@@ -78,7 +78,10 @@ enum { MENU_INFO = 0, MENU_HELP, MENU_LOG, MENU_VERBOSE, MENU_KEYS, MENU_CHOICES
 #define MENU_TICK   1             /* item flags: ticked, */
 #define MENU_DOTTED 2             /* dotted line below, */
 #define MENU_LAST   0x80          /* last item */
-/* Info window icons: label/value pairs */
+/* Info window icons: label/value pairs, one 44-unit field per row with
+ * an 8-unit gap between fields */
+#define INFO_ROW_H 52
+#define INFO_H     (16 + II_COUNT * INFO_ROW_H + 8)
 enum { II_NAME = 0, II_PURPOSE, II_AUTHOR, II_VERSION, II_WEBSITE, II_COMPILER, II_LIBSSH, II_CRYPTO,
        II_LICENCE, II_COUNT };
 #define MAX_FIXED_ICONS 20        /* largest icon count of any window defined here */
@@ -802,15 +805,15 @@ static void create_windows(void)
 
     /* Info window: the usual label/value box, icons only; it is the Info
      * menu item's submenu, so the Wimp opens it on its own. */
-    window_def(&w, 940, 420, WIN_AUTOREDRAW, 1, -(16 + II_COUNT * 44), 940,
+    window_def(&w, 940, INFO_H, WIN_AUTOREDRAW, 1, -INFO_H, 940,
                info_title, sizeof info_title);
     w.flags &= ~(WIN_BACK | WIN_CLOSE);  /* an Info box has a title bar only */
     w.nicons = II_COUNT * 2;
     for (int i = 0; i < II_COUNT; i++) {
-        int top = -16 - i * 44;
-        icon(&w.icon[2 * i], 16, top - 36, 200, top, ICON_TEXT | ICON_VCENTRE | ICON_RJUST | ICON_FG(7),
+        int top = -16 - i * INFO_ROW_H;
+        icon(&w.icon[2 * i], 16, top - 44, 200, top, ICON_TEXT | ICON_VCENTRE | ICON_RJUST | ICON_FG(7),
              info_labels[i], sizeof info_labels[i], NULL);
-        icon(&w.icon[2 * i + 1], 216, top - 40, 924, top + 4, DISPLAY_FLAGS | ICON_HCENTRE,
+        icon(&w.icon[2 * i + 1], 216, top - 44, 924, top, DISPLAY_FLAGS | ICON_HCENTRE,
              info_values[i], sizeof info_values[i], "R2");
     }
     info_win = create_window(&w);
