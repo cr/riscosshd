@@ -321,6 +321,10 @@ static void open_on_top(int win)
 
 /* --- keys window rows ---------------------------------------------------- */
 
+/* A display field: read-only text on the Style Guide's grey (Wimp colour
+ * 1) in a slabbed-in border, as against an editable field's white. */
+#define DISPLAY_FLAGS (ICON_TEXT | ICON_BORDER | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(1))
+
 static char delete_text[24];
 
 /* Rebuild the key rows as icons and size the window to fit them. */
@@ -347,8 +351,7 @@ static void refresh_keys_list(void)
         int top = ROW_TOP - i * ROW_H;
         auth_describe_one(i, key_rows[i].text, sizeof key_rows[i].text);
         icon(&ic, 40, top - 40, KEYS_W - 220, top,
-             ICON_TEXT | ICON_BORDER | ICON_VCENTRE | ICON_FILLED | ICON_FG(7) | ICON_BG(0),
-             key_rows[i].text, sizeof key_rows[i].text, "R2");
+             DISPLAY_FLAGS, key_rows[i].text, sizeof key_rows[i].text, "R2");
         create_icon(keys_win, &ic, &key_rows[i].text_icon);
         icon(&ic, KEYS_W - 200, top - 40, KEYS_W - 40, top,
              ICON_TEXT | ICON_BORDER | ICON_HCENTRE | ICON_VCENTRE | ICON_FILLED | ICON_BUTTON(3) |
@@ -807,7 +810,8 @@ static void create_windows(void)
         int top = -16 - i * 44;
         icon(&w.icon[2 * i], 16, top - 36, 200, top, ICON_TEXT | ICON_VCENTRE | ICON_RJUST | ICON_FG(7),
              info_labels[i], sizeof info_labels[i], NULL);
-        icon(&w.icon[2 * i + 1], 216, top - 40, 924, top + 4, box_flags, info_values[i], sizeof info_values[i], "R2");
+        icon(&w.icon[2 * i + 1], 216, top - 40, 924, top + 4, DISPLAY_FLAGS | ICON_HCENTRE,
+             info_values[i], sizeof info_values[i], "R2");
     }
     info_win = create_window(&w);
 }
