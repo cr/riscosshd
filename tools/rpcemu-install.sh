@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# Copy the built !SSHd into an RPCEmu HostFS tree and authorise a public key.
+# Copy the built !SSHd into an RPCEmu HostFS tree and authorize a public key.
 #   tools/rpcemu-install.sh [hostfs-dir] [pubkey-file]
 # Defaults: RPCEMU_HOSTFS, else the HostFS find_hostfs finds; and
 # ~/.ssh/id_ed25519.pub.  Does not touch rpc.cfg; add the port forward
@@ -42,6 +42,6 @@ mkdir -p "$CHOICES"
 if [ -f "$PUBKEY" ]; then
     touch "$CHOICES/authkeys"
     grep -qxF "$(cat "$PUBKEY")" "$CHOICES/authkeys" || cat "$PUBKEY" >> "$CHOICES/authkeys"
-    echo "authorised $PUBKEY in $CHOICES/authkeys"
+    echo "authorized $PUBKEY in $CHOICES/authkeys"
 fi
 echo "installed to $HOSTFS/Apps/Network/!SSHd"

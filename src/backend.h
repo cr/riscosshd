@@ -17,7 +17,7 @@
  *   backend_shell  text mode only: a line-mode "*" prompt on the same
  *                  capture mechanism, one OS_CLI call per line.
  *   backend_copyid ssh-copy-id's install command: the keys on its input
- *                  are added to the authorised keys.
+ *                  are added to the authorized keys.
  */
 #ifndef SSHD_BACKEND_H
 #define SSHD_BACKEND_H

@@ -57,7 +57,7 @@ src/backend_copyid.c  ssh-copy-id's install command: adds the keys on its input
 src/backend_shell.c   text mode: line-mode * prompt on the same mechanism
 src/wimp.c            Wimp front end: icon bar, menu, Info, log and SSH Keys windows
 src/keyfetch.c        import public keys from another machine as an SSH client
-src/auth.c            authorised keys: parsing, matching, add and remove
+src/auth.c            authorized keys: parsing, matching, add and remove
 src/hostkey.c         host key load, or ed25519 generation
 src/riscos.c          OS_File, OS_GSTrans, OS_CLI capture, signals
 src/riscos_entropy.c  mbedTLS hooks: CryptRandom entropy, start-up check, ms clock

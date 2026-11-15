@@ -568,7 +568,7 @@ static void keys_add_from_file(const char *path)
         reportf("%d key%s %s", added, added == 1 ? "" : "s", err);
     else if (added == 0 || dup || bad)     /* an error only if nothing was a key */
         boxf(BOX_OK | (added == 0 && bad ? BOX_ERROR : BOX_INFO), NULL,
-             "%d key%s added, %d already authorised, %d line%s not a key",
+             "%d key%s added, %d already authorized, %d line%s not a key",
              added, added == 1 ? "" : "s", dup, bad, bad == 1 ? "" : "s");
 }
 
@@ -852,7 +852,7 @@ static void create_windows(void)
          pair_code, sizeof pair_code, "R2");
     icon(&w.icon[KI_PAIR], KEYS_W - 200, -920, KEYS_W - 40, -868, button_flags, pair_btn_text,
          sizeof pair_btn_text, "R5,3");
-    /* Section 5: the authorised keys, growing downwards (refresh_keys_list). */
+    /* Section 5: the authorized keys, growing downwards (refresh_keys_list). */
     group(&w, KI_BOX_LIST, KI_LISTTITLE, GROUP_LIST, LIST_TOP, LIST_BOTTOM(0));
     icon(&w.icon[KI_LISTLABEL], 40, ROW_TOP + 8, KEYS_W - 40, ROW_TOP + 48, text_flags | ICON_HCENTRE,
          list_label, sizeof list_label, NULL);

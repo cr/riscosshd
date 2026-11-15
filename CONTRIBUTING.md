@@ -28,7 +28,7 @@ CI does, with warnings as errors.
 
 - C99 (gnu99), four spaces, K&R braces, as in `src/`.
 - Comments in full sentences that say why, not what.
-- British spelling in text people read (licence, authorised, sanitise);
+- British spelling in text people read (licence, authorized, sanitise);
   OpenSSH's own names stay as they are (`authorized_keys`).
 - No new warnings: CI builds with `-Werror`.
 - Desktop texts go in `riscos/!SSHd/Messages,fff`; log lines stay English.

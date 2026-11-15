@@ -7,12 +7,12 @@ when that section is missing.
 ## 0.3.0-1 - 2026-11-14
 
 - `ssh-copy-id` works.  SSHd recognises its install command and adds the
-  keys it sends; with no key authorised yet, the SSH Keys window's new
+  keys it sends; with no key authorized yet, the SSH Keys window's new
   ssh-copy-id Pairing section gives a one-time code to type as the
   password.  The code works for one login within two minutes, and that
   login can only add keys.  Password logins stay off otherwise.
 - `ssh host exit` succeeds, as ssh-copy-id expects when it checks
-  whether a key is already authorised.
+  whether a key is already authorized.
 - The SSH Keys window shows keys added over the network straight away.
 - The connect hint prefers a real address to a self-assigned 169.254 one.
 - Read-only fields in the Info and SSH Keys windows are grey, with a gap
@@ -46,7 +46,7 @@ when that section is missing.
 - Login refusals are logged with their reason; disconnects tell the client
   why; SHA-1 RSA signatures are no longer accepted.
 - The Keys window is now SSH Keys, in four titled sections (Host Key
-  Fingerprint, Public Key Import, Remote Import, Authorised Keys) with
+  Fingerprint, Public Key Import, Remote Import, Authorized Keys) with
   their instructions wrapped inside; it shows the command to connect with
   and fingerprints as ssh prints them; Return adds a key; the import
   fields are labelled.

@@ -5,7 +5,7 @@
  * the server, "exec sh -c 'cd; umask 077; ... cat >> .ssh/authorized_keys'",
  * with the public keys on its standard input.  RISC OS has no sh, so the
  * server recognises that command instead of running it: the input is read
- * to EOF and added to the authorised keys like a key pasted into the SSH
+ * to EOF and added to the authorized keys like a key pasted into the SSH
  * Keys window, and the exit status tells ssh-copy-id how it went.
  */
 #include <stdlib.h>

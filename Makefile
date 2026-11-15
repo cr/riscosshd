@@ -8,7 +8,7 @@
 #   make build      stop after the binary and build/!SSHd
 #   make package    the PackMan zip in dist/ (what plain make ends with)
 #   make sprites    regenerate the icons with tools/mksprites.py
-#   make install    copy !SSHd into a local RPCEmu HostFS and authorise your key
+#   make install    copy !SSHd into a local RPCEmu HostFS and authorize your key
 #   make smoke      run a command and an sftp listing against the server
 #                   (make test is the same)
 #   make check      host-side unit test of the key parser (needs libssh on the host)

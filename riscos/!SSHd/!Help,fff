@@ -7,7 +7,7 @@ or scp.  Logins use public keys only, apart from a one-time code for
 adding the first key with ssh-copy-id.
 
 Its files live in the SSHd directory inside !Boot.Choices (Shift-double-
-click !Boot to open it): the host key, the authorised keys (authkeys),
+click !Boot to open it): the host key, the authorized keys (authkeys),
 the settings (Options), the log, and the optional Banner and Motd texts.
 
 Quick start
@@ -57,12 +57,12 @@ The SSH Keys window has five sections:
       2 minutes (Stop ends it sooner, as do three wrong codes), and that
       login can only add keys: no commands, no shell, no SFTP.  Without
       pairing SSHd accepts no passwords at all.  With a key that is
-      already authorised, ssh-copy-id adds more keys without pairing.
-  Authorised Keys  the keys that may log in, by fingerprint and comment,
+      already authorized, ssh-copy-id adds more keys without pairing.
+  Authorized Keys  the keys that may log in, by fingerprint and comment,
       each with a Delete button.  A key that is already listed is not
       added twice.
 
-Any authorised key has full control of the machine: every *command, and
+Any authorized key has full control of the machine: every *command, and
 over SFTP every filing system.  Only the user name "riscos" is accepted
 (the user setting); it is a filter, not a password: the key decides.
 
@@ -143,7 +143,7 @@ is where to look after a crash.  If the server cannot start (no
 CryptRandom module, port in use), the icon stays on the bar, the log
 window opens with the reason, and Quit removes it; nothing blocks a boot
 sequence that runs !SSHd.  A refused login is logged with its reason
-(wrong user name, or a key that is not authorised).
+(wrong user name, or a key that is not authorized).
 
 After upgrading the package, Quit the running !SSHd and run the new one;
 the Info window shows which version is running.

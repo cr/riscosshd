@@ -348,7 +348,7 @@ static int cb_exec_request(ssh_session session, ssh_channel channel,
     if (channel_busy(c, "exec"))
         return 1;
     /* ssh-copy-id: its installer is a sh script, served here instead;
-     * and it tests whether a key is already authorised by logging in with
+     * and it tests whether a key is already authorized by logging in with
      * it to run "exit", which RISC OS has no command for. */
     if (copyid_command(command)) {
         start_backend(c, &backend_copyid, command);
@@ -486,7 +486,7 @@ static int cb_auth_pubkey(ssh_session session, const char *user, struct ssh_key_
         if (auth_key_allowed(pubkey))
             return SSH_AUTH_SUCCESS;
         key_fingerprint(pubkey, fp, sizeof fp);
-        snprintf(s->refusal, sizeof s->refusal, "key %s is not authorised", fp);
+        snprintf(s->refusal, sizeof s->refusal, "key %s is not authorized", fp);
     } else if (signature_state != SSH_PUBLICKEY_STATE_VALID) {
         snprintf(s->refusal, sizeof s->refusal, "invalid signature");
     } else if (auth_key_allowed(pubkey)) {

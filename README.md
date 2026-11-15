@@ -94,7 +94,7 @@ inside the emulator with PackMan.
    there and give the code the window shows when it asks for a password.
    SSHd accepts no passwords otherwise; the code works for one login
    within two minutes, and that login can only add keys.  Once a key is
-   authorised, `ssh-copy-id` adds further keys without pairing.
+   authorized, `ssh-copy-id` adds further keys without pairing.
 3. The window's Host Key Fingerprint section shows this server's own
    host key.  Compare it
    with what your client prints on its first connection.
@@ -135,7 +135,7 @@ stalls on it.
 ### Removing
 
 Remove the package in PackMan, or delete `!SSHd` and its Boot > Run
-entry.  `Choices:SSHd` (host key, authorised keys, settings, log) stays
+entry.  `Choices:SSHd` (host key, authorized keys, settings, log) stays
 until you delete it.
 
 ## Using it
@@ -187,7 +187,7 @@ image is amd64 only and runs under emulation on Apple Silicon.
 
 ```bash
 make            # image (once), dependencies (once), sshd, !SSHd, dist/SSHd_<version>.zip
-make install    # copy !SSHd into a local RPCEmu HostFS and authorise ~/.ssh/id_ed25519.pub
+make install    # copy !SSHd into a local RPCEmu HostFS and authorize ~/.ssh/id_ed25519.pub
 make smoke      # run *Time and an sftp listing against localhost:2222
 make check      # host-side unit test of the key parser (needs libssh on the host)
 ```
