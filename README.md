@@ -90,8 +90,9 @@ inside the emulator with PackMan.
    window.
 
    Or use `ssh-copy-id` from the other machine: click **Pair** in the
-   window's ssh-copy-id Pairing section, run `ssh-copy-id riscos@<address>`
-   there and give the code the window shows when it asks for a password.
+   window's ssh-copy-id Pairing section, run the command it shows there,
+   `ssh-copy-id riscos@<address>`, and give the code the window shows
+   when it asks for a password.
    SSHd accepts no passwords otherwise; the code works for one login
    within two minutes, and that login can only add keys.  Once a key is
    authorized, `ssh-copy-id` adds further keys without pairing.

@@ -51,7 +51,9 @@ int __riscosify_control = __RISCOSIFY_NO_SUFFIX | __RISCOSIFY_FILETYPE_EXT;
 static volatile int running = 1;      /* text mode loop */
 static int text_mode;
 
-void connect_hint(char *buf, size_t len)
+/* "<command> [-p port] user@address" for this server, or "" with no
+ * address to give. */
+static void address_hint(char *buf, size_t len, const char *command)
 {
     char addr[48], port[16] = "";
     if (ro_local_address(addr, sizeof addr) < 0) {
@@ -60,7 +62,17 @@ void connect_hint(char *buf, size_t len)
     }
     if (cfg.port != 22)
         snprintf(port, sizeof port, " -p %d", cfg.port);
-    snprintf(buf, len, "ssh%s %s@%s", port, cfg.user[0] ? cfg.user : "user", addr);
+    snprintf(buf, len, "%s%s %s@%s", command, port, cfg.user[0] ? cfg.user : "user", addr);
+}
+
+void connect_hint(char *buf, size_t len)
+{
+    address_hint(buf, len, "ssh");
+}
+
+void copyid_hint(char *buf, size_t len)
+{
+    address_hint(buf, len, "ssh-copy-id");
 }
 
 /* Escape, SIGTERM and SIGHUP all end the text-mode loop. */

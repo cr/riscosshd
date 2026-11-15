@@ -68,11 +68,11 @@ enum { KI_BOX_HOST = 0, KI_BOX_ADD, KI_BOX_IMPORT, KI_BOX_PAIR, KI_BOX_LIST,
        KI_LISTTITLE, KI_LISTLABEL, KI_COUNT };
 enum { GROUP_HOST = 0, GROUP_ADD, GROUP_FETCH, GROUP_PAIR, GROUP_LIST, GROUPS };
 #define PAIR_SECONDS 120          /* how long a pairing code works */
-#define LIST_TOP  (-976)          /* work-area y of the list section's box */
-#define ROW_TOP   (-1052)         /* work-area y of the first row's top edge */
+#define LIST_TOP  (-1020)         /* work-area y of the list section's box */
+#define ROW_TOP   (-1096)         /* work-area y of the first row's top edge */
 #define ROW_H     48          /* 40-unit row and an 8-unit gap */
 #define KEYS_W    1200
-#define KEYS_MIN_EXTENT (-1092)   /* keys window height with few rows */
+#define KEYS_MIN_EXTENT (-1136)   /* keys window height with few rows */
 /* bottom of the list section's box, and of the work area, with n rows */
 #define LIST_BOTTOM(n) (ROW_TOP - (n) * ROW_H - 12)
 
@@ -182,6 +182,7 @@ static char key_input[1200];
 static char fetch_host[256], fetch_pass[128];
 static char host_line[128];
 static char host_text[200];
+static char pair_text[300];               /* the pairing instructions, with the command */
 static char log_title[40], keys_title[40];
 
 /* Menu entries are indirected, so they may be longer than 12 characters;
@@ -513,17 +514,23 @@ void wimp_open_keys_window(void)
         return;
     refresh_keys_list();
     {
-        char hint[96];
+        char hint[128];
         connect_hint(hint, sizeof hint);      /* now: the network may have come up late */
         if (hint[0])
             msgs_get("LConnect", host_text, sizeof host_text, hint);
         else
             msgs_get("LHost", host_text, sizeof host_text, NULL);
+        copyid_hint(hint, sizeof hint);
+        if (hint[0])
+            msgs_get("LPairText", pair_text, sizeof pair_text, hint);
+        else
+            msgs_get("LPairAny", pair_text, sizeof pair_text, NULL);
     }
     snprintf(host_line, sizeof host_line, "%s",
              hostkey_fingerprint()[0] ? hostkey_fingerprint() : "(not loaded: the server did not start)");
     redraw_icon(keys_win, KI_HOSTTEXT);
     redraw_icon(keys_win, KI_HOST);
+    redraw_icon(keys_win, KI_PAIRTEXT);
     open_on_top(keys_win);
     set_caret(keys_win, KI_INPUT, key_input);
 }
@@ -693,7 +700,6 @@ static char add_text[16], fetch_btn_text[16];
 static char fetch_text[160];
 static char group_titles[GROUPS][40];
 static const char *const group_tokens[GROUPS] = { "GHost", "GAdd", "GFetch", "GPair", "GList" };
-static char pair_text[160];               /* the section's instructions */
 static char pair_code[64];                /* the code and time left, or how to get one */
 static char pair_btn_text[16], pair_label[16], pair_stop_label[16];
 static char pair_shown[PAIR_CODE_SIZE];   /* the code on show */
@@ -728,7 +734,6 @@ static void load_texts(void)
         { "LPassword", pass_text,                sizeof pass_text },
         { "LImport",   fetch_btn_text,           sizeof fetch_btn_text },
         { "LDelete",   delete_text,              sizeof delete_text },
-        { "LPairText", pair_text,                sizeof pair_text },
         { "LPair",     pair_label,               sizeof pair_label },
         { "LPairStop", pair_stop_label,          sizeof pair_stop_label },
         { "IPurposeV", info_values[II_PURPOSE],  sizeof info_values[II_PURPOSE] },
@@ -846,11 +851,11 @@ static void create_windows(void)
          "Kta;D*;Pptr_write");
     icon(&w.icon[KI_FETCH], 1000, -688, KEYS_W - 40, -636, button_flags, fetch_btn_text, sizeof fetch_btn_text, "R5,3");
     /* Section 4: pairing, for ssh-copy-id from another machine. */
-    group(&w, KI_BOX_PAIR, KI_PAIRTITLE, GROUP_PAIR, -744, -936);
-    icon(&w.icon[KI_PAIRTEXT], 40, -860, KEYS_W - 40, -772, wrap_flags, pair_text, sizeof pair_text, "L");
-    icon(&w.icon[KI_PAIRCODE], 40, -920, KEYS_W - 220, -868, DISPLAY_FLAGS | ICON_HCENTRE,
+    group(&w, KI_BOX_PAIR, KI_PAIRTITLE, GROUP_PAIR, -744, -980);
+    icon(&w.icon[KI_PAIRTEXT], 40, -904, KEYS_W - 40, -772, wrap_flags, pair_text, sizeof pair_text, "L");
+    icon(&w.icon[KI_PAIRCODE], 40, -964, KEYS_W - 220, -912, DISPLAY_FLAGS | ICON_HCENTRE,
          pair_code, sizeof pair_code, "R2");
-    icon(&w.icon[KI_PAIR], KEYS_W - 200, -920, KEYS_W - 40, -868, button_flags, pair_btn_text,
+    icon(&w.icon[KI_PAIR], KEYS_W - 200, -964, KEYS_W - 40, -912, button_flags, pair_btn_text,
          sizeof pair_btn_text, "R5,3");
     /* Section 5: the authorized keys, growing downwards (refresh_keys_list). */
     group(&w, KI_BOX_LIST, KI_LISTTITLE, GROUP_LIST, LIST_TOP, LIST_BOTTOM(0));

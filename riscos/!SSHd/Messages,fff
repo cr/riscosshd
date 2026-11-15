@@ -28,14 +28,15 @@ GFetch:Remote Import
 GPair:ssh-copy-id Pairing
 GList:Authorized Keys
 LHost:ssh shows this fingerprint on the first connection. Answer yes only if it matches exactly.
-LConnect:Connect with %0. ssh then shows this fingerprint; answer yes only if it matches exactly.
+LConnect:Connect with "%0". ssh then shows this fingerprint; answer yes only if it matches exactly.
 LPrompt:Paste the line from your id_ed25519.pub and click Add, or drop the .pub file anywhere on this window.
 LAdd:Add
 LFetch:Log in to another machine to import an account's public keys. The password is used once and not stored.
 LAccount:Account (user@host)
 LPassword:Password
 LImport:Import
-LPairText:Click Pair, run ssh-copy-id on the other computer, and give the code below as the password. It works once, within 2 minutes.
+LPairText:Click Pair, then on the other computer run "%0" and give the code below as the password. It works once, within 2 minutes.
+LPairAny:Click Pair, then on the other computer run "ssh-copy-id user@address" and give the code below as the password. It works once, within 2 minutes.
 LPairOff:No code: click Pair to get one
 LPairCode:%0   (%1 s left)
 LPair:Pair

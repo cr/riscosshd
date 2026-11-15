@@ -52,12 +52,13 @@ The SSH Keys window has five sections:
       without one, copy its ~/.ssh/id_ed25519.pub here some other way and
       drop it on the window.
   ssh-copy-id Pairing  click Pair for a one-time code, then on the
-      other machine run  ssh-copy-id riscos@<address>  and type the code
-      when it asks for a password.  The code works for one login within
-      2 minutes (Stop ends it sooner, as do three wrong codes), and that
-      login can only add keys: no commands, no shell, no SFTP.  Without
-      pairing SSHd accepts no passwords at all.  With a key that is
-      already authorized, ssh-copy-id adds more keys without pairing.
+      other machine run the ssh-copy-id command the section shows and
+      type the code when it asks for a password.  The code works for one
+      login within 2 minutes (Stop ends it sooner, as do three wrong
+      codes), and that login can only add keys: no commands, no shell, no
+      SFTP.  Without pairing SSHd accepts no passwords at all.  With a key
+      that is already authorized, ssh-copy-id adds more keys without
+      pairing.
   Authorized Keys  the keys that may log in, by fingerprint and comment,
       each with a Delete button.  A key that is already listed is not
       added twice.
