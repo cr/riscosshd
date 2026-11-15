@@ -125,7 +125,7 @@ machine, add to `~/.ssh/config`:
 
 ### If it does not start
 
-The log window (SELECT on the icon) says why; the same lines go to
+The log window (ADJUST on the icon) says why; the same lines go to
 `Choices:SSHd.log`.  The usual causes: CryptRandom not installed, port 22
 already taken by another server (or a second copy of SSHd, which reports
 itself in a box and exits), or a network stack that is not up yet.  A

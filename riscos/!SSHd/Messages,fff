@@ -58,7 +58,7 @@ ILicences:Licences
 IPurposeV:SSH server for RISC OS
 
 # Interactive help
-HIcon:This is the SSH server. Click SELECT to open its log, ADJUST for the authorized keys, MENU for the settings and more.
+HIcon:This is the SSH server. Click SELECT to open the SSH Keys window, ADJUST for its log, MENU for the settings and more.
 HLog:The server's log, newest line at the bottom; also written to the file log in SSHd's Choices directory.
 HInfo:Information about this copy of SSHd.
 HInput:Type or paste a public key here (the content of an id_*.pub file), then press RETURN or click Add.

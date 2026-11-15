@@ -27,9 +27,9 @@ Quick start
 
 Desktop
 -------
-  Select  opens the log window (follows new lines, like tail -f); Menu
+  Select  opens the SSH Keys window
+  Adjust  opens the log window (follows new lines, like tail -f); Menu
           over it opens the log file in your editor or clears the window
-  Adjust  opens the SSH Keys window
   Menu    Info / Help... / Log window / Verbose (tick: more log detail) /
           SSH Keys... / Choices... (opens the settings file in your
           editor) / Quit (asks first while sessions are open)

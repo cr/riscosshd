@@ -1040,9 +1040,9 @@ static void mouse_click(int *b)
         if (buttons & 2)
             open_menu(x);
         else if (buttons & 4)
-            wimp_open_log_window();        /* Select */
+            wimp_open_keys_window();       /* Select */
         else if (buttons & 1)
-            wimp_open_keys_window();       /* Adjust */
+            wimp_open_log_window();        /* Adjust */
     } else if (win == log_win && (buttons & 2)) {
         menu_x = x - 64;
         menu_y = b[1];
