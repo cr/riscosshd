@@ -4,6 +4,15 @@ Release notes for each package version.  A `v<version>` tag publishes the
 section of the same version as its GitHub release notes; the build fails
 when that section is missing.
 
+## 0.3.1-1 - 2026-11-15
+
+- Select on the icon-bar icon opens the SSH Keys window, Adjust the log.
+- The log window wraps lines at its width, with the time in bold, and
+  its toggle-size icon makes it as tall as the screen.
+- The pairing section shows the ssh-copy-id command to run, with this
+  machine's user, address and port.
+- "Authorized" is spelt with a z, as in OpenSSH's authorized_keys.
+
 ## 0.3.0-1 - 2026-11-14
 
 - `ssh-copy-id` works.  SSHd recognises its install command and adds the
