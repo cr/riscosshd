@@ -52,6 +52,8 @@
 #define Message_DataLoadAck 4
 #define Message_HelpRequest 0x502
 #define Message_HelpReply   0x503
+#define Message_ModeChange  0x400c1
+#define Message_FontChanged 0x400cf
 /* Events never wanted: pointer leaving/entering (4, 5), caret lost/gained
  * (11, 12), message acknowledgements (19). */
 #define POLL_MASK ((1 << 4) | (1 << 5) | (1 << 11) | (1 << 12) | (1 << 19))
@@ -90,7 +92,6 @@ enum { II_NAME = 0, II_PURPOSE, II_AUTHOR, II_VERSION, II_WEBSITE, II_COMPILER, 
 
 #define LOG_LINE_H 40
 #define LOG_MIN_LINES 12          /* log window height before it fills */
-#define LOG_WIDTH ((LOG_COLS - LOG_TIME_AT) * 16)   /* a full line in the desktop font */
 
 /* --- Wimp data structures (as the SWIs expect them) --------------------- */
 
@@ -412,48 +413,250 @@ static void keys_delete_row(int i)
 
 /* --- log window ---------------------------------------------------------- */
 
-static void log_redraw_rows(int from, int to)
+/* Each log line is drawn as its time, in bold where the desktop font has
+ * a bold version, then its text, wrapped at the window's width into rows
+ * of LOG_LINE_H; continuation rows start under the text, not the time.
+ * lay[i] holds where log line i's rows start, row0[i] its first row. */
+#define LOG_TEXT_AT (LOG_TIME_AT + 9)   /* "YYYY-MM-DD HH:MM:SS " */
+#define LOG_MAX_SEGS 24                 /* rows per line; more are cut */
+#define LOG_MIN_PX 200                  /* narrowest log window, in pixels */
+#define LOG_PAD 8                       /* left and right margins */
+
+static struct { unsigned char nseg, start[LOG_MAX_SEGS]; } lay[LOG_LINES];
+static int row0[LOG_LINES + 1];
+static int laid_n;                        /* lines in lay[] */
+static unsigned laid_serial;              /* log_serial() when they were laid out */
+static int laid_width = -1;               /* text width they were wrapped at */
+static int bold_font;                     /* font handle, 0: none */
+static int time_col;                      /* x of the text, after the time */
+
+static int text_width(const char *s, int n)
 {
-    _swix(Wimp_ForceRedraw, _INR(0, 4), log_win, 0, -((to + 1) * LOG_LINE_H), LOG_WIDTH,
-          -(from * LOG_LINE_H));
+    int w = 0;
+    if (n <= 0)
+        return 0;
+    _swix(Wimp_TextOp, _INR(0, 2) | _OUT(0), 1, s, n, &w);
+    return w;
 }
 
-/* A new line was logged: grow the window while the ring fills, scroll to
- * the end if the window was showing the end (the "tail -f" behaviour;
- * someone reading older lines is not dragged down), and redraw what
- * changed.  With force the window scrolls to the end regardless. */
-static void log_update(int force)
+/* The desktop font's bold version for the times, and where the text
+ * starts after them.  Again after a mode or desktop font change. */
+static void log_fonts(void)
 {
-    static int extent_rows;               /* rows the extent was last set for */
-    int state[9], n = log_count(), rows = n < LOG_MIN_LINES ? LOG_MIN_LINES : n;
+    int desk = 0, xs = 0, ys = 0, w = 0, mp = 0, h = 0;
+    char name[128], bold[140], *dot;
+    if (bold_font)
+        _swix(Font_LoseFont, _IN(0), bold_font);
+    bold_font = 0;
+    if (!_swix(Wimp_ReadSysInfo, _IN(0) | _OUT(0), 8, &desk) && desk &&
+        !_swix(Font_ReadDefn, _INR(0, 1) | _IN(3) | _OUTR(2, 3), desk, name, 0, &xs, &ys)) {
+        size_t n = 0;
+        while (n < sizeof name - 1 && (unsigned char)name[n] > ' ' && name[n] != '\\')
+            n++;
+        name[n] = '\0';
+        /* Homerton.Medium -> Homerton.Bold; else Name.Bold */
+        dot = strrchr(name, '.');
+        snprintf(bold, sizeof bold, "%.*s.Bold", dot ? (int)(dot - name) : (int)n, name);
+        if (_swix(Font_FindFont, _INR(1, 5) | _OUT(0), bold, xs, ys, 0, 0, &h) || !h) {
+            snprintf(bold, sizeof bold, "%s.Bold", name);
+            if (_swix(Font_FindFont, _INR(1, 5) | _OUT(0), bold, xs, ys, 0, 0, &h))
+                h = 0;
+        }
+        bold_font = h;
+    }
+    w = text_width("00:00:00", 8);
+    if (bold_font && !_swix(Font_ScanString, _INR(0, 4) | _IN(7) | _OUT(3), bold_font, "00:00:00",
+                            (1 << 7) | (1 << 8), 0x7fffffff, 0x7fffffff, 8, &mp) &&
+        mp / 400 > w)
+        w = mp / 400;                       /* 400 millipoints to an OS unit */
+    time_col = LOG_PAD + w + text_width("  ", 2);
+}
+
+/* Split log line i into rows of at most width: at spaces, or within a
+ * word too long for a row. */
+static void log_wrap(int i, int width)
+{
+    const char *line = log_line(i);
+    int p = LOG_TEXT_AT, len = (int)strlen(line), k = 0;
+    if (len < p)
+        p = len;
+    while (k < LOG_MAX_SEGS) {
+        int end = len, q;
+        lay[i].start[k++] = (unsigned char)p;
+        if (text_width(line + p, len - p) <= width)
+            break;
+        /* the last space that still fits */
+        end = -1;
+        for (q = p + 1; q < len; q++)
+            if (line[q] == ' ') {
+                if (text_width(line + p, q - p) > width)
+                    break;
+                end = q;
+            }
+        if (end < 0) {                      /* no space: as many characters as fit */
+            end = p + 1;
+            while (end < len && text_width(line + p, end + 1 - p) <= width)
+                end++;
+        }
+        p = end;
+        while (p < len && line[p] == ' ')
+            p++;
+        if (p >= len)
+            break;
+    }
+    lay[i].nseg = (unsigned char)k;
+}
+
+static int log_text_width(int vis_w)
+{
+    int w = vis_w - time_col - LOG_PAD;
+    return w < 64 ? 64 : w;
+}
+
+static int log_rows(void)
+{
+    return row0[laid_n];
+}
+
+/* Bring lay[] up to the lines held: new lines are laid out, dropped ones
+ * forgotten, everything again when the width changed.  Returns the first
+ * row to redraw (0 when all moved), or -1 when nothing changed. */
+static int log_layout(int vis_w)
+{
+    int n = log_count(), width = log_text_width(vis_w), from, redraw;
+    unsigned fresh = log_serial() - laid_serial;
+    int drop = laid_n + (int)fresh - n;      /* oldest lines gone from the ring */
+    if (width != laid_width || drop < 0 || drop > laid_n) {
+        laid_n = 0;
+        drop = 0;
+        laid_width = width;
+        redraw = 0;
+    } else if (drop > 0) {
+        memmove(&lay[0], &lay[drop], sizeof lay[0] * (size_t)(laid_n - drop));
+        laid_n -= drop;
+        redraw = 0;
+    } else if (laid_n == n) {
+        return -1;
+    } else {
+        redraw = row0[laid_n];
+    }
+    for (from = laid_n; from < n; from++)
+        log_wrap(from, width);
+    laid_n = n;
+    laid_serial = log_serial();
+    row0[0] = 0;
+    for (int i = 0; i < n; i++)
+        row0[i + 1] = row0[i] + lay[i].nseg;
+    return redraw;
+}
+
+/* Size the extent for the rows: a screen wide, so the window can be
+ * widened, and as high as the rows, or the window when that is taller
+ * (the Wimp keeps the extent at least the visible area), so there is
+ * nothing to scroll to below the last line. */
+static void log_extent(int vis_h)
+{
+    static int ext_w, ext_h;
+    int sw, sh, h;
+    screen_size(&sw, &sh);
+    h = log_rows() * LOG_LINE_H;
+    if (h < vis_h)
+        h = vis_h;
+    if (h != ext_h || sw != ext_w) {
+        int ext[4] = { 0, -h, sw, 0 };
+        _swix(Wimp_SetExtent, _INR(0, 1), log_win, ext);
+        ext_w = sw;
+        ext_h = h;
+    }
+}
+
+/* Scroll offset that shows the last row at the bottom. */
+static int log_bottom(int vis_h)
+{
+    int h = log_rows() * LOG_LINE_H;
+    return h > vis_h ? -(h - vis_h) : 0;
+}
+
+/* Lay out what changed and redraw it; scroll to the end if the window was
+ * showing the end (the "tail -f" behaviour: someone reading older lines
+ * is not dragged down), or with force regardless.  relayout: the font or
+ * mode changed, so every line is measured again. */
+static void log_refresh(int force, int relayout)
+{
+    int state[9], at_end, from;
     if (log_win < 0)
         return;
-    if (rows != extent_rows) {             /* changes only while the ring fills */
-        int ext[4] = { 0, -(rows * LOG_LINE_H), LOG_WIDTH, 0 };
-        _swix(Wimp_SetExtent, _INR(0, 1), log_win, ext);
-        extent_rows = rows;
-    }
     state[0] = log_win;
-    if (_swix(Wimp_GetWindowState, _IN(1), state) || !(state[8] & (1 << 16)))
+    if (_swix(Wimp_GetWindowState, _IN(1), state))
+        return;
+    at_end = state[6] <= log_bottom(state[4] - state[2]);
+    if (relayout)
+        laid_width = -1;
+    from = log_layout(state[3] - state[1]);
+    log_extent(state[4] - state[2]);
+    if (!(state[8] & (1 << 16)))
         return;                            /* closed: drawn when opened */
-    {
-        int vis_h = state[4] - state[2];
-        int bottom = rows * LOG_LINE_H > vis_h ? -(rows * LOG_LINE_H - vis_h) : 0;
-        /* before this line was added the end was one line higher */
-        if (force || state[6] <= bottom + LOG_LINE_H) {
-            state[6] = bottom;
-            _swix(Wimp_OpenWindow, _IN(1), state);
-        }
+    if (force || at_end) {
+        state[6] = log_bottom(state[4] - state[2]);
+        state[5] = 0;
+        _swix(Wimp_OpenWindow, _IN(1), state);
     }
-    if (n < LOG_LINES)
-        log_redraw_rows(n - 1, n - 1);     /* only the new row is new */
-    else
-        log_redraw_rows(0, LOG_LINES - 1); /* every row moved up by one */
+    if (from >= 0)
+        _swix(Wimp_ForceRedraw, _INR(0, 4), log_win, 0, -0x10000000, 0x10000000, -(from * LOG_LINE_H));
+}
+
+static void log_update(int force)
+{
+    log_refresh(force, 0);
 }
 
 static void log_notify(void)
 {
     log_update(0);
+}
+
+/* Open_Window_Request for the log window: no narrower than LOG_MIN_PX, no
+ * sideways scrolling, and the toggle-size icon makes it full height only,
+ * keeping the width the user chose.  A new width wraps the lines again. */
+static void log_open_request(int *block)
+{
+    int state[9], vars[] = { 4, -1 }, eig = 1, min_w, at_end, relaid;
+    _swix(OS_ReadVduVariables, _INR(0, 1), vars, &eig);
+    min_w = LOG_MIN_PX << eig;
+    state[0] = log_win;
+    if (_swix(Wimp_GetWindowState, _IN(1), state)) {
+        _swix(Wimp_OpenWindow, _IN(1), block);
+        return;
+    }
+    /* flags bit 19: this request is a toggle-size click; bit 18: the
+     * window is at full size already, so this click restores it.  The
+     * extent is only as high as the lines, so the Wimp's full size can
+     * be short: full height is the screen above the icon bar, below the
+     * title bar. */
+    if ((state[8] & (1 << 19)) && !(state[8] & (1 << 18))) {
+        int sw, sh;
+        screen_size(&sw, &sh);
+        block[1] = state[1];
+        block[3] = state[3];
+        block[2] = 132;
+        block[4] = sh - 44;
+    }
+    if (block[3] - block[1] < min_w)
+        block[3] = block[1] + min_w;
+    block[5] = 0;
+    at_end = !(state[8] & (1 << 16)) || state[6] <= log_bottom(state[4] - state[2]);
+    relaid = log_text_width(block[3] - block[1]) != laid_width;
+    if (relaid)
+        log_layout(block[3] - block[1]);
+    /* room for both the old and the new size while it changes */
+    log_extent(block[4] - block[2] > state[4] - state[2] ? block[4] - block[2] : state[4] - state[2]);
+    if (relaid && at_end)
+        block[6] = log_bottom(block[4] - block[2]);
+    _swix(Wimp_OpenWindow, _IN(1), block);
+    if (!_swix(Wimp_GetWindowState, _IN(1), state))   /* as the Wimp opened it */
+        log_extent(state[4] - state[2]);
+    if (relaid)
+        _swix(Wimp_ForceRedraw, _INR(0, 4), log_win, 0, -0x10000000, 0x10000000, 0);
 }
 
 /* The log window's title: port and logged-in sessions, as a status line. */
@@ -471,11 +674,24 @@ static void log_title_update(void)
     _swix(Wimp_ForceRedraw, _INR(0, 2), log_win, TASK_MAGIC, 3);   /* title bar only */
 }
 
+/* The log line holding row r, by binary search of row0[]. */
+static int log_line_of_row(int r)
+{
+    int lo = 0, hi = laid_n - 1;
+    while (lo < hi) {
+        int mid = (lo + hi + 1) / 2;
+        if (row0[mid] <= r)
+            lo = mid;
+        else
+            hi = mid - 1;
+    }
+    return lo;
+}
+
 static void redraw_log(int *block)
 {
-    int more = 0, n = log_count();
+    int more = 0, rows = log_rows();
     _swix(Wimp_RedrawWindow, _IN(1) | _OUT(0), block, &more);
-    _swix(Wimp_TextOp, _INR(0, 2), 0, 0x00000000, 0xFFFFFF00);
     while (more) {
         /* block: 1..4 visible area, 5,6 scroll, 7..10 clip (screen coords).
          * Work-area (x, y) maps to screen (x - scx + vis_x0, y - scy + vis_y1). */
@@ -486,15 +702,36 @@ static void redraw_log(int *block)
         int last = (-clip_y0) / LOG_LINE_H + 1;
         if (first < 0)
             first = 0;
-        if (last > n - 1)
-            last = n - 1;
-        for (int i = first; i <= last; i++) {
-            /* reason 2 | bit 30: baseline at Y, screen coordinates.  Row i
-             * occupies work-area y in (-(i+1)*LH, -i*LH]; baseline 10 up from
-             * the bottom of the row. */
-            int wy = -((i + 1) * LOG_LINE_H) + 10;
-            _swix(Wimp_TextOp, _INR(0, 5), 2 | (1u << 30), log_line(i) + LOG_TIME_AT, -1, -1,
-                  8 - scx + vis_x0, wy - scy + vis_y1);
+        if (last > rows - 1)
+            last = rows - 1;
+        for (int r = first; r <= last; r++) {
+            int i = log_line_of_row(r), seg = r - row0[i];
+            const char *line = log_line(i);
+            int p = lay[i].start[seg];
+            int q = seg + 1 < lay[i].nseg ? lay[i].start[seg + 1] : (int)strlen(line);
+            char text[LOG_COLS];
+            /* baseline 10 up from the bottom of the row, screen coordinates */
+            int sx = -scx + vis_x0, sy = -((r + 1) * LOG_LINE_H) + 10 - scy + vis_y1;
+            while (q > p && line[q - 1] == ' ')
+                q--;
+            if (seg == 0) {
+                if (bold_font) {
+                    /* bits 4, 7, 8: OS units, length in R7, font in R0 */
+                    _swix(ColourTrans_SetFontColours, _INR(0, 3), bold_font, 0xFFFFFF00, 0x00000000, 14);
+                    _swix(Font_Paint, _INR(0, 4) | _IN(7), bold_font, line + LOG_TIME_AT,
+                          (1 << 4) | (1 << 7) | (1 << 8), sx + LOG_PAD, sy, 8);
+                } else {
+                    memcpy(text, line + LOG_TIME_AT, 8);
+                    text[8] = '\0';
+                    _swix(Wimp_TextOp, _INR(0, 2), 0, 0x00000000, 0xFFFFFF00);
+                    _swix(Wimp_TextOp, _INR(0, 5), 2 | (1u << 30), text, -1, -1, sx + LOG_PAD, sy);
+                }
+            }
+            memcpy(text, line + p, (size_t)(q - p));
+            text[q - p] = '\0';
+            /* reason 2 | bit 30: baseline at y */
+            _swix(Wimp_TextOp, _INR(0, 2), 0, 0x00000000, 0xFFFFFF00);
+            _swix(Wimp_TextOp, _INR(0, 5), 2 | (1u << 30), text, -1, -1, sx + time_col, sy);
         }
         _swix(Wimp_GetRectangle, _IN(1) | _OUT(0), block, &more);
     }
@@ -816,8 +1053,8 @@ static void create_windows(void)
                                   ICON_BUTTON(3) | ICON_FG(7) | ICON_BG(1);
 
     /* Log window: scrolling text, drawn in redraw_log(). */
-    window_def(&w, 1000, 480, WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST | WIN_HSCROLL,
-               0, -(LOG_MIN_LINES * LOG_LINE_H), LOG_WIDTH, log_title, sizeof log_title);
+    window_def(&w, 1000, 480, WIN_TOGGLE | WIN_VSCROLL | WIN_ADJUST,
+               0, -(LOG_MIN_LINES * LOG_LINE_H), 1000, log_title, sizeof log_title);
     w.work_flags = ICON_BUTTON(3);     /* clicks reported: Menu opens the log menu */
     log_win = create_window(&w);
 
@@ -909,7 +1146,8 @@ int wimp_init(void)
 {
     static int messages[] = { Message_DataSave, Message_DataLoad, Message_HelpRequest,
                               Message_TaskWindow_Output, Message_TaskWindow_Ego,
-                              Message_TaskWindow_Morio, Message_TaskCloseDown, 0 };
+                              Message_TaskWindow_Morio, Message_TaskCloseDown,
+                              Message_ModeChange, Message_FontChanged, 0 };
     _kernel_oserror *e = _swix(Wimp_Initialise, _INR(0, 3) | _OUT(1), 350, TASK_MAGIC, "SSHd",
                                messages, &task_handle);
     if (e) {
@@ -925,6 +1163,7 @@ int wimp_init(void)
         return -1;
     }
     log_set_notify(log_notify);
+    log_fonts();
     log_update(0);              /* size the window for the lines logged so far */
     log_title_update();
     menu.item[MENU_INFO].submenu = info_win;   /* Style Guide: Info is a submenu box */
@@ -987,7 +1226,7 @@ static void log_menu_selection(int *items)
     } else if (items[0] == LMENU_CLEAR) {
         log_clear();
         log_update(1);
-        _swix(Wimp_ForceRedraw, _INR(0, 4), log_win, 0, -(LOG_LINES * LOG_LINE_H), LOG_WIDTH, 0);
+        _swix(Wimp_ForceRedraw, _INR(0, 4), log_win, 0, -0x10000000, 0x10000000, 0);
     }
 }
 
@@ -1031,6 +1270,14 @@ static void menu_selection(int *items)
     /* Adjust keeps the menu open. */
     if (_swix(Wimp_GetPointerInfo, _IN(1), ptr) == NULL && (ptr[2] & 1))
         show_menu(current_menu);
+}
+
+static void open_window_request(int *block)
+{
+    if (block[0] == log_win)
+        log_open_request(block);
+    else
+        _swix(Wimp_OpenWindow, _IN(1), block);
 }
 
 static void mouse_click(int *b)
@@ -1146,6 +1393,11 @@ static void user_message(int reason, int *b)
         help_request(b);
     } else if (action == Message_Quit) {
         running = 0;
+    } else if (action == Message_ModeChange || action == Message_FontChanged) {
+        log_fonts();                       /* the desktop font may be another */
+        log_refresh(0, 1);
+        if (log_win >= 0)
+            _swix(Wimp_ForceRedraw, _INR(0, 4), log_win, 0, -0x10000000, 0x10000000, 0);
     } else if (action == Message_DataSave && b[5] == keys_win) {   /* a drag from an application */
         static const char scrap[] = "<Wimp$Scrap>";
         b[3] = b[2];                       /* your_ref = my_ref */
@@ -1193,7 +1445,7 @@ static void dispatch(int reason, int *block)
         pair_update();
         break;
     case 1:  redraw_log(block); break;
-    case 2:  _swix(Wimp_OpenWindow, _IN(1), block); break;
+    case 2:  open_window_request(block); break;
     case 3:  _swix(Wimp_CloseWindow, _IN(1), block); break;
     case 6:  mouse_click(block); break;
     case 8:  key_pressed(block); break;
@@ -1220,6 +1472,9 @@ void wimp_run(void)
 
 void wimp_shutdown(void)
 {
+    if (bold_font)
+        _swix(Font_LoseFont, _IN(0), bold_font);
+    bold_font = 0;
     msgs_close();
     if (task_handle)
         _swix(Wimp_CloseDown, _INR(0, 1), task_handle, TASK_MAGIC);

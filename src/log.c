@@ -15,10 +15,16 @@ static size_t log_file_limit;
 /* The last LOG_LINES lines, oldest at ring[first]. */
 static char ring[LOG_LINES][LOG_COLS];
 static int first, count;
+static unsigned serial;                   /* lines logged since start */
 
 int log_count(void)
 {
     return count;
+}
+
+unsigned log_serial(void)
+{
+    return serial;
 }
 
 const char *log_line(int i)
@@ -108,6 +114,7 @@ static void vlog(const char *fmt, va_list ap)
     time_t now = time(NULL);
     struct tm *tm = localtime(&now);
     size_t n;
+    serial++;
     if (count < LOG_LINES)
         line = ring[(first + count++) % LOG_LINES];
     else {

@@ -19,6 +19,9 @@ void log_debug(const char *fmt, ...) PRINTF_LIKE(1, 2);   /* only when log_verbo
 /* Lines held (up to LOG_LINES) and line i of them, 0 the oldest. */
 int log_count(void);
 const char *log_line(int i);
+/* Lines logged since the start, cleared or not: how many are new since
+ * an earlier call, even after the oldest were dropped. */
+unsigned log_serial(void);
 /* Forget the lines held (the log file keeps them). */
 void log_clear(void);
 /* The log file being written, or NULL. */
