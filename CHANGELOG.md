@@ -4,6 +4,11 @@ Release notes for each package version.  A `v<version>` tag publishes the
 section of the same version as its GitHub release notes; the build fails
 when that section is missing.
 
+## 0.3.1-2 - 2026-11-16
+
+- Packaging only: the maintainer address is cr@23bit.net, and each
+  release publishes a pointer file for RISC OS Open's PackMan repository.
+
 ## 0.3.1-1 - 2026-11-15
 
 - Select on the icon-bar icon opens the SSH Keys window, Adjust the log.

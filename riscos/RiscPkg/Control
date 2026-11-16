@@ -3,7 +3,7 @@ Priority: Optional
 Section: Network
 Maintainer: Christiane Ruetten <cr@23bit.net>
 Standards-Version: 0.6.0
-Version: 0.3.1-1
+Version: 0.3.1-2
 Environment: arm
 Licence: Free
 Description: SSH and SFTP server for remote access
