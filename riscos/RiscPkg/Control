@@ -1,7 +1,7 @@
 Package: SSHd
 Priority: Optional
 Section: Network
-Maintainer: Christiane Ruetten <cr@users.noreply.github.com>
+Maintainer: Christiane Ruetten <cr@23bit.net>
 Standards-Version: 0.6.0
 Version: 0.3.1-1
 Environment: arm
