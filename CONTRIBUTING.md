@@ -43,7 +43,11 @@ CI does, with warnings as errors.
 3. Commit, tag `v<version>`, push the commit and then the tag.
 
 The tag's build publishes the PackMan index and a GitHub release whose
-notes are that changelog section.  If the build fails nothing is
+notes are that changelog section.  It also publishes
+https://cr.github.io/riscosshd/pkg/pointer, the pointer file RISC OS Open
+fetches nightly to carry the newest package in its own repository ("RISC
+OS Packaging Guide", Uploading, on the ROOL wiki); a new release updates
+it, and ROOL archives the versions it replaces.  If the build fails nothing is
 published: delete the tag (`git push --delete origin v<version>`), fix,
 and tag again.  A repository ruleset stops a `v*` tag from being moved
 to another commit once pushed; deleting one is still possible.

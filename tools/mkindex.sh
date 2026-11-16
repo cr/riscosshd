@@ -8,14 +8,23 @@
 # inside it plus Size, MD5Sum and URL, as PackMan expects), copies the
 # zips to <site dir>/packages/ and writes an index.html for people.  Users
 # add <base url>/pkg/index under Sources in PackMan.
+#
+# Also writes <site dir>/pkg/pointer, the "pointer file" RISC OS Open
+# reads nightly to carry the packages in its own PackMan repository: each
+# zip's URL without the scheme and host ("RISC OS Packaging Guide",
+# Uploading, on the ROOL wiki).
 set -e
 site="$1"; base="$2"; shift 2
 [ -n "$site" ] && [ -n "$base" ] && [ $# -gt 0 ] || {
     echo "usage: $0 <site dir> <base url> <zip>..." >&2; exit 1; }
 mkdir -p "$site/pkg" "$site/packages"
 index="$site/pkg/index"
+pointer="$site/pkg/pointer"
 html="$site/index.html"
+# the path part of the base URL: https://host/a/b -> /a/b
+path=$(printf '%s\n' "$base" | sed -e 's|^[a-zA-Z][a-zA-Z0-9+.-]*://[^/]*||' -e 's|/*$||')
 : > "$index"
+: > "$pointer"
 {
     echo "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>RISC OS packages</title>"
     echo "<style>body{font-family:sans-serif;max-width:40em;margin:2em auto;padding:0 1em}code{background:#eee;padding:0 .2em}</style></head><body>"
@@ -40,10 +49,11 @@ for zip in "$@"; do
         echo "URL: $base/packages/$name"
         echo
     } >> "$index"
+    echo "$path/packages/$name" >> "$pointer"
     pkg=$(printf '%s\n' "$control" | sed -n 's/^Package: *//p')
     ver=$(printf '%s\n' "$control" | sed -n 's/^Version: *//p')
     desc=$(printf '%s\n' "$control" | sed -n 's/^Description: *//p')
     echo "<li><a href=\"packages/$name\">$pkg $ver</a>: $desc</li>" >> "$html"
 done
 echo "</ul></body></html>" >> "$html"
-echo "index: $index ($# package(s))"
+echo "index: $index, pointer: $pointer ($# package(s))"

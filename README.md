@@ -216,8 +216,9 @@ release and the PackMan index on GitHub Pages; "Releasing" in
 
 ## Roadmap
 
-1. Get the package into the riscos.info autobuilder index, so it needs
-   no extra source in PackMan.
+1. Get the package into RISC OS Open's PackMan repository, so it needs
+   no extra source in PackMan.  Each release publishes the pointer file
+   ROOL reads for that (see "Releasing" in `CONTRIBUTING.md`).
 2. Window-size and colour handling for the TaskWindow session.
 
 ## Licence
